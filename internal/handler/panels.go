@@ -253,6 +253,18 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), monitorKeyboard(tgGroupID))
 }
 
+func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	text := strings.Join([]string{
+		"投票管理",
+		"创建格式：问题|选项1,选项2,...",
+		"示例：今天开会吗？|开,不开,待定",
+	}, "\n")
+	h.render(bot, target, text, pollKeyboard(tgGroupID))
+}
+
 func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

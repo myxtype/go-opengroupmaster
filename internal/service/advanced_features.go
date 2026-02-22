@@ -137,6 +137,7 @@ func (s *Service) SetUserLanguage(tgUserID int64, lang string) error {
 func (s *Service) GetUserLanguage(tgUserID int64) (string, error) {
 	return s.repo.GetUserLanguage(tgUserID)
 }
+
 func (s *Service) CreateInviteLinkByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, expireHours, memberLimit int) (string, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -317,6 +318,7 @@ func (s *Service) ListMonitorKeywordsByTGGroupID(tgGroupID int64) ([]string, err
 	}
 	return cfg.Keywords, nil
 }
+
 func (s *Service) notifyKeywordMonitor(bot *tgbotapi.BotAPI, group *model.Group, msg *tgbotapi.Message) error {
 	if msg == nil || msg.Text == "" {
 		return nil
@@ -345,8 +347,8 @@ func (s *Service) notifyKeywordMonitor(bot *tgbotapi.BotAPI, group *model.Group,
 	if err != nil {
 		return err
 	}
-	notice := fmt.Sprintf("关键词监控命中\\n群：%s(%d)\\n关键词：%s\\n用户：@%s\\n消息：%s",
-		group.Title, group.TGGroupID, strings.Join(matched, ","), msg.From.UserName, msg.Text)
+	notice := fmt.Sprintf("关键词监控命中\n群：%s(%d)\n关键词：%s\n用户：@%s\n消息：%s",
+		group.Title, group.TGGroupID, strings.Join(matched, ","), msg.From.String(), msg.Text)
 	for _, adminID := range adminIDs {
 		_, _ = bot.Send(tgbotapi.NewMessage(adminID, notice))
 	}

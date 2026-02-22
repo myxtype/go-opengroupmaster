@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 )
+
+var urlPattern = regexp.MustCompile(`(?i)\b(?:https?://|www\.|t\.me/|telegram\.me/)[^\s]+`)
 
 func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
 	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
@@ -102,28 +106,42 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	if err != nil {
 		return false, err
 	}
-	if antiSpam && containsLink(msg.Text) {
-		_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 检测到链接，消息已删除", msg.From.UserName)))
-		_ = s.repo.CreateLog(group.ID, "anti_spam_delete", 0, 0)
-		return true, nil
+	if antiSpam {
+		cfg, err := s.getAntiSpamConfig(group.ID)
+		if err != nil {
+			return false, err
+		}
+		blocked, _ := containsBlockedLink(msg.Text, cfg)
+		if blocked {
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 检测到可疑链接，消息已删除", msg.From.UserName)))
+			_ = s.repo.CreateLog(group.ID, "anti_spam_delete", 0, 0)
+			return true, nil
+		}
 	}
 
 	antiFlood, err := s.IsFeatureEnabled(group.ID, featureAntiFlood, false)
 	if err != nil {
 		return false, err
 	}
-	if antiFlood && s.isFlooding(group.TGGroupID, msg.From.ID) {
-		_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-		restrict := tgbotapi.RestrictChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-			UntilDate:        time.Now().Add(60 * time.Second).Unix(),
-			Permissions:      &tgbotapi.ChatPermissions{},
+	if antiFlood {
+		cfg, err := s.getAntiFloodConfig(group.ID)
+		if err != nil {
+			return false, err
 		}
-		_, _ = bot.Request(restrict)
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 触发反刷屏，已禁言 60 秒", msg.From.UserName)))
-		_ = s.repo.CreateLog(group.ID, "anti_flood_restrict", 0, 0)
-		return true, nil
+		flooding, reason := s.isFlooding(group.TGGroupID, msg.From.ID, msg.Text, cfg)
+		if flooding {
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+			restrict := tgbotapi.RestrictChatMemberConfig{
+				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+				UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
+				Permissions:      &tgbotapi.ChatPermissions{},
+			}
+			_, _ = bot.Request(restrict)
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 触发反刷屏（%s），已禁言 %d 秒", msg.From.UserName, reason, cfg.MuteSec)))
+			_ = s.repo.CreateLog(group.ID, "anti_flood_restrict_"+reason, 0, 0)
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -153,27 +171,94 @@ func (s *Service) applyNewbieLimit(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, 
 	return true, nil
 }
 
-func (s *Service) isFlooding(tgGroupID, tgUserID int64) bool {
+func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFloodConfig) (bool, string) {
 	now := time.Now().Unix()
 	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	items := s.flood[key]
-	valid := make([]int64, 0, len(items)+1)
-	for _, ts := range items {
-		if now-ts <= 10 {
-			valid = append(valid, ts)
+	valid := make([]floodEvent, 0, len(items)+1)
+	for _, item := range items {
+		if now-item.Timestamp <= int64(max(cfg.WindowSec, cfg.RepeatWindow)) {
+			valid = append(valid, item)
 		}
 	}
-	valid = append(valid, now)
+	norm := normalizeSpamText(text)
+	valid = append(valid, floodEvent{Timestamp: now, Text: norm})
 	s.flood[key] = valid
-	return len(valid) > 5
+
+	recent := 0
+	for _, item := range valid {
+		if now-item.Timestamp <= int64(cfg.WindowSec) {
+			recent++
+		}
+	}
+	if recent > cfg.MaxMessages {
+		return true, "high_freq"
+	}
+
+	if norm != "" {
+		repeat := 0
+		for _, item := range valid {
+			if now-item.Timestamp <= int64(cfg.RepeatWindow) && item.Text == norm {
+				repeat++
+			}
+		}
+		if repeat >= cfg.RepeatThreshold {
+			return true, "repeat_text"
+		}
+	}
+	return false, ""
 }
 
 func containsLink(text string) bool {
-	l := strings.ToLower(text)
-	return strings.Contains(l, "http://") ||
-		strings.Contains(l, "https://") ||
-		strings.Contains(l, "t.me/") ||
-		strings.Contains(l, "www.")
+	return urlPattern.MatchString(strings.ToLower(text))
+}
+
+func containsBlockedLink(text string, cfg antiSpamConfig) (bool, string) {
+	matches := urlPattern.FindAllString(text, -1)
+	for _, raw := range matches {
+		domain := extractDomain(raw)
+		if domain == "" {
+			return true, raw
+		}
+		if !domainAllowed(cfg.WhitelistDomains, domain) {
+			return true, raw
+		}
+	}
+	return false, ""
+}
+
+func extractDomain(rawURL string) string {
+	s := rawURL
+	if strings.HasPrefix(strings.ToLower(s), "www.") || strings.HasPrefix(strings.ToLower(s), "t.me/") || strings.HasPrefix(strings.ToLower(s), "telegram.me/") {
+		s = "https://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	host = strings.TrimPrefix(host, "www.")
+	return host
+}
+
+func normalizeSpamText(text string) string {
+	return strings.ToLower(strings.Join(strings.Fields(text), " "))
+}
+
+func domainAllowed(whitelist []string, domain string) bool {
+	for _, item := range whitelist {
+		if strings.EqualFold(strings.TrimSpace(item), domain) {
+			return true
+		}
+	}
+	return false
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

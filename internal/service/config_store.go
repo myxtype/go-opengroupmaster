@@ -36,6 +36,60 @@ func (s *Service) saveWelcomeText(groupID uint, text string) error {
 	return s.repo.UpsertFeatureConfig(groupID, featureWelcome, string(b))
 }
 
+func (s *Service) getAntiSpamConfig(groupID uint) (antiSpamConfig, error) {
+	cfg := antiSpamConfig{WhitelistDomains: []string{}}
+	setting, err := s.repo.GetGroupSetting(groupID, featureAntiSpam)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return cfg, nil
+		}
+		return cfg, err
+	}
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	}
+	if cfg.WhitelistDomains == nil {
+		cfg.WhitelistDomains = []string{}
+	}
+	return cfg, nil
+}
+
+func (s *Service) getAntiFloodConfig(groupID uint) (antiFloodConfig, error) {
+	cfg := antiFloodConfig{
+		WindowSec:       10,
+		MaxMessages:     5,
+		MuteSec:         60,
+		RepeatWindow:    20,
+		RepeatThreshold: 3,
+	}
+	setting, err := s.repo.GetGroupSetting(groupID, featureAntiFlood)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return cfg, nil
+		}
+		return cfg, err
+	}
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	}
+	if cfg.WindowSec <= 0 {
+		cfg.WindowSec = 10
+	}
+	if cfg.MaxMessages <= 0 {
+		cfg.MaxMessages = 5
+	}
+	if cfg.MuteSec <= 0 {
+		cfg.MuteSec = 60
+	}
+	if cfg.RepeatWindow <= 0 {
+		cfg.RepeatWindow = 20
+	}
+	if cfg.RepeatThreshold <= 1 {
+		cfg.RepeatThreshold = 3
+	}
+	return cfg, nil
+}
+
 func (s *Service) getJoinVerifyConfig(groupID uint) (joinVerifyConfig, error) {
 	cfg := joinVerifyConfig{Type: "button", TimeoutSec: 120}
 	setting, err := s.repo.GetGroupSetting(groupID, featureJoinVerify)

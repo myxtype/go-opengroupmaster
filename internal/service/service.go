@@ -26,6 +26,11 @@ type verifyPending struct {
 	Answer   int
 }
 
+type floodEvent struct {
+	Timestamp int64
+	Text      string
+}
+
 type joinVerifyConfig struct {
 	Type       string `json:"type"`
 	TimeoutSec int    `json:"timeout_sec"`
@@ -37,6 +42,18 @@ type newbieLimitConfig struct {
 
 type welcomeConfig struct {
 	Text string `json:"text"`
+}
+
+type antiSpamConfig struct {
+	WhitelistDomains []string `json:"whitelist_domains"`
+}
+
+type antiFloodConfig struct {
+	WindowSec       int `json:"window_sec"`
+	MaxMessages     int `json:"max_messages"`
+	MuteSec         int `json:"mute_sec"`
+	RepeatWindow    int `json:"repeat_window_sec"`
+	RepeatThreshold int `json:"repeat_threshold"`
 }
 
 type systemCleanConfig struct {
@@ -73,7 +90,7 @@ type Service struct {
 	logger          *log.Logger
 	scheduleRuntime ScheduleRuntime
 	mu              sync.Mutex
-	flood           map[string][]int64
+	flood           map[string][]floodEvent
 	joinAt          map[string]time.Time
 	verify          map[string]verifyPending
 }
@@ -135,7 +152,7 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 	return &Service{
 		repo:   repo,
 		logger: logger,
-		flood:  make(map[string][]int64),
+		flood:  make(map[string][]floodEvent),
 		joinAt: make(map[string]time.Time),
 		verify: make(map[string]verifyPending),
 	}

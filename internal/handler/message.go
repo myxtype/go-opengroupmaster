@@ -253,7 +253,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败"))
 			return
 		}
-		h.render(bot, target, "投票已发送到群内", groupPanelKeyboard(pending.TGGroupID))
+		h.sendPollPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "monitor_add":
 		if text == "" {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))

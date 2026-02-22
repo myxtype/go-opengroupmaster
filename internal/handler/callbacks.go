@@ -265,6 +265,9 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 	case "poll":
 		switch action {
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载投票")
+			h.sendPollPanel(bot, target, userID, tgGroupID)
 		case "create":
 			h.answerCallback(bot, cb.ID, "请输入投票内容")
 			h.setPending(userID, pendingInput{Kind: "poll_create", TGGroupID: tgGroupID})
@@ -275,7 +278,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 				return
 			}
 			h.answerCallback(bot, cb.ID, "投票已结束")
-			h.sendGroupPanel(bot, target, userID, tgGroupID)
+			h.sendPollPanel(bot, target, userID, tgGroupID)
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -334,6 +337,9 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 
 func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "view":
+		h.answerCallback(bot, cb.ID, "加载自动回复")
+		h.sendAutoReplyList(bot, target, userID, tgGroupID, 1)
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送自动回复配置")
 		h.setPending(userID, pendingInput{Kind: "auto_add", TGGroupID: tgGroupID, Page: 1})
@@ -391,6 +397,9 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 
 func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "view":
+		h.answerCallback(bot, cb.ID, "加载违禁词")
+		h.sendBannedWordList(bot, target, userID, tgGroupID, 1)
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送违禁词")
 		h.setPending(userID, pendingInput{Kind: "bw_add", TGGroupID: tgGroupID, Page: 1})
@@ -469,6 +478,9 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 
 func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "view":
+		h.answerCallback(bot, cb.ID, "加载定时消息")
+		h.sendScheduledList(bot, target, userID, tgGroupID, 1)
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送定时消息")
 		h.setPending(userID, pendingInput{Kind: "sched_add", TGGroupID: tgGroupID, Page: 1})
