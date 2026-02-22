@@ -69,6 +69,7 @@ type Lottery struct {
 	ID           uint   `gorm:"primaryKey"`
 	GroupID      uint   `gorm:"index;not null"`
 	Title        string `gorm:"not null"`
+	JoinKeyword  string `gorm:"not null;default:参加"`
 	WinnersCount int    `gorm:"default:1"`
 	Status       string `gorm:"default:active"`
 }

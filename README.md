@@ -10,7 +10,7 @@
 - 违禁词检测（命中删除消息）
 - 自动回复（关键词匹配）
 - 简单积分累计（发言 +1）
-- 抽奖流程：`/lottery_create`、`/lottery_join`、`/lottery_draw`
+- 抽奖流程：`/lottery_create`、关键词参与、`/lottery_draw`
 
 ## 项目结构
 
@@ -45,7 +45,7 @@ go run ./cmd
 群内：
 
 - `/lottery_create 活动抽奖|2`
-- `/lottery_join`
+- 在群内发送抽奖关键词（如：`参加`）
 - `/lottery_draw`
 
 私聊机器人：

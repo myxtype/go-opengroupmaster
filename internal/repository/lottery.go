@@ -1,9 +1,18 @@
 package repository
 
-import "supervisor/internal/model"
+import (
+	"errors"
+	"strings"
+	"supervisor/internal/model"
 
-func (r *Repository) CreateLottery(groupID uint, title string, winners int) (*model.Lottery, error) {
-	l := &model.Lottery{GroupID: groupID, Title: title, WinnersCount: winners, Status: "active"}
+	"gorm.io/gorm"
+)
+
+func (r *Repository) CreateLottery(groupID uint, title, joinKeyword string, winners int) (*model.Lottery, error) {
+	if strings.TrimSpace(joinKeyword) == "" {
+		joinKeyword = "参加"
+	}
+	l := &model.Lottery{GroupID: groupID, Title: title, JoinKeyword: strings.TrimSpace(joinKeyword), WinnersCount: winners, Status: "active"}
 	return l, r.db.Create(l).Error
 }
 
@@ -15,9 +24,20 @@ func (r *Repository) GetActiveLottery(groupID uint) (*model.Lottery, error) {
 	return &l, nil
 }
 
-func (r *Repository) JoinLottery(lotteryID, userID uint) error {
+func (r *Repository) JoinLottery(lotteryID, userID uint) (bool, error) {
+	var existed model.LotteryParticipant
+	err := r.db.Where("lottery_id = ? and user_id = ?", lotteryID, userID).First(&existed).Error
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, err
+	}
 	lp := &model.LotteryParticipant{LotteryID: lotteryID, UserID: userID}
-	return r.db.Where("lottery_id = ? and user_id = ?", lotteryID, userID).FirstOrCreate(lp).Error
+	if err := r.db.Create(lp).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *Repository) ListLotteryParticipantUserIDs(lotteryID uint) ([]uint, error) {
@@ -34,4 +54,18 @@ func (r *Repository) ListLotteryParticipantUserIDs(lotteryID uint) ([]uint, erro
 
 func (r *Repository) CloseLottery(lotteryID uint) error {
 	return r.db.Model(&model.Lottery{}).Where("id = ?", lotteryID).Update("status", "closed").Error
+}
+
+func (r *Repository) CountLotteryParticipants(lotteryID uint) (int64, error) {
+	var total int64
+	err := r.db.Model(&model.LotteryParticipant{}).Where("lottery_id = ?", lotteryID).Count(&total).Error
+	return total, err
+}
+
+func (r *Repository) GetLatestLottery(groupID uint) (*model.Lottery, error) {
+	var l model.Lottery
+	if err := r.db.Where("group_id = ?", groupID).Order("id desc").First(&l).Error; err != nil {
+		return nil, err
+	}
+	return &l, nil
 }

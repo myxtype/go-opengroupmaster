@@ -62,13 +62,12 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👋 欢迎开关", fmt.Sprintf("feat:welcome:toggle:%s", id)),
-			tgbotapi.NewInlineKeyboardButtonData("🎯 创建抽奖", fmt.Sprintf("feat:lottery:create:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("🎯 抽奖", fmt.Sprintf("feat:lottery:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("✍️ 编辑欢迎语", fmt.Sprintf("feat:welcome:set:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🏆 立即开奖", fmt.Sprintf("feat:lottery:draw:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("⏰ 定时消息", fmt.Sprintf("feat:sched:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -304,6 +303,20 @@ func pollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:poll:view:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func lotteryKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("创建抽奖", fmt.Sprintf("feat:lottery:create:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("立即开奖", fmt.Sprintf("feat:lottery:draw:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:lottery:view:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 		),
 	)

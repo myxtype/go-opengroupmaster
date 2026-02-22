@@ -148,6 +148,18 @@ type ChainView struct {
 	Entries []string
 }
 
+type LotteryPanelView struct {
+	ActiveID           uint
+	ActiveTitle        string
+	ActiveJoinKeyword  string
+	ActiveWinnersCount int
+	ActiveParticipants int64
+	LatestID           uint
+	LatestTitle        string
+	LatestJoinKeyword  string
+	LatestStatus       string
+}
+
 func New(repo *repository.Repository, logger *log.Logger) *Service {
 	return &Service{
 		repo:   repo,

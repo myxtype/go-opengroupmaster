@@ -457,20 +457,23 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 
 func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, tgGroupID int64, action string) {
 	switch action {
+	case "view":
+		h.answerCallback(bot, cb.ID, "加载抽奖")
+		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	case "create":
 		h.answerCallback(bot, cb.ID, "请发送抽奖配置")
 		h.setPending(cb.From.ID, pendingInput{Kind: "lottery_create", TGGroupID: tgGroupID})
-		h.render(bot, target, "请发送：抽奖标题|中奖人数\n示例：周末福利|3", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请发送：抽奖标题|中奖人数|参与关键词\n示例：周末福利|3|参加", pendingCancelKeyboard(tgGroupID))
 	case "draw":
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(tgGroupID)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "开奖失败")
-			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", groupPanelKeyboard(tgGroupID))
+			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", lotteryKeyboard(tgGroupID))
 			return
 		}
 		h.answerCallback(bot, cb.ID, "开奖完成")
 		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, "开奖结果："+joinWinnerNames(winners)))
-		h.sendGroupPanel(bot, target, cb.From.ID, tgGroupID)
+		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}

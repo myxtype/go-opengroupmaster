@@ -63,6 +63,7 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		args := strings.TrimSpace(msg.CommandArguments())
 		title := "默认抽奖"
 		winners := 1
+		keyword := "参加"
 		if args != "" {
 			parts := strings.Split(args, "|")
 			title = strings.TrimSpace(parts[0])
@@ -71,19 +72,18 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 					winners = n
 				}
 			}
+			if len(parts) > 2 && strings.TrimSpace(parts[2]) != "" {
+				keyword = strings.TrimSpace(parts[2])
+			}
 		}
-		l, err := h.service.CreateLotteryByTGGroupID(msg.Chat.ID, title, winners)
+		l, err := h.service.CreateLotteryByTGGroupIDWithKeyword(msg.Chat.ID, title, winners, keyword)
 		if err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送 /lottery_join 参与", l.Title, l.WinnersCount)))
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", l.Title, l.WinnersCount, l.JoinKeyword)))
 	case "lottery_join":
-		if err := h.service.JoinActiveLotteryByTGGroupID(msg.Chat.ID, msg.From); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与失败：当前可能没有进行中的抽奖"))
-			return
-		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与成功"))
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送当前抽奖设置的关键词参与（不再使用 /lottery_join）"))
 	case "lottery_draw":
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(msg.Chat.ID)
 		if err != nil {
@@ -165,7 +165,8 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "lottery_create":
 		title := "默认抽奖"
 		winners := 1
-		parts := strings.SplitN(text, "|", 2)
+		keyword := "参加"
+		parts := strings.Split(text, "|")
 		if strings.TrimSpace(parts[0]) != "" {
 			title = strings.TrimSpace(parts[0])
 		}
@@ -175,11 +176,14 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 				winners = n
 			}
 		}
-		if _, err := h.service.CreateLotteryByTGGroupID(pending.TGGroupID, title, winners); err != nil {
+		if len(parts) > 2 && strings.TrimSpace(parts[2]) != "" {
+			keyword = strings.TrimSpace(parts[2])
+		}
+		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, title, winners, keyword); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
 			return
 		}
-		h.sendGroupPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "sched_add":
 		cronExpr, content, err := h.service.ParseScheduledInput(text)
 		if err != nil {

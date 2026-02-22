@@ -69,6 +69,19 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			return nil
 		}
 
+		if msg.From != nil {
+			matched, joined, err := s.TryJoinLotteryByKeyword(group, msg.From, msg.Text)
+			if err != nil {
+				return err
+			}
+			if matched {
+				if joined {
+					_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 参与抽奖成功", msg.From.UserName)))
+				}
+				return nil
+			}
+		}
+
 		rule, err := s.repo.MatchAutoReply(group.ID, msg.Text)
 		if err != nil {
 			return err

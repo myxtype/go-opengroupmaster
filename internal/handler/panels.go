@@ -265,6 +265,40 @@ func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 	h.render(bot, target, text, pollKeyboard(tgGroupID))
 }
 
+func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载抽奖面板失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+
+	lines := []string{
+		"抽奖管理",
+		"创建格式：抽奖标题|中奖人数|参与关键词",
+		"示例：周末福利|3|参加",
+		"成员在群内发送“参与关键词”即可参与",
+		"",
+	}
+	if view.ActiveID > 0 {
+		lines = append(lines,
+			fmt.Sprintf("进行中：#%d %s", view.ActiveID, view.ActiveTitle),
+			fmt.Sprintf("参与关键词：%s", view.ActiveJoinKeyword),
+			fmt.Sprintf("中奖人数：%d", view.ActiveWinnersCount),
+			fmt.Sprintf("参与人数：%d", view.ActiveParticipants),
+		)
+	} else {
+		lines = append(lines, "进行中：无")
+	}
+	if view.LatestID > 0 {
+		lines = append(lines, "", fmt.Sprintf("最近一期：#%d %s [%s]", view.LatestID, view.LatestTitle, view.LatestStatus), fmt.Sprintf("关键词：%s", view.LatestJoinKeyword))
+	}
+
+	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID))
+}
+
 func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
