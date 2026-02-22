@@ -36,6 +36,7 @@ func main() {
 	h := handler.New(svc, l)
 
 	sch := scheduler.New(svc, botAPI, l)
+	svc.SetScheduleRuntime(sch)
 	if err := sch.Start(); err != nil {
 		l.Printf("scheduler start failed: %v", err)
 	}
