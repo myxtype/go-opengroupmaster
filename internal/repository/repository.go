@@ -449,3 +449,47 @@ func (r *Repository) ListAdminTGUserIDsByGroupID(groupID uint) ([]int64, error) 
 	}
 	return out, nil
 }
+
+func (r *Repository) AddGlobalBlacklist(tgUserID int64, reason string) error {
+	item := &model.GlobalBlacklist{TGUserID: tgUserID, Reason: reason}
+	return r.db.Where("tg_user_id = ?", tgUserID).FirstOrCreate(item).Error
+}
+
+func (r *Repository) RemoveGlobalBlacklist(tgUserID int64) error {
+	return r.db.Where("tg_user_id = ?", tgUserID).Delete(&model.GlobalBlacklist{}).Error
+}
+
+func (r *Repository) IsGlobalBlacklisted(tgUserID int64) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.GlobalBlacklist{}).Where("tg_user_id = ?", tgUserID).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *Repository) ListGlobalBlacklist() ([]model.GlobalBlacklist, error) {
+	out := make([]model.GlobalBlacklist, 0)
+	err := r.db.Order("id desc").Find(&out).Error
+	return out, err
+}
+
+func (r *Repository) SetUserLanguage(tgUserID int64, lang string) error {
+	user := &model.User{TGUserID: tgUserID}
+	if err := r.db.Where("tg_user_id = ?", tgUserID).FirstOrCreate(user).Error; err != nil {
+		return err
+	}
+	user.Language = lang
+	return r.db.Save(user).Error
+}
+
+func (r *Repository) GetUserLanguage(tgUserID int64) (string, error) {
+	var user model.User
+	if err := r.db.Where("tg_user_id = ?", tgUserID).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "zh", nil
+		}
+		return "", err
+	}
+	if user.Language == "" {
+		return "zh", nil
+	}
+	return user.Language, nil
+}

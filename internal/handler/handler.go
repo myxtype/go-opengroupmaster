@@ -18,6 +18,7 @@ const (
 	groupPageSize  = 6
 	rulesPageSize  = 5
 	cbMenuGroups   = "menu:groups"
+	cbMenuSettings = "menu:settings"
 	cbGroupPrefix  = "group:"
 	cbFeaturePref  = "feat:"
 	cbGroupsPagePF = "menu:groups:page:"
@@ -100,6 +101,8 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard())
 	case "groups":
 		h.sendGroupsMenu(bot, target, msg.From.ID, 1)
+	case "settings":
+		h.sendSettingsPanel(bot, target, msg.From.ID)
 	default:
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "暂不支持该私聊命令"))
 	}
@@ -322,6 +325,63 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "rbac_set_role":
+		parts := strings.SplitN(text, "|", 2)
+		if len(parts) != 2 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：tg_user_id|role"))
+			return
+		}
+		tgUID, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			return
+		}
+		role := strings.TrimSpace(parts[1])
+		if err := h.service.SetRoleByTGGroupID(pending.TGGroupID, tgUID, role); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置角色失败"))
+			return
+		}
+		h.sendRBACPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "rbac_set_acl":
+		parts := strings.SplitN(text, "|", 2)
+		if len(parts) != 2 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：feature|role1,role2"))
+			return
+		}
+		feature := strings.TrimSpace(parts[0])
+		roles := strings.Split(parts[1], ",")
+		if err := h.service.SetFeatureACLByTGGroupID(pending.TGGroupID, feature, roles); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置权限失败"))
+			return
+		}
+		h.sendRBACPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "black_add":
+		parts := strings.SplitN(text, "|", 2)
+		tgUID, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			return
+		}
+		reason := ""
+		if len(parts) == 2 {
+			reason = strings.TrimSpace(parts[1])
+		}
+		if err := h.service.AddGlobalBlacklist(tgUID, reason); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
+			return
+		}
+		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "black_remove":
+		tgUID, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			return
+		}
+		if err := h.service.RemoveGlobalBlacklist(tgUID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
+			return
+		}
+		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	default:
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "未识别输入态，请重新点击菜单操作"))
 	}
@@ -340,6 +400,9 @@ func (h *Handler) handleCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuer
 	switch {
 	case strings.HasPrefix(data, cbVerifyPF):
 		h.handleVerifyCallback(bot, cb)
+	case data == cbMenuSettings:
+		h.answerCallback(bot, cb.ID, "加载设置")
+		h.sendSettingsPanel(bot, target, userID)
 	case data == cbMenuGroups:
 		h.answerCallback(bot, cb.ID, "加载群组")
 		h.sendGroupsMenu(bot, target, userID, 1)
@@ -401,6 +464,21 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	}
 	feature := parts[1]
 	action := parts[2]
+
+	if feature == "lang" {
+		if action != "set" || len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if err := h.service.SetUserLanguage(userID, parts[4]); err != nil {
+			h.answerCallback(bot, cb.ID, "切换失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "语言已切换")
+		h.sendSettingsPanel(bot, target, userID)
+		return
+	}
+
 	tgGroupID, err := strconv.ParseInt(parts[3], 10, 64)
 	if err != nil {
 		h.answerCallback(bot, cb.ID, "群参数错误")
@@ -410,6 +488,13 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	if !h.ensureAdmin(bot, target, userID, tgGroupID) {
 		h.answerCallback(bot, cb.ID, "无权限")
 		return
+	}
+	if perm := permissionFeatureKey(feature, action); perm != "" {
+		ok, err := h.service.CanAccessFeatureByTGGroupID(tgGroupID, userID, perm)
+		if err != nil || !ok {
+			h.answerCallback(bot, cb.ID, "该功能无权限")
+			return
+		}
 	}
 	if action != "add" && action != "edit" {
 		h.clearPending(userID)
@@ -490,6 +575,38 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 	case "mod":
 		h.handleModerationFeature(bot, cb, target, userID, tgGroupID, action)
+	case "rbac":
+		switch action {
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载权限分级")
+			h.sendRBACPanel(bot, target, userID, tgGroupID)
+		case "setrole":
+			h.answerCallback(bot, cb.ID, "请输入角色配置")
+			h.setPending(userID, pendingInput{Kind: "rbac_set_role", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入：tg_user_id|role\nrole: super_admin 或 admin", pendingCancelKeyboard(tgGroupID))
+		case "setacl":
+			h.answerCallback(bot, cb.ID, "请输入权限配置")
+			h.setPending(userID, pendingInput{Kind: "rbac_set_acl", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入：feature|role1,role2\n示例：lottery|super_admin", pendingCancelKeyboard(tgGroupID))
+		default:
+			h.answerCallback(bot, cb.ID, "未知操作")
+		}
+	case "black":
+		switch action {
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载黑名单")
+			h.sendBlacklistPanel(bot, target, userID, tgGroupID)
+		case "add":
+			h.answerCallback(bot, cb.ID, "请输入用户ID")
+			h.setPending(userID, pendingInput{Kind: "black_add", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入：tg_user_id|原因(可选)", pendingCancelKeyboard(tgGroupID))
+		case "remove":
+			h.answerCallback(bot, cb.ID, "请输入用户ID")
+			h.setPending(userID, pendingInput{Kind: "black_remove", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入要移除的 tg_user_id", pendingCancelKeyboard(tgGroupID))
+		default:
+			h.answerCallback(bot, cb.ID, "未知操作")
+		}
 	case "invite":
 		switch action {
 		case "create":
@@ -1089,6 +1206,44 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), monitorKeyboard(tgGroupID))
 }
 
+func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	text, err := h.service.RBACSummaryByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载权限分级失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	h.render(bot, target, text, rbacKeyboard(tgGroupID))
+}
+
+func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	items, err := h.service.ListGlobalBlacklist()
+	if err != nil {
+		h.render(bot, target, "加载黑名单失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{"全局黑名单（跨群生效）"}
+	if len(items) == 0 {
+		lines = append(lines, "暂无黑名单用户")
+	} else {
+		for i, it := range items {
+			lines = append(lines, fmt.Sprintf("%d. %d (%s)", i+1, it.TGUserID, it.Reason))
+		}
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), blacklistKeyboard(tgGroupID))
+}
+
+func (h *Handler) sendSettingsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64) {
+	lang, _ := h.service.GetUserLanguage(tgUserID)
+	text := "设置\n当前语言: " + lang + "\n可切换为中文/英文（逐步覆盖）"
+	h.render(bot, target, text, settingsKeyboard())
+}
+
 func (h *Handler) ensureAdmin(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) bool {
 	ok, err := h.service.IsAdminByTGGroupID(tgGroupID, tgUserID)
 	if err != nil || !ok {
@@ -1135,7 +1290,10 @@ func (h *Handler) answerCallback(bot *tgbotapi.BotAPI, callbackID, text string) 
 
 func mainMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("📊 我的群组", cbMenuGroups)),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 我的群组", cbMenuGroups),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ 设置", cbMenuSettings),
+		),
 	)
 }
 
@@ -1213,6 +1371,10 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📜 管理日志", fmt.Sprintf("feat:logs:list:%s:1:all", id)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🧭 权限分级", fmt.Sprintf("feat:rbac:view:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("⛔ 黑名单", fmt.Sprintf("feat:black:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群组列表", cbMenuGroups),
@@ -1414,6 +1576,81 @@ func monitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("结束当前投票", fmt.Sprintf("feat:poll:stop:%s", gid)),
 		),
 	)
+}
+
+func rbacKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("设置角色", fmt.Sprintf("feat:rbac:setrole:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("设置功能权限", fmt.Sprintf("feat:rbac:setacl:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:rbac:view:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func blacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("添加", fmt.Sprintf("feat:black:add:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("移除", fmt.Sprintf("feat:black:remove:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:black:view:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func settingsKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("中文", "feat:lang:set:0:zh"),
+			tgbotapi.NewInlineKeyboardButtonData("English", "feat:lang:set:0:en"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("返回群组", cbMenuGroups),
+		),
+	)
+}
+
+func permissionFeatureKey(feature, action string) string {
+	switch feature {
+	case "rbac", "black":
+		return "security"
+	case "invite":
+		return "invite"
+	case "poll":
+		return "poll"
+	case "chain":
+		return "chain"
+	case "monitor":
+		return "monitor"
+	case "sched":
+		return "schedule"
+	case "auto":
+		return "auto_reply"
+	case "bw":
+		return "banned_words"
+	case "logs":
+		return "logs"
+	case "stats":
+		return "stats"
+	case "mod":
+		return "moderation"
+	case "sys":
+		return "system_clean"
+	case "lottery":
+		return "lottery"
+	case "welcome":
+		return "welcome"
+	}
+	_ = action
+	return ""
 }
 
 func parseInt64Suffix(data, prefix string) (int64, error) {

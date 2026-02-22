@@ -30,6 +30,7 @@ const featureSystemClean = "system_clean"
 const featureKeywordMonitor = "keyword_monitor"
 const featureChain = "chain"
 const featurePollMeta = "poll_meta"
+const featureRBAC = "rbac"
 
 type verifyPending struct {
 	Deadline time.Time
@@ -68,6 +69,11 @@ type pollMeta struct {
 	Question  string `json:"question"`
 	MessageID int    `json:"message_id"`
 	Active    bool   `json:"active"`
+}
+
+type rbacConfig struct {
+	Roles      map[string]string   `json:"roles"`
+	FeatureACL map[string][]string `json:"feature_acl"`
 }
 
 type Service struct {
@@ -188,6 +194,19 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			return nil
 		}
 		return err
+	}
+	if msg.From != nil {
+		blacklisted, err := s.repo.IsGlobalBlacklisted(msg.From.ID)
+		if err == nil && blacklisted {
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+			_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+				UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
+			})
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 命中全局黑名单，已移出群组", msg.From.UserName)))
+			_ = s.repo.CreateLog(group.ID, "global_blacklist_kick", 0, 0)
+			return nil
+		}
 	}
 
 	if msg.Text != "" {
@@ -600,6 +619,131 @@ func (s *Service) ToggleFeatureByTGGroupID(tgGroupID int64, featureKey string) (
 	}
 	_ = s.repo.CreateLog(group.ID, "toggle_"+featureKey, 0, 0)
 	return next, nil
+}
+
+func (s *Service) CanAccessFeatureByTGGroupID(tgGroupID, tgUserID int64, feature string) (bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	isAdmin, err := s.repo.CheckAdmin(group.ID, tgUserID)
+	if err != nil || !isAdmin {
+		return false, err
+	}
+	cfg, err := s.getRBACConfig(group.ID)
+	if err != nil {
+		return false, err
+	}
+	role := cfg.Roles[strconv.FormatInt(tgUserID, 10)]
+	if role == "" {
+		role = "super_admin"
+	}
+	allowed := cfg.FeatureACL[feature]
+	if len(allowed) == 0 {
+		return true, nil
+	}
+	for _, r := range allowed {
+		if r == role {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *Service) SetRoleByTGGroupID(tgGroupID, targetTGUserID int64, role string) error {
+	if role != "super_admin" && role != "admin" {
+		return errors.New("invalid role")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getRBACConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.Roles[strconv.FormatInt(targetTGUserID, 10)] = role
+	if err := s.saveRBACConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "rbac_set_role_"+role, 0, 0)
+}
+
+func (s *Service) SetFeatureACLByTGGroupID(tgGroupID int64, feature string, roles []string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getRBACConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	valid := make([]string, 0, len(roles))
+	for _, r := range roles {
+		r = strings.TrimSpace(r)
+		if r == "super_admin" || r == "admin" {
+			valid = append(valid, r)
+		}
+	}
+	if len(valid) == 0 {
+		return errors.New("empty acl")
+	}
+	cfg.FeatureACL[feature] = valid
+	if err := s.saveRBACConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "rbac_set_acl_"+feature, 0, 0)
+}
+
+func (s *Service) RBACSummaryByTGGroupID(tgGroupID int64) (string, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	cfg, err := s.getRBACConfig(group.ID)
+	if err != nil {
+		return "", err
+	}
+	lines := []string{"权限分级", "角色（TG 用户ID -> 角色）:"}
+	if len(cfg.Roles) == 0 {
+		lines = append(lines, "默认：所有 Telegram 管理员 = super_admin")
+	} else {
+		for uid, role := range cfg.Roles {
+			lines = append(lines, fmt.Sprintf("- %s -> %s", uid, role))
+		}
+	}
+	lines = append(lines, "", "功能权限（feature -> roles）:")
+	if len(cfg.FeatureACL) == 0 {
+		lines = append(lines, "默认：全部功能 super_admin/admin 均可操作")
+	} else {
+		for f, rs := range cfg.FeatureACL {
+			lines = append(lines, fmt.Sprintf("- %s -> %s", f, strings.Join(rs, ",")))
+		}
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+func (s *Service) AddGlobalBlacklist(tgUserID int64, reason string) error {
+	return s.repo.AddGlobalBlacklist(tgUserID, reason)
+}
+
+func (s *Service) RemoveGlobalBlacklist(tgUserID int64) error {
+	return s.repo.RemoveGlobalBlacklist(tgUserID)
+}
+
+func (s *Service) ListGlobalBlacklist() ([]model.GlobalBlacklist, error) {
+	return s.repo.ListGlobalBlacklist()
+}
+
+func (s *Service) SetUserLanguage(tgUserID int64, lang string) error {
+	if lang != "zh" && lang != "en" {
+		return errors.New("invalid language")
+	}
+	return s.repo.SetUserLanguage(tgUserID, lang)
+}
+
+func (s *Service) GetUserLanguage(tgUserID int64) (string, error) {
+	return s.repo.GetUserLanguage(tgUserID)
 }
 
 func (s *Service) CreateInviteLinkByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, expireHours, memberLimit int) (string, error) {
@@ -1382,6 +1526,35 @@ func (s *Service) savePollMeta(groupID uint, cfg pollMeta) error {
 		return err
 	}
 	return s.repo.UpsertFeatureConfig(groupID, featurePollMeta, string(b))
+}
+
+func (s *Service) getRBACConfig(groupID uint) (rbacConfig, error) {
+	cfg := rbacConfig{Roles: map[string]string{}, FeatureACL: map[string][]string{}}
+	setting, err := s.repo.GetGroupSetting(groupID, featureRBAC)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return cfg, nil
+		}
+		return cfg, err
+	}
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	}
+	if cfg.Roles == nil {
+		cfg.Roles = map[string]string{}
+	}
+	if cfg.FeatureACL == nil {
+		cfg.FeatureACL = map[string][]string{}
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveRBACConfig(groupID uint, cfg rbacConfig) error {
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.repo.UpsertFeatureConfig(groupID, featureRBAC, string(b))
 }
 
 func (s *Service) getNewbieLimitMinutes(groupID uint) (int, error) {

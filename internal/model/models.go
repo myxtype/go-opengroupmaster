@@ -8,6 +8,7 @@ type User struct {
 	Username  string
 	FirstName string
 	LastName  string
+	Language  string `gorm:"default:zh"`
 	CreatedAt time.Time
 }
 
@@ -85,4 +86,11 @@ type Log struct {
 	OperatorID uint      `gorm:"index"`
 	TargetID   uint      `gorm:"index"`
 	CreatedAt  time.Time `gorm:"autoCreateTime"`
+}
+
+type GlobalBlacklist struct {
+	ID        uint  `gorm:"primaryKey"`
+	TGUserID  int64 `gorm:"uniqueIndex;not null"`
+	Reason    string
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
