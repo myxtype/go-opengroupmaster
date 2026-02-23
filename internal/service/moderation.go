@@ -25,15 +25,15 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		return err
 	}
 	if msg.From != nil {
-		blacklisted, err := s.repo.IsGlobalBlacklisted(msg.From.ID)
+		blacklisted, err := s.repo.IsGroupBlacklisted(group.ID, msg.From.ID)
 		if err == nil && blacklisted {
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
 			_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
 				UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
 			})
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 命中全局黑名单，已移出群组", msg.From.UserName)))
-			_ = s.repo.CreateLog(group.ID, "global_blacklist_kick", 0, 0)
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 命中本群黑名单，已移出群组", msg.From.UserName)))
+			_ = s.repo.CreateLog(group.ID, "group_blacklist_kick", 0, 0)
 			return nil
 		}
 	}

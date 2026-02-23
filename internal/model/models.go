@@ -89,9 +89,10 @@ type Log struct {
 	CreatedAt  time.Time `gorm:"autoCreateTime"`
 }
 
-type GlobalBlacklist struct {
+type GroupBlacklist struct {
 	ID        uint  `gorm:"primaryKey"`
-	TGUserID  int64 `gorm:"uniqueIndex;not null"`
+	GroupID   uint  `gorm:"uniqueIndex:idx_group_blacklist_user;index;not null"`
+	TGUserID  int64 `gorm:"uniqueIndex:idx_group_blacklist_user;index;not null"`
 	Reason    string
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }

@@ -33,7 +33,7 @@ func New(dbPath string) (*Repository, error) {
 		&model.User{}, &model.Group{}, &model.GroupAdmin{}, &model.GroupSetting{},
 		&model.AutoReply{}, &model.ScheduledMessage{}, &model.BannedWord{},
 		&model.UserPoint{}, &model.Lottery{}, &model.LotteryParticipant{}, &model.Log{},
-		&model.GlobalBlacklist{},
+		&model.GroupBlacklist{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

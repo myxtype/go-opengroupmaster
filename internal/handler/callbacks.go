@@ -256,11 +256,11 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "add":
 			h.answerCallback(bot, cb.ID, "请输入用户ID")
 			h.setPending(userID, pendingInput{Kind: "black_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：tg_user_id|原因(可选)", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入：tg_user_id|原因(可选)\n将只加入当前群黑名单", pendingCancelKeyboard(tgGroupID))
 		case "remove":
 			h.answerCallback(bot, cb.ID, "请输入用户ID")
 			h.setPending(userID, pendingInput{Kind: "black_remove", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入要移除的 tg_user_id", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入要移除的 tg_user_id\n将只影响当前群黑名单", pendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}

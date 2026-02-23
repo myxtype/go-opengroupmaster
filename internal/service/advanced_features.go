@@ -115,16 +115,28 @@ func (s *Service) RBACSummaryByTGGroupID(tgGroupID int64) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func (s *Service) AddGlobalBlacklist(tgUserID int64, reason string) error {
-	return s.repo.AddGlobalBlacklist(tgUserID, reason)
+func (s *Service) AddBlacklistByTGGroupID(tgGroupID, tgUserID int64, reason string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	return s.repo.AddGroupBlacklist(group.ID, tgUserID, reason)
 }
 
-func (s *Service) RemoveGlobalBlacklist(tgUserID int64) error {
-	return s.repo.RemoveGlobalBlacklist(tgUserID)
+func (s *Service) RemoveBlacklistByTGGroupID(tgGroupID, tgUserID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	return s.repo.RemoveGroupBlacklist(group.ID, tgUserID)
 }
 
-func (s *Service) ListGlobalBlacklist() ([]model.GlobalBlacklist, error) {
-	return s.repo.ListGlobalBlacklist()
+func (s *Service) ListBlacklistByTGGroupID(tgGroupID int64) ([]model.GroupBlacklist, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ListGroupBlacklist(group.ID)
 }
 
 func (s *Service) SetUserLanguage(tgUserID int64, lang string) error {

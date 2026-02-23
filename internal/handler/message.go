@@ -109,11 +109,11 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		if reason == "" {
 			reason = "group_admin_command"
 		}
-		if err := h.service.AddGlobalBlacklist(tgUserID, reason); err != nil {
+		if err := h.service.AddBlacklistByTGGroupID(msg.Chat.ID, tgUserID, reason); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入全局黑名单：%d", tgUserID)))
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入本群黑名单：%d", tgUserID)))
 	case "black_remove":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
@@ -125,11 +125,11 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/black_remove @用户名\n也可回复对方消息使用：/black_remove"))
 			return
 		}
-		if err := h.service.RemoveGlobalBlacklist(tgUserID); err != nil {
+		if err := h.service.RemoveBlacklistByTGGroupID(msg.Chat.ID, tgUserID); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除全局黑名单：%d", tgUserID)))
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除本群黑名单：%d", tgUserID)))
 	}
 }
 
@@ -413,7 +413,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		if len(parts) == 2 {
 			reason = strings.TrimSpace(parts[1])
 		}
-		if err := h.service.AddGlobalBlacklist(tgUID, reason); err != nil {
+		if err := h.service.AddBlacklistByTGGroupID(pending.TGGroupID, tgUID, reason); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
 			return
 		}
@@ -424,7 +424,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
 			return
 		}
-		if err := h.service.RemoveGlobalBlacklist(tgUID); err != nil {
+		if err := h.service.RemoveBlacklistByTGGroupID(pending.TGGroupID, tgUID); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
 			return
 		}

@@ -427,12 +427,12 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
-	items, err := h.service.ListGlobalBlacklist()
+	items, err := h.service.ListBlacklistByTGGroupID(tgGroupID)
 	if err != nil {
 		h.render(bot, target, "加载黑名单失败", groupPanelKeyboard(tgGroupID))
 		return
 	}
-	lines := []string{"全局黑名单（跨群生效）"}
+	lines := []string{"本群黑名单"}
 	if len(items) == 0 {
 		lines = append(lines, "暂无黑名单用户")
 	} else {
