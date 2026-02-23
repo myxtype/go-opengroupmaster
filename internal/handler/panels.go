@@ -445,6 +445,17 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	if cfg.DeleteMinutes > 0 {
 		deleteText = fmt.Sprintf("%d", cfg.DeleteMinutes)
 	}
+	buttonCount := 0
+	for _, row := range cfg.ButtonRows {
+		buttonCount += len(row)
+	}
+	if buttonCount == 0 && strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
+		buttonCount = 1
+	}
+	buttonText := onOffWithEmoji(buttonCount > 0)
+	if buttonCount > 0 {
+		buttonText = fmt.Sprintf("%s（%d个）", buttonText, buttonCount)
+	}
 	lines := []string{
 		"🎉 进群欢迎",
 		"",
@@ -454,7 +465,7 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		"",
 		"自定义欢迎内容:",
 		fmt.Sprintf("┌📸 媒体图片: %s", onOffWithEmoji(cfg.MediaFileID != "")),
-		fmt.Sprintf("├🔠 链接按钮: %s", onOffWithEmoji(cfg.ButtonText != "" && cfg.ButtonURL != "")),
+		fmt.Sprintf("├🔠 链接按钮: %s", buttonText),
 		fmt.Sprintf("└📄 文本内容: %s", onOffWithEmoji(strings.TrimSpace(cfg.Text) != "")),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), welcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))

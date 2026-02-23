@@ -66,6 +66,7 @@ func defaultWelcomeConfig() welcomeConfig {
 		MediaFileID:   "",
 		ButtonText:    "",
 		ButtonURL:     "",
+		ButtonRows:    [][]welcomeButton{},
 	}
 }
 
@@ -80,6 +81,19 @@ func normalizeWelcomeConfig(cfg welcomeConfig) welcomeConfig {
 	case 0, 1, 5, 10, 30:
 	default:
 		cfg.DeleteMinutes = 1
+	}
+	cfg.ButtonRows = normalizeWelcomeButtonRows(cfg.ButtonRows)
+	if len(cfg.ButtonRows) == 0 {
+		if strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
+			if normURL, err := normalizeWelcomeButtonURL(cfg.ButtonURL); err == nil {
+				cfg.ButtonRows = [][]welcomeButton{{{Text: strings.TrimSpace(cfg.ButtonText), URL: normURL}}}
+			}
+		}
+	}
+	if len(cfg.ButtonRows) > 0 {
+		// Migrate from legacy single-button fields.
+		cfg.ButtonText = ""
+		cfg.ButtonURL = ""
 	}
 	return cfg
 }

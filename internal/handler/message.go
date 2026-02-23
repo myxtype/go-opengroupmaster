@@ -509,19 +509,9 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 			break
 		}
-		parts := strings.SplitN(text, "|", 2)
-		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：按钮文本|链接URL"))
-			return
-		}
-		btnText := strings.TrimSpace(parts[0])
-		btnURL := strings.TrimSpace(parts[1])
-		if btnText == "" || btnURL == "" || !(strings.HasPrefix(btnURL, "http://") || strings.HasPrefix(btnURL, "https://")) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效按钮，示例：官网|https://example.com"))
-			return
-		}
-		if err := h.service.SetWelcomeButtonByTGGroupID(pending.TGGroupID, btnText, btnURL); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎按钮失败"))
+		if err := h.service.SetWelcomeButtonsByTGGroupID(pending.TGGroupID, text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "按钮格式错误："+
+				err.Error()+"\n\n示例:\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明:\n- 按钮文字和网址用英文 - 分隔\n- 一行两个按钮用 && 分隔"))
 			return
 		}
 		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)

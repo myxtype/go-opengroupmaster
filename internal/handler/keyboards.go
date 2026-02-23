@@ -10,6 +10,28 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func statusControlRow(enabled bool, labelData, onData, offData string) []tgbotapi.InlineKeyboardButton {
+	onLabel := "启用"
+	offLabel := "关闭"
+	if enabled {
+		onLabel = "✅启用"
+	} else {
+		offLabel = "✅关闭"
+	}
+	return tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("状态：", labelData),
+		tgbotapi.NewInlineKeyboardButtonData(onLabel, onData),
+		tgbotapi.NewInlineKeyboardButtonData(offLabel, offData),
+	)
+}
+
+func panelRefreshBackRow(gid string, refreshData string) []tgbotapi.InlineKeyboardButton {
+	return tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", refreshData),
+		tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+	)
+}
+
 func mainMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -92,6 +114,9 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 
 func pendingCancelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("返回上级面板", fmt.Sprintf("feat:pending:back:%d", tgGroupID)),
+		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("取消并返回群面板", fmt.Sprintf("feat:pending:cancel:%d", tgGroupID)),
 		),
@@ -230,6 +255,8 @@ func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("严格", fmt.Sprintf("feat:sys:preset:%s:strict", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("推荐", fmt.Sprintf("feat:sys:preset:%s:recommended", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("关闭", fmt.Sprintf("feat:sys:preset:%s:off", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -243,9 +270,7 @@ func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("名称 "+onOffWithEmoji(cfg.Title), fmt.Sprintf("feat:sys:toggle:%s:title", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:sys:view:%s", gid)),
 	}
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
@@ -253,9 +278,11 @@ func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:floodon:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:floodoff:%s", gid)),
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:floodon:%s", gid),
+			fmt.Sprintf("feat:mod:floodoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("触发条数：%d", view.MaxMessages), fmt.Sprintf("feat:mod:floodcount:%s", gid)),
@@ -275,19 +302,18 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:floodalertdel:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:floodview:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:floodview:%s", gid)),
 	)
 }
 
 func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:spamon:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:spamoff:%s", gid)),
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:spamon:%s", gid),
+			fmt.Sprintf("feat:mod:spamoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("惩罚：警告", fmt.Sprintf("feat:mod:spampenalty:%s:warn", gid)),
@@ -331,19 +357,18 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:spamalertdel:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:spamview:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:spamview:%s", gid)),
 	)
 }
 
 func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:verifyon:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:verifyoff:%s", gid)),
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:verifyon:%s", gid),
+			fmt.Sprintf("feat:mod:verifyoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("验证时间：%d分钟", view.TimeoutMinutes), fmt.Sprintf("feat:mod:verifytime:%s", gid)),
@@ -356,27 +381,23 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("方式：验证码", fmt.Sprintf("feat:mod:verifymethod:%s:captcha", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:verifyview:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:verifyview:%s", gid)),
 	)
 }
 
 func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:newbieon:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:newbieoff:%s", gid)),
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:newbieon:%s", gid),
+			fmt.Sprintf("feat:mod:newbieoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("限制时长：%d分钟", view.Minutes), fmt.Sprintf("feat:mod:newbietime:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:newbieview:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:newbieview:%s", gid)),
 	)
 }
 
@@ -389,11 +410,8 @@ func chainKeyboard(tgGroupID int64, active bool) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("关闭接龙", fmt.Sprintf("feat:chain:close:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:chain:view:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:chain:view:%s", gid)),
 	}
 	_ = active
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -406,10 +424,7 @@ func monitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("新增关键词", fmt.Sprintf("feat:monitor:add:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("移除关键词", fmt.Sprintf("feat:monitor:remove:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:monitor:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:monitor:view:%s", gid)),
 	)
 }
 
@@ -420,10 +435,7 @@ func pollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("创建投票", fmt.Sprintf("feat:poll:create:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("结束投票", fmt.Sprintf("feat:poll:stop:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:poll:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:poll:view:%s", gid)),
 	)
 }
 
@@ -445,19 +457,13 @@ func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKey
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("删除口令 "+deleteText, fmt.Sprintf("feat:lottery:delmins:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:lottery:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:lottery:view:%s", gid)),
 	)
 }
 
 func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	statusText := "关闭"
-	if enabled {
-		statusText = "启用"
-	}
+	_ = enabled
 	modeText := "验证后欢迎"
 	if mode == "join" {
 		modeText = "进群欢迎"
@@ -467,22 +473,24 @@ func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes i
 		deleteText = strconv.Itoa(deleteMinutes)
 	}
 	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("状态："+statusText, fmt.Sprintf("feat:welcome:toggle:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("模式："+modeText, fmt.Sprintf("feat:welcome:mode:%s", gid)),
+		statusControlRow(
+			enabled,
+			fmt.Sprintf("feat:welcome:noop:%s", gid),
+			fmt.Sprintf("feat:welcome:on:%s", gid),
+			fmt.Sprintf("feat:welcome:off:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("模式："+modeText, fmt.Sprintf("feat:welcome:mode:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("删除消息（分钟）："+deleteText, fmt.Sprintf("feat:welcome:delmins:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("修改文本", fmt.Sprintf("feat:welcome:set:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("修改媒体", fmt.Sprintf("feat:welcome:media:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("修改按钮", fmt.Sprintf("feat:welcome:button:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:welcome:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+			tgbotapi.NewInlineKeyboardButtonData("修改按钮", fmt.Sprintf("feat:welcome:button:%s", gid)),
 		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:welcome:view:%s", gid)),
 	)
 }
 
@@ -493,10 +501,7 @@ func rbacKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("设置角色", fmt.Sprintf("feat:rbac:setrole:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("设置功能权限", fmt.Sprintf("feat:rbac:setacl:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:rbac:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:rbac:view:%s", gid)),
 	)
 }
 
@@ -507,10 +512,7 @@ func blacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("添加", fmt.Sprintf("feat:black:add:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("移除", fmt.Sprintf("feat:black:remove:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:black:view:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
-		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:black:view:%s", gid)),
 	)
 }
 

@@ -391,12 +391,23 @@ func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, 
 	}
 
 	var markup any
-	if strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
-		markup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonURL(cfg.ButtonText, cfg.ButtonURL),
-			),
-		)
+	if len(cfg.ButtonRows) > 0 {
+		rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(cfg.ButtonRows))
+		for _, rowCfg := range cfg.ButtonRows {
+			row := make([]tgbotapi.InlineKeyboardButton, 0, len(rowCfg))
+			for _, btn := range rowCfg {
+				if strings.TrimSpace(btn.Text) == "" || strings.TrimSpace(btn.URL) == "" {
+					continue
+				}
+				row = append(row, tgbotapi.NewInlineKeyboardButtonURL(btn.Text, btn.URL))
+			}
+			if len(row) > 0 {
+				rows = append(rows, row)
+			}
+		}
+		if len(rows) > 0 {
+			markup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+		}
 	}
 
 	sentMessageID := 0

@@ -160,6 +160,18 @@ func (s *Service) ToggleWelcomeByTGGroupID(tgGroupID int64) (bool, error) {
 	return next, nil
 }
 
+func (s *Service) SetWelcomeEnabledByTGGroupID(tgGroupID int64, enabled bool) (bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	if err := s.repo.UpsertFeatureEnabled(group.ID, featureWelcome, enabled); err != nil {
+		return false, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_welcome_enabled_%t", enabled), 0, 0)
+	return enabled, nil
+}
+
 func (s *Service) SetWelcomeTextByTGGroupID(tgGroupID int64, text string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -268,12 +280,45 @@ func (s *Service) SetWelcomeButtonByTGGroupID(tgGroupID int64, text, url string)
 	if err != nil {
 		return err
 	}
-	cfg.ButtonText = text
-	cfg.ButtonURL = url
+	if strings.TrimSpace(text) == "" && strings.TrimSpace(url) == "" {
+		cfg.ButtonText = ""
+		cfg.ButtonURL = ""
+		cfg.ButtonRows = [][]welcomeButton{}
+	} else {
+		normURL, err := normalizeWelcomeButtonURL(url)
+		if err != nil {
+			return err
+		}
+		cfg.ButtonText = ""
+		cfg.ButtonURL = ""
+		cfg.ButtonRows = [][]welcomeButton{{{Text: strings.TrimSpace(text), URL: normURL}}}
+	}
 	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
 		return err
 	}
 	return s.repo.CreateLog(group.ID, "set_welcome_button", 0, 0)
+}
+
+func (s *Service) SetWelcomeButtonsByTGGroupID(tgGroupID int64, raw string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	rows, err := parseWelcomeButtonsInput(raw)
+	if err != nil {
+		return err
+	}
+	cfg.ButtonText = ""
+	cfg.ButtonURL = ""
+	cfg.ButtonRows = rows
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "set_welcome_buttons_multi", 0, 0)
 }
 
 func (s *Service) ToggleFeatureByTGGroupID(tgGroupID int64, featureKey string) (bool, error) {

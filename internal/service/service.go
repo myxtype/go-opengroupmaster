@@ -54,12 +54,18 @@ type newbieLimitConfig struct {
 }
 
 type welcomeConfig struct {
-	Text          string `json:"text"`
-	Mode          string `json:"mode"`
-	DeleteMinutes int    `json:"delete_minutes"`
-	MediaFileID   string `json:"media_file_id"`
-	ButtonText    string `json:"button_text"`
-	ButtonURL     string `json:"button_url"`
+	Text          string            `json:"text"`
+	Mode          string            `json:"mode"`
+	DeleteMinutes int               `json:"delete_minutes"`
+	MediaFileID   string            `json:"media_file_id"`
+	ButtonText    string            `json:"button_text"`
+	ButtonURL     string            `json:"button_url"`
+	ButtonRows    [][]welcomeButton `json:"button_rows,omitempty"`
+}
+
+type welcomeButton struct {
+	Text string `json:"text"`
+	URL  string `json:"url"`
 }
 
 type antiSpamConfig struct {

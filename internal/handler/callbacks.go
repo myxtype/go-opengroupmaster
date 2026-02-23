@@ -113,23 +113,51 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			return
 		}
 	}
-	if action != "add" && action != "edit" {
+	if feature != "pending" && action != "add" && action != "edit" {
 		h.clearPending(userID)
 	}
 
 	switch feature {
 	case "pending":
-		if action != "cancel" {
+		switch action {
+		case "cancel":
+			h.clearPending(userID)
+			h.answerCallback(bot, cb.ID, "已取消")
+			h.sendGroupPanel(bot, target, userID, tgGroupID)
+		case "back":
+			pending, ok := h.getPending(userID)
+			h.clearPending(userID)
+			if !ok {
+				h.answerCallback(bot, cb.ID, "无可返回的上级面板")
+				h.sendGroupPanel(bot, target, userID, tgGroupID)
+				return
+			}
+			h.answerCallback(bot, cb.ID, "已返回上级面板")
+			h.sendPendingParentPanel(bot, target, userID, pending)
+		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
-			return
 		}
-		h.clearPending(userID)
-		h.answerCallback(bot, cb.ID, "已取消")
-		h.sendGroupPanel(bot, target, userID, tgGroupID)
 	case "welcome":
 		switch action {
+		case "noop":
+			h.answerCallback(bot, cb.ID, "")
+			return
 		case "view":
 			h.answerCallback(bot, cb.ID, "加载欢迎设置")
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
+		case "on":
+			if _, err := h.service.SetWelcomeEnabledByTGGroupID(tgGroupID, true); err != nil {
+				h.answerCallback(bot, cb.ID, "切换失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "欢迎消息已开启")
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
+		case "off":
+			if _, err := h.service.SetWelcomeEnabledByTGGroupID(tgGroupID, false); err != nil {
+				h.answerCallback(bot, cb.ID, "切换失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "欢迎消息已关闭")
 			h.sendWelcomePanel(bot, target, userID, tgGroupID)
 		case "toggle":
 			enabled, err := h.service.ToggleWelcomeByTGGroupID(tgGroupID)
@@ -178,7 +206,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "button":
 			h.answerCallback(bot, cb.ID, "请输入按钮")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit_button", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：按钮文本|链接URL\n示例：官网|https://example.com\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -618,6 +646,9 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 
 func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "noop":
+		h.answerCallback(bot, cb.ID, "")
+		return
 	case "spam", "spamview":
 		h.answerCallback(bot, cb.ID, "加载反垃圾")
 		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
@@ -867,4 +898,47 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	}
 
 	h.answerCallback(bot, cb.ID, "未知操作")
+}
+
+func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {
+	switch pending.Kind {
+	case "auto_add", "auto_edit":
+		page := pending.Page
+		if page < 1 {
+			page = 1
+		}
+		h.sendAutoReplyList(bot, target, userID, pending.TGGroupID, page)
+	case "bw_add", "bw_edit":
+		page := pending.Page
+		if page < 1 {
+			page = 1
+		}
+		h.sendBannedWordList(bot, target, userID, pending.TGGroupID, page)
+	case "lottery_create":
+		h.sendLotteryPanel(bot, target, userID, pending.TGGroupID)
+	case "sched_add":
+		page := pending.Page
+		if page < 1 {
+			page = 1
+		}
+		h.sendScheduledList(bot, target, userID, pending.TGGroupID, page)
+	case "chain_start", "chain_add":
+		h.sendChainPanel(bot, target, userID, pending.TGGroupID)
+	case "poll_create":
+		h.sendPollPanel(bot, target, userID, pending.TGGroupID)
+	case "monitor_add", "monitor_remove":
+		h.sendMonitorPanel(bot, target, userID, pending.TGGroupID)
+	case "rbac_set_role", "rbac_set_acl":
+		h.sendRBACPanel(bot, target, userID, pending.TGGroupID)
+	case "black_add", "black_remove":
+		h.sendBlacklistPanel(bot, target, userID, pending.TGGroupID)
+	case "welcome_edit", "welcome_edit_media", "welcome_edit_button":
+		h.sendWelcomePanel(bot, target, userID, pending.TGGroupID)
+	case "spam_msg_len", "spam_name_len", "spam_exception_add", "spam_exception_remove":
+		h.sendAntiSpamPanel(bot, target, userID, pending.TGGroupID)
+	case "invite_create":
+		h.sendGroupPanel(bot, target, userID, pending.TGGroupID)
+	default:
+		h.sendGroupPanel(bot, target, userID, pending.TGGroupID)
+	}
 }
