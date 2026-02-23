@@ -195,6 +195,11 @@ type JoinVerifyView struct {
 	TimeoutAction  string
 }
 
+type NewbieLimitView struct {
+	Enabled bool
+	Minutes int
+}
+
 type AntiFloodView struct {
 	Enabled       bool
 	WindowSec     int

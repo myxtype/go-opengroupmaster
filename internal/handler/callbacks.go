@@ -690,6 +690,35 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.answerCallback(bot, cb.ID, "验证方式已切换为 "+verifyTypeLabel(mode))
 		h.sendVerifyPanel(bot, target, userID, tgGroupID)
 		return
+	case "newbie", "newbieview":
+		h.answerCallback(bot, cb.ID, "加载新成员限制")
+		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
+		return
+	case "newbieon":
+		if _, err := h.service.SetNewbieLimitEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "新成员限制已开启")
+		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
+		return
+	case "newbieoff":
+		if _, err := h.service.SetNewbieLimitEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "新成员限制已关闭")
+		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
+		return
+	case "newbietime":
+		mins, err := h.service.CycleNewbieLimitMinutesByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "切换失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, fmt.Sprintf("限制时长已设为 %d 分钟", mins))
+		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
+		return
 	case "floodoff":
 		if _, err := h.service.SetAntiFloodEnabledByTGGroupID(tgGroupID, false); err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
@@ -752,18 +781,6 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	case "spam":
 		featureKey = "anti_spam"
 		label = "反垃圾"
-	case "newbie":
-		featureKey = "newbie_limit"
-		label = "新成员限制"
-	case "newbietime":
-		mins, err := h.service.CycleNewbieLimitMinutesByTGGroupID(tgGroupID)
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "切换失败")
-			return
-		}
-		h.answerCallback(bot, cb.ID, fmt.Sprintf("新人限制时长已设为 %d 分钟", mins))
-		h.sendGroupPanel(bot, target, userID, tgGroupID)
-		return
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 		return

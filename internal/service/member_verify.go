@@ -23,6 +23,8 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	}
 	for _, m := range msg.NewChatMembers {
 		s.markJoin(group.TGGroupID, m.ID)
+		member := m
+		_, _ = s.repo.UpsertUserFromTG(&member)
 	}
 
 	verifyEnabled, err := s.IsFeatureEnabled(group.ID, featureJoinVerify, false)

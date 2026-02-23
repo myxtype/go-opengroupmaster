@@ -253,6 +253,29 @@ func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	h.render(bot, target, strings.Join(lines, "\n"), verifyKeyboard(tgGroupID, view))
 }
 
+func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.NewbieLimitViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载新成员限制失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "关闭❌"
+	if view.Enabled {
+		status = "启用✅"
+	}
+	lines := []string{
+		"🔒 新成员限制",
+		"启用后，新成员在限制时长内不能发送链接或媒体",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("限制时长:%d分钟", view.Minutes),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitKeyboard(tgGroupID, view))
+}
+
 func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

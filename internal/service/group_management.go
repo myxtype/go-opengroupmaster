@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
@@ -102,10 +103,33 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	antiFloodText := onOff(antiFloodEnabled)
 	verifyText := onOff(verifyEnabled)
 	newbieText := onOff(newbieEnabled)
-	return fmt.Sprintf(
-		"群组：%s\n群ID：%d\n自动回复：%d 条\n违禁词：%d 条\n欢迎消息：%s\n反垃圾：%s\n反刷屏：%s\n进群验证：%s（%s）\n新成员限制：%s（%d 分钟）",
-		group.Title, group.TGGroupID, autoCount, bwCount, welcomeText, antiSpamText, antiFloodText, verifyText, verifyCfg.Type, newbieText, newbieMinutes,
-	), nil
+	lines := []string{
+		fmt.Sprintf("🏠 %s", group.Title),
+		fmt.Sprintf("🆔 群ID: %d", group.TGGroupID),
+		"",
+		"【内容】",
+		fmt.Sprintf("自动回复: %d 条   违禁词: %d 条", autoCount, bwCount),
+		fmt.Sprintf("欢迎消息: %s", welcomeText),
+		"",
+		"【风控】",
+		fmt.Sprintf("反垃圾: %s   反刷屏: %s", antiSpamText, antiFloodText),
+		fmt.Sprintf("进群验证: %s（%s）", verifyText, verifyTypeLabelForSummary(verifyCfg.Type)),
+		fmt.Sprintf("新成员限制: %s（%d 分钟）", newbieText, newbieMinutes),
+		"",
+		"点击下方按钮进入对应二级面板",
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+func verifyTypeLabelForSummary(v string) string {
+	switch v {
+	case "math":
+		return "数学题"
+	case "captcha":
+		return "验证码"
+	default:
+		return "按钮"
+	}
 }
 
 func (s *Service) IsFeatureEnabled(groupID uint, featureKey string, defaultValue bool) (bool, error) {

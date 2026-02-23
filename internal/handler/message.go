@@ -95,7 +95,93 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		if sendErr == nil {
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
 		}
+	case "black_add":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, reason, err := h.resolveBlacklistTargetAndReason(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/black_add @用户名 原因(可选)\n也可回复对方消息使用：/black_add 原因(可选)"))
+			return
+		}
+		if reason == "" {
+			reason = "group_admin_command"
+		}
+		if err := h.service.AddGlobalBlacklist(tgUserID, reason); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入全局黑名单：%d", tgUserID)))
+	case "black_remove":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, _, err := h.resolveBlacklistTargetAndReason(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/black_remove @用户名\n也可回复对方消息使用：/black_remove"))
+			return
+		}
+		if err := h.service.RemoveGlobalBlacklist(tgUserID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除全局黑名单：%d", tgUserID)))
 	}
+}
+
+func (h *Handler) resolveBlacklistTargetAndReason(msg *tgbotapi.Message) (int64, string, error) {
+	replyTarget := int64(0)
+	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil {
+		replyTarget = msg.ReplyToMessage.From.ID
+	}
+
+	args := strings.TrimSpace(msg.CommandArguments())
+	if args == "" {
+		if replyTarget != 0 {
+			return replyTarget, "", nil
+		}
+		return 0, "", fmt.Errorf("missing target")
+	}
+
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		if replyTarget != 0 {
+			return replyTarget, "", nil
+		}
+		return 0, "", fmt.Errorf("missing target")
+	}
+
+	target := int64(0)
+	reasonStart := 1
+	first := strings.TrimSpace(fields[0])
+	if strings.HasPrefix(first, "@") {
+		username := strings.TrimSpace(strings.TrimPrefix(first, "@"))
+		if username == "" {
+			return 0, "", fmt.Errorf("invalid username")
+		}
+		u, err := h.service.Repo().FindUserByUsername(username)
+		if err != nil {
+			return 0, "", err
+		}
+		target = u.TGUserID
+	} else if id, err := strconv.ParseInt(first, 10, 64); err == nil {
+		target = id
+	} else if replyTarget != 0 {
+		target = replyTarget
+		reasonStart = 0
+	} else {
+		return 0, "", fmt.Errorf("invalid target")
+	}
+
+	reason := ""
+	if reasonStart < len(fields) {
+		reason = strings.TrimSpace(strings.Join(fields[reasonStart:], " "))
+	}
+	return target, reason, nil
 }
 
 func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {

@@ -53,22 +53,24 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🚫 违禁词", fmt.Sprintf("feat:bw:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📨 邀请链接", fmt.Sprintf("feat:invite:create:%s", id)),
-			tgbotapi.NewInlineKeyboardButtonData("📋 接龙", fmt.Sprintf("feat:chain:view:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🗳 投票", fmt.Sprintf("feat:poll:view:%s", id)),
-			tgbotapi.NewInlineKeyboardButtonData("👁 关键词监控", fmt.Sprintf("feat:monitor:view:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("👋 欢迎设置", fmt.Sprintf("feat:welcome:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("🎯 抽奖", fmt.Sprintf("feat:lottery:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🗳 投票", fmt.Sprintf("feat:poll:view:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("📋 接龙", fmt.Sprintf("feat:chain:view:%s", id)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👁 关键词监控", fmt.Sprintf("feat:monitor:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("⏰ 定时消息", fmt.Sprintf("feat:sched:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 数据统计", fmt.Sprintf("feat:stats:show:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("📜 管理日志", fmt.Sprintf("feat:logs:list:%s:1:all", id)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📨 邀请链接", fmt.Sprintf("feat:invite:create:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("🧹 系统消息清理", fmt.Sprintf("feat:sys:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🚫 反垃圾开关", fmt.Sprintf("feat:mod:spam:%s", id)),
@@ -76,16 +78,7 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🧩 验证设置", fmt.Sprintf("feat:mod:verifyview:%s", id)),
-			tgbotapi.NewInlineKeyboardButtonData("🔒 新成员限制开关", fmt.Sprintf("feat:mod:newbie:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⏱ 新人时长切换", fmt.Sprintf("feat:mod:newbietime:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🧹 系统消息清理", fmt.Sprintf("feat:sys:view:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📜 管理日志", fmt.Sprintf("feat:logs:list:%s:1:all", id)),
+			tgbotapi.NewInlineKeyboardButtonData("🔒 新成员限制设置", fmt.Sprintf("feat:mod:newbieview:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🧭 权限分级", fmt.Sprintf("feat:rbac:view:%s", id)),
@@ -309,6 +302,23 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:verifyview:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:newbieon:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:newbieoff:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("限制时长：%d分钟", view.Minutes), fmt.Sprintf("feat:mod:newbietime:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:newbieview:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 		),
 	)

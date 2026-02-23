@@ -34,6 +34,14 @@ func (r *Repository) FindUserByID(id uint) (*model.User, error) {
 	return &u, nil
 }
 
+func (r *Repository) FindUserByUsername(username string) (*model.User, error) {
+	var u model.User
+	if err := r.db.Where("lower(username) = lower(?)", username).Order("id desc").First(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func (r *Repository) SetUserLanguage(tgUserID int64, lang string) error {
 	user := &model.User{TGUserID: tgUserID}
 	if err := r.db.Where("tg_user_id = ?", tgUserID).FirstOrCreate(user).Error; err != nil {
