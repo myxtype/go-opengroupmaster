@@ -14,14 +14,57 @@
 
 ## 项目结构
 
-- `/cmd/main.go`
-- `/internal/bot`
-- `/internal/handler`
-- `/internal/service`
-- `/internal/repository`
-- `/internal/model`
-- `/internal/scheduler`
-- `/internal/config`
+```text
+.
+├── cmd/
+│   └── main.go
+├── internal/
+│   ├── bot/
+│   │   └── bot.go
+│   ├── config/
+│   │   └── config.go
+│   ├── model/
+│   │   └── models.go
+│   ├── repository/
+│   │   ├── db.go
+│   │   ├── repository.go
+│   │   ├── user.go
+│   │   ├── group.go
+│   │   ├── feature.go
+│   │   ├── auto_reply.go
+│   │   ├── banned_word.go
+│   │   ├── lottery.go
+│   │   ├── points.go
+│   │   ├── schedule.go
+│   │   ├── log.go
+│   │   └── blacklist.go
+│   ├── service/
+│   │   ├── service.go
+│   │   ├── group_management.go
+│   │   ├── moderation.go
+│   │   ├── member_verify.go
+│   │   ├── system_clean.go
+│   │   ├── lottery.go
+│   │   ├── rules_schedule.go
+│   │   ├── stats_logs.go
+│   │   ├── advanced_features.go
+│   │   └── config_store.go
+│   ├── handler/
+│   │   ├── handler.go
+│   │   ├── message.go
+│   │   ├── callbacks.go
+│   │   ├── panels.go
+│   │   ├── keyboards.go
+│   │   ├── state_render.go
+│   │   └── utils.go
+│   └── scheduler/
+│       └── scheduler.go
+├── pkg/
+│   └── logger/
+│       └── logger.go
+├── go.mod
+└── README.md
+```
 
 ## 运行
 

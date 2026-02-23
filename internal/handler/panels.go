@@ -299,6 +299,38 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID))
 }
 
+func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	cfg, enabled, err := h.service.WelcomeViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载欢迎设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	modeText := "验证后欢迎"
+	if cfg.Mode == "join" {
+		modeText = "进群欢迎"
+	}
+	deleteText := "否"
+	if cfg.DeleteMinutes > 0 {
+		deleteText = fmt.Sprintf("%d", cfg.DeleteMinutes)
+	}
+	lines := []string{
+		"🎉 进群欢迎",
+		"",
+		fmt.Sprintf("状态: %s", onOffWithEmoji(enabled)),
+		fmt.Sprintf("模式: %s", modeText),
+		fmt.Sprintf("删除消息(分钟): %s", deleteText),
+		"",
+		"自定义欢迎内容:",
+		fmt.Sprintf("┌📸 媒体图片: %s", onOffWithEmoji(cfg.MediaFileID != "")),
+		fmt.Sprintf("├🔠 链接按钮: %s", onOffWithEmoji(cfg.ButtonText != "" && cfg.ButtonURL != "")),
+		fmt.Sprintf("└📄 文本内容: %s", onOffWithEmoji(strings.TrimSpace(cfg.Text) != "")),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), welcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))
+}
+
 func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

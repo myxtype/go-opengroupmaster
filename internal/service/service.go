@@ -41,7 +41,12 @@ type newbieLimitConfig struct {
 }
 
 type welcomeConfig struct {
-	Text string `json:"text"`
+	Text          string `json:"text"`
+	Mode          string `json:"mode"`
+	DeleteMinutes int    `json:"delete_minutes"`
+	MediaFileID   string `json:"media_file_id"`
+	ButtonText    string `json:"button_text"`
+	ButtonURL     string `json:"button_url"`
 }
 
 type antiSpamConfig struct {

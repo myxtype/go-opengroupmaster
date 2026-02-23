@@ -130,6 +130,9 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		h.sendGroupPanel(bot, target, userID, tgGroupID)
 	case "welcome":
 		switch action {
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载欢迎设置")
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
 		case "toggle":
 			enabled, err := h.service.ToggleWelcomeByTGGroupID(tgGroupID)
 			if err != nil {
@@ -141,11 +144,43 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			} else {
 				h.answerCallback(bot, cb.ID, "欢迎消息已关闭")
 			}
-			h.sendGroupPanel(bot, target, userID, tgGroupID)
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
+		case "mode":
+			mode, err := h.service.ToggleWelcomeModeByTGGroupID(tgGroupID)
+			if err != nil {
+				h.answerCallback(bot, cb.ID, "切换失败")
+				return
+			}
+			if mode == "verify" {
+				h.answerCallback(bot, cb.ID, "模式：验证后欢迎")
+			} else {
+				h.answerCallback(bot, cb.ID, "模式：进群欢迎")
+			}
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
+		case "delmins":
+			mins, err := h.service.CycleWelcomeDeleteMinutesByTGGroupID(tgGroupID)
+			if err != nil {
+				h.answerCallback(bot, cb.ID, "切换失败")
+				return
+			}
+			if mins == 0 {
+				h.answerCallback(bot, cb.ID, "删除消息：否")
+			} else {
+				h.answerCallback(bot, cb.ID, fmt.Sprintf("删除消息：%d 分钟", mins))
+			}
+			h.sendWelcomePanel(bot, target, userID, tgGroupID)
 		case "set":
 			h.answerCallback(bot, cb.ID, "请输入欢迎文案")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit", TGGroupID: tgGroupID})
 			h.render(bot, target, "请输入新的欢迎文案，支持占位符 {user}\n示例：欢迎 {user} 加入本群", pendingCancelKeyboard(tgGroupID))
+		case "media":
+			h.answerCallback(bot, cb.ID, "请发送欢迎图片")
+			h.setPending(userID, pendingInput{Kind: "welcome_edit_media", TGGroupID: tgGroupID})
+			h.render(bot, target, "请发送一张图片作为欢迎媒体，或发送“关闭”清空媒体", pendingCancelKeyboard(tgGroupID))
+		case "button":
+			h.answerCallback(bot, cb.ID, "请输入按钮")
+			h.setPending(userID, pendingInput{Kind: "welcome_edit_button", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入：按钮文本|链接URL\n示例：官网|https://example.com\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}

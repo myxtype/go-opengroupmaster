@@ -7,29 +7,50 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *Service) getWelcomeText(groupID uint) (string, error) {
-	cfg := welcomeConfig{Text: "欢迎新成员加入，先看群规再发言。"}
+func defaultWelcomeConfig() welcomeConfig {
+	return welcomeConfig{
+		Text:          "欢迎 {user} 加入，先看群规再发言。",
+		Mode:          "verify",
+		DeleteMinutes: 1,
+		MediaFileID:   "",
+		ButtonText:    "",
+		ButtonURL:     "",
+	}
+}
+
+func normalizeWelcomeConfig(cfg welcomeConfig) welcomeConfig {
+	if cfg.Text == "" {
+		cfg.Text = "欢迎 {user} 加入，先看群规再发言。"
+	}
+	if cfg.Mode != "join" {
+		cfg.Mode = "verify"
+	}
+	switch cfg.DeleteMinutes {
+	case 0, 1, 5, 10, 30:
+	default:
+		cfg.DeleteMinutes = 1
+	}
+	return cfg
+}
+
+func (s *Service) getWelcomeConfig(groupID uint) (welcomeConfig, error) {
+	cfg := defaultWelcomeConfig()
 	setting, err := s.repo.GetGroupSetting(groupID, featureWelcome)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg.Text, nil
+			return cfg, nil
 		}
-		return "", err
+		return cfg, err
 	}
 	if setting.Config != "" {
 		_ = json.Unmarshal([]byte(setting.Config), &cfg)
 	}
-	if cfg.Text == "" {
-		cfg.Text = "欢迎新成员加入，先看群规再发言。"
-	}
-	return cfg.Text, nil
+	return normalizeWelcomeConfig(cfg), nil
 }
 
-func (s *Service) saveWelcomeText(groupID uint, text string) error {
-	if text == "" {
-		text = "欢迎新成员加入，先看群规再发言。"
-	}
-	b, err := json.Marshal(welcomeConfig{Text: text})
+func (s *Service) saveWelcomeConfig(groupID uint, cfg welcomeConfig) error {
+	cfg = normalizeWelcomeConfig(cfg)
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return err
 	}

@@ -76,18 +76,23 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	if err != nil || !welcomeEnabled {
 		return err
 	}
-	text, err := s.getWelcomeText(group.ID)
+	cfg, err := s.getWelcomeConfig(group.ID)
 	if err != nil {
 		return err
 	}
-	mentions := formatWelcomeMentions(msg.NewChatMembers)
-	if strings.Contains(text, "{user}") {
-		text = strings.ReplaceAll(text, "{user}", mentions)
-	} else if mentions != "" {
-		text = fmt.Sprintf("%s\n%s", text, mentions)
+	if cfg.Mode == "join" {
+		users := make([]tgbotapi.User, 0, len(msg.NewChatMembers))
+		for _, m := range msg.NewChatMembers {
+			if m.IsBot {
+				continue
+			}
+			users = append(users, m)
+		}
+		if len(users) > 0 {
+			return s.sendWelcome(bot, msg.Chat.ID, group.ID, users, cfg)
+		}
 	}
-	_, err = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, text))
-	return err
+	return nil
 }
 func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, actorID int64, answer *int) error {
 	if actorID != tgUserID {
@@ -123,9 +128,22 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	}
 	if group, gErr := s.repo.FindGroupByTGID(tgGroupID); gErr == nil {
 		_ = s.repo.CreateLog(group.ID, "join_verify_pass", 0, 0)
+		welcomeEnabled, wErr := s.IsFeatureEnabled(group.ID, featureWelcome, true)
+		if wErr == nil && welcomeEnabled {
+			cfg, cErr := s.getWelcomeConfig(group.ID)
+			if cErr == nil && cfg.Mode == "verify" {
+				member, mErr := bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+					ChatConfigWithUser: tgbotapi.ChatConfigWithUser{ChatID: tgGroupID, UserID: tgUserID},
+				})
+				if mErr == nil && member.User != nil {
+					_ = s.sendWelcome(bot, tgGroupID, group.ID, []tgbotapi.User{*member.User}, cfg)
+				}
+			}
+		}
 	}
 	return nil
 }
+
 func (s *Service) markJoin(tgGroupID, tgUserID int64) {
 	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
 	s.mu.Lock()
@@ -221,4 +239,56 @@ func formatWelcomeMentions(users []tgbotapi.User) string {
 		}
 	}
 	return strings.Join(mentions, " ")
+}
+
+func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, users []tgbotapi.User, cfg welcomeConfig) error {
+	mentions := formatWelcomeMentions(users)
+	text := cfg.Text
+	if strings.Contains(text, "{user}") {
+		text = strings.ReplaceAll(text, "{user}", mentions)
+	} else if mentions != "" {
+		text = fmt.Sprintf("%s\n%s", text, mentions)
+	}
+
+	var markup any
+	if strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
+		markup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonURL(cfg.ButtonText, cfg.ButtonURL),
+			),
+		)
+	}
+
+	sentMessageID := 0
+	if strings.TrimSpace(cfg.MediaFileID) != "" {
+		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(cfg.MediaFileID))
+		photo.Caption = text
+		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
+			photo.ReplyMarkup = m
+		}
+		msg, err := bot.Send(photo)
+		if err != nil {
+			return err
+		}
+		sentMessageID = msg.MessageID
+	} else {
+		message := tgbotapi.NewMessage(chatID, text)
+		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
+			message.ReplyMarkup = m
+		}
+		msg, err := bot.Send(message)
+		if err != nil {
+			return err
+		}
+		sentMessageID = msg.MessageID
+	}
+
+	_ = s.repo.CreateLog(groupID, "welcome_sent_"+cfg.Mode, 0, 0)
+	if cfg.DeleteMinutes > 0 && sentMessageID > 0 {
+		go func(chatID int64, messageID int, minutes int) {
+			time.Sleep(time.Duration(minutes) * time.Minute)
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+		}(chatID, sentMessageID, cfg.DeleteMinutes)
+	}
+	return nil
 }

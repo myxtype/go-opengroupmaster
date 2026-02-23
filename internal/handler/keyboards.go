@@ -61,11 +61,8 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("👁 关键词监控", fmt.Sprintf("feat:monitor:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👋 欢迎开关", fmt.Sprintf("feat:welcome:toggle:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("👋 欢迎设置", fmt.Sprintf("feat:welcome:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("🎯 抽奖", fmt.Sprintf("feat:lottery:view:%s", id)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✍️ 编辑欢迎语", fmt.Sprintf("feat:welcome:set:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⏰ 定时消息", fmt.Sprintf("feat:sched:view:%s", id)),
@@ -317,6 +314,40 @@ func lotteryKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:lottery:view:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	statusText := "关闭"
+	if enabled {
+		statusText = "启用"
+	}
+	modeText := "验证后欢迎"
+	if mode == "join" {
+		modeText = "进群欢迎"
+	}
+	deleteText := "否"
+	if deleteMinutes > 0 {
+		deleteText = strconv.Itoa(deleteMinutes)
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("状态："+statusText, fmt.Sprintf("feat:welcome:toggle:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("模式："+modeText, fmt.Sprintf("feat:welcome:mode:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("删除消息（分钟）："+deleteText, fmt.Sprintf("feat:welcome:delmins:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("修改文本", fmt.Sprintf("feat:welcome:set:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("修改媒体", fmt.Sprintf("feat:welcome:media:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("修改按钮", fmt.Sprintf("feat:welcome:button:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:welcome:view:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 		),
 	)

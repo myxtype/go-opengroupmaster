@@ -141,10 +141,115 @@ func (s *Service) SetWelcomeTextByTGGroupID(tgGroupID int64, text string) error 
 	if err != nil {
 		return err
 	}
-	if err := s.saveWelcomeText(group.ID, text); err != nil {
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.Text = text
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
 		return err
 	}
 	return s.repo.CreateLog(group.ID, "set_welcome_text", 0, 0)
+}
+
+func (s *Service) WelcomeViewByTGGroupID(tgGroupID int64) (*welcomeConfig, bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return nil, false, err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	enabled, err := s.IsFeatureEnabled(group.ID, featureWelcome, true)
+	if err != nil {
+		return nil, false, err
+	}
+	return &cfg, enabled, nil
+}
+
+func (s *Service) ToggleWelcomeModeByTGGroupID(tgGroupID int64) (string, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return "", err
+	}
+	if cfg.Mode == "verify" {
+		cfg.Mode = "join"
+	} else {
+		cfg.Mode = "verify"
+	}
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return "", err
+	}
+	_ = s.repo.CreateLog(group.ID, "toggle_welcome_mode_"+cfg.Mode, 0, 0)
+	return cfg.Mode, nil
+}
+
+func (s *Service) CycleWelcomeDeleteMinutesByTGGroupID(tgGroupID int64) (int, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	next := 1
+	switch cfg.DeleteMinutes {
+	case 0:
+		next = 1
+	case 1:
+		next = 5
+	case 5:
+		next = 10
+	case 10:
+		next = 30
+	default:
+		next = 0
+	}
+	cfg.DeleteMinutes = next
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_welcome_delete_%d", next), 0, 0)
+	return next, nil
+}
+
+func (s *Service) SetWelcomeMediaByTGGroupID(tgGroupID int64, fileID string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.MediaFileID = fileID
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "set_welcome_media", 0, 0)
+}
+
+func (s *Service) SetWelcomeButtonByTGGroupID(tgGroupID int64, text, url string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.ButtonText = text
+	cfg.ButtonURL = url
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "set_welcome_button", 0, 0)
 }
 
 func (s *Service) ToggleFeatureByTGGroupID(tgGroupID int64, featureKey string) (bool, error) {

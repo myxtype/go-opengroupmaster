@@ -38,9 +38,7 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 		h.handlePrivateCommand(bot, msg)
 		return
 	}
-	if msg.Text != "" {
-		h.handlePrivatePendingInput(bot, msg)
-	}
+	h.handlePrivatePendingInput(bot, msg)
 }
 
 func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
@@ -344,7 +342,51 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎文案失败"))
 			return
 		}
-		h.sendGroupPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "welcome_edit_media":
+		if text == "关闭" {
+			if err := h.service.SetWelcomeMediaByTGGroupID(pending.TGGroupID, ""); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空欢迎图片失败"))
+				return
+			}
+			h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
+			break
+		}
+		if len(msg.Photo) == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送一张图片"))
+			return
+		}
+		fileID := msg.Photo[len(msg.Photo)-1].FileID
+		if err := h.service.SetWelcomeMediaByTGGroupID(pending.TGGroupID, fileID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎图片失败"))
+			return
+		}
+		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "welcome_edit_button":
+		if text == "关闭" {
+			if err := h.service.SetWelcomeButtonByTGGroupID(pending.TGGroupID, "", ""); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空欢迎按钮失败"))
+				return
+			}
+			h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
+			break
+		}
+		parts := strings.SplitN(text, "|", 2)
+		if len(parts) != 2 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：按钮文本|链接URL"))
+			return
+		}
+		btnText := strings.TrimSpace(parts[0])
+		btnURL := strings.TrimSpace(parts[1])
+		if btnText == "" || btnURL == "" || !(strings.HasPrefix(btnURL, "http://") || strings.HasPrefix(btnURL, "https://")) {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效按钮，示例：官网|https://example.com"))
+			return
+		}
+		if err := h.service.SetWelcomeButtonByTGGroupID(pending.TGGroupID, btnText, btnURL); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎按钮失败"))
+			return
+		}
+		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	default:
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "未识别输入态，请重新点击菜单操作"))
 	}
