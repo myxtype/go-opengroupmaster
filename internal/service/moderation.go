@@ -75,8 +75,16 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 				return err
 			}
 			if matched {
+				if mins, cfgErr := s.LotteryDeleteKeywordMinutesByGroupID(group.ID); cfgErr == nil && mins > 0 {
+					go func(chatID int64, messageID int, delayMins int) {
+						time.Sleep(time.Duration(delayMins) * time.Minute)
+						_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+					}(msg.Chat.ID, msg.MessageID, mins)
+				}
 				if joined {
-					_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 参与抽奖成功", msg.From.UserName)))
+					reply := tgbotapi.NewMessage(msg.Chat.ID, "参与抽奖成功")
+					reply.ReplyToMessageID = msg.MessageID
+					_, _ = bot.Send(reply)
 				}
 				return nil
 			}
@@ -133,26 +141,50 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		}
 	}
 
-	antiFlood, err := s.IsFeatureEnabled(group.ID, featureAntiFlood, false)
+	state, err := s.getAntiFloodState(group.ID)
 	if err != nil {
 		return false, err
 	}
-	if antiFlood {
-		cfg, err := s.getAntiFloodConfig(group.ID)
-		if err != nil {
-			return false, err
-		}
+	if state.Enabled {
+		cfg := normalizeAntiFloodConfig(state.Config)
 		flooding, reason := s.isFlooding(group.TGGroupID, msg.From.ID, msg.Text, cfg)
 		if flooding {
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			restrict := tgbotapi.RestrictChatMemberConfig{
-				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-				UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
-				Permissions:      &tgbotapi.ChatPermissions{},
+			switch cfg.Penalty {
+			case antiFloodPenaltyMute:
+				restrict := tgbotapi.RestrictChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
+					Permissions:      &tgbotapi.ChatPermissions{},
+				}
+				_, _ = bot.Request(restrict)
+			case antiFloodPenaltyKick:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+				})
+				_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					OnlyIfBanned:     true,
+				})
+			case antiFloodPenaltyKickBan:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					RevokeMessages:   true,
+				})
 			}
-			_, _ = bot.Request(restrict)
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 触发反刷屏（%s），已禁言 %d 秒", msg.From.UserName, reason, cfg.MuteSec)))
-			_ = s.repo.CreateLog(group.ID, "anti_flood_restrict_"+reason, 0, 0)
+			alertText := fmt.Sprintf("%s 触发反刷屏，已%s", floodUserDisplayName(msg.From), antiFloodActionLabel(cfg.Penalty, cfg.MuteSec))
+			if reason == "high_freq" {
+				alertText = fmt.Sprintf("%s（%d秒内%d条）", alertText, cfg.WindowSec, cfg.MaxMessages)
+			}
+			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
+			if sendErr == nil && cfg.WarnDeleteSec > 0 {
+				go func(chatID int64, messageID int, seconds int) {
+					time.Sleep(time.Duration(seconds) * time.Second)
+					_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+				}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
+			}
+			_ = s.repo.CreateLog(group.ID, "anti_flood_"+cfg.Penalty+"_"+reason, 0, 0)
 			return true, nil
 		}
 	}
@@ -192,36 +224,31 @@ func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFlo
 	items := s.flood[key]
 	valid := make([]floodEvent, 0, len(items)+1)
 	for _, item := range items {
-		if now-item.Timestamp <= int64(max(cfg.WindowSec, cfg.RepeatWindow)) {
+		if now-item.Timestamp <= int64(cfg.WindowSec) {
 			valid = append(valid, item)
 		}
 	}
 	norm := normalizeSpamText(text)
 	valid = append(valid, floodEvent{Timestamp: now, Text: norm})
 	s.flood[key] = valid
-
-	recent := 0
-	for _, item := range valid {
-		if now-item.Timestamp <= int64(cfg.WindowSec) {
-			recent++
-		}
-	}
-	if recent > cfg.MaxMessages {
+	if len(valid) >= cfg.MaxMessages {
 		return true, "high_freq"
 	}
-
-	if norm != "" {
-		repeat := 0
-		for _, item := range valid {
-			if now-item.Timestamp <= int64(cfg.RepeatWindow) && item.Text == norm {
-				repeat++
-			}
-		}
-		if repeat >= cfg.RepeatThreshold {
-			return true, "repeat_text"
-		}
-	}
 	return false, ""
+}
+
+func floodUserDisplayName(u *tgbotapi.User) string {
+	if u == nil {
+		return "该用户"
+	}
+	if strings.TrimSpace(u.UserName) != "" {
+		return "@" + strings.TrimSpace(u.UserName)
+	}
+	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if name == "" {
+		return fmt.Sprintf("uid:%d", u.ID)
+	}
+	return name
 }
 
 func containsLink(text string) bool {

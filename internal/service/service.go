@@ -19,11 +19,22 @@ const featureKeywordMonitor = "keyword_monitor"
 const featureChain = "chain"
 const featurePollMeta = "poll_meta"
 const featureRBAC = "rbac"
+const featureLottery = "lottery"
+
+const (
+	antiFloodPenaltyWarn       = "warn"
+	antiFloodPenaltyMute       = "mute"
+	antiFloodPenaltyKick       = "kick"
+	antiFloodPenaltyKickBan    = "kick_ban"
+	antiFloodPenaltyDeleteOnly = "delete_only"
+)
 
 type verifyPending struct {
-	Deadline time.Time
-	Mode     string
-	Answer   int
+	Deadline      time.Time
+	Mode          string
+	Answer        string
+	MessageID     int
+	TimeoutAction string
 }
 
 type floodEvent struct {
@@ -32,8 +43,10 @@ type floodEvent struct {
 }
 
 type joinVerifyConfig struct {
-	Type       string `json:"type"`
-	TimeoutSec int    `json:"timeout_sec"`
+	Type           string `json:"type"`
+	TimeoutSec     int    `json:"timeout_sec,omitempty"`
+	TimeoutMinutes int    `json:"timeout_minutes"`
+	TimeoutAction  string `json:"timeout_action"`
 }
 
 type newbieLimitConfig struct {
@@ -54,11 +67,23 @@ type antiSpamConfig struct {
 }
 
 type antiFloodConfig struct {
-	WindowSec       int `json:"window_sec"`
-	MaxMessages     int `json:"max_messages"`
-	MuteSec         int `json:"mute_sec"`
-	RepeatWindow    int `json:"repeat_window_sec"`
-	RepeatThreshold int `json:"repeat_threshold"`
+	WindowSec       int    `json:"window_sec"`
+	MaxMessages     int    `json:"max_messages"`
+	Penalty         string `json:"penalty"`
+	MuteSec         int    `json:"mute_sec"`
+	WarnDeleteSec   int    `json:"warn_delete_sec"`
+	RepeatWindow    int    `json:"repeat_window_sec"`
+	RepeatThreshold int    `json:"repeat_threshold"`
+}
+
+type antiFloodState struct {
+	Enabled bool
+	Config  antiFloodConfig
+}
+
+type featureConfigCacheEntry struct {
+	Exists bool
+	Config string
 }
 
 type systemCleanConfig struct {
@@ -85,6 +110,12 @@ type pollMeta struct {
 	Active    bool   `json:"active"`
 }
 
+type lotteryConfig struct {
+	PublishPin           bool `json:"publish_pin"`
+	ResultPin            bool `json:"result_pin"`
+	DeleteKeywordMinutes int  `json:"delete_keyword_minutes"`
+}
+
 type rbacConfig struct {
 	Roles      map[string]string   `json:"roles"`
 	FeatureACL map[string][]string `json:"feature_acl"`
@@ -95,6 +126,10 @@ type Service struct {
 	logger          *log.Logger
 	scheduleRuntime ScheduleRuntime
 	mu              sync.Mutex
+	configCacheMu   sync.RWMutex
+	configCache     map[string]featureConfigCacheEntry
+	antiFloodMu     sync.RWMutex
+	antiFloodCache  map[uint]antiFloodState
 	flood           map[string][]floodEvent
 	joinAt          map[string]time.Time
 	verify          map[string]verifyPending
@@ -153,6 +188,22 @@ type ChainView struct {
 	Entries []string
 }
 
+type JoinVerifyView struct {
+	Enabled        bool
+	Type           string
+	TimeoutMinutes int
+	TimeoutAction  string
+}
+
+type AntiFloodView struct {
+	Enabled       bool
+	WindowSec     int
+	MaxMessages   int
+	Penalty       string
+	MuteSec       int
+	WarnDeleteSec int
+}
+
 type LotteryPanelView struct {
 	ActiveID           uint
 	ActiveTitle        string
@@ -163,15 +214,20 @@ type LotteryPanelView struct {
 	LatestTitle        string
 	LatestJoinKeyword  string
 	LatestStatus       string
+	PublishPin         bool
+	ResultPin          bool
+	DeleteKeywordMins  int
 }
 
 func New(repo *repository.Repository, logger *log.Logger) *Service {
 	return &Service{
-		repo:   repo,
-		logger: logger,
-		flood:  make(map[string][]floodEvent),
-		joinAt: make(map[string]time.Time),
-		verify: make(map[string]verifyPending),
+		repo:           repo,
+		logger:         logger,
+		configCache:    make(map[string]featureConfigCacheEntry),
+		antiFloodCache: make(map[uint]antiFloodState),
+		flood:          make(map[string][]floodEvent),
+		joinAt:         make(map[string]time.Time),
+		verify:         make(map[string]verifyPending),
 	}
 }
 

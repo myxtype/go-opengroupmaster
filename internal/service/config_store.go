@@ -3,9 +3,58 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
+
+func featureConfigCacheKey(groupID uint, featureKey string) string {
+	return fmt.Sprintf("%d:%s", groupID, featureKey)
+}
+
+func (s *Service) getFeatureConfigEntryFromCache(groupID uint, featureKey string) (featureConfigCacheEntry, bool) {
+	key := featureConfigCacheKey(groupID, featureKey)
+	s.configCacheMu.RLock()
+	entry, ok := s.configCache[key]
+	s.configCacheMu.RUnlock()
+	return entry, ok
+}
+
+func (s *Service) setFeatureConfigEntryCache(groupID uint, featureKey string, entry featureConfigCacheEntry) {
+	key := featureConfigCacheKey(groupID, featureKey)
+	s.configCacheMu.Lock()
+	s.configCache[key] = entry
+	s.configCacheMu.Unlock()
+}
+
+func (s *Service) readFeatureConfigEntry(groupID uint, featureKey string) (featureConfigCacheEntry, error) {
+	if entry, ok := s.getFeatureConfigEntryFromCache(groupID, featureKey); ok {
+		return entry, nil
+	}
+	setting, err := s.repo.GetGroupSetting(groupID, featureKey)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			entry := featureConfigCacheEntry{Exists: false, Config: ""}
+			s.setFeatureConfigEntryCache(groupID, featureKey, entry)
+			return entry, nil
+		}
+		return featureConfigCacheEntry{}, err
+	}
+	entry := featureConfigCacheEntry{Exists: true, Config: setting.Config}
+	s.setFeatureConfigEntryCache(groupID, featureKey, entry)
+	return entry, nil
+}
+
+func (s *Service) saveFeatureConfigEntry(groupID uint, featureKey string, config string) error {
+	if err := s.repo.UpsertFeatureConfig(groupID, featureKey, config); err != nil {
+		return err
+	}
+	s.setFeatureConfigEntryCache(groupID, featureKey, featureConfigCacheEntry{
+		Exists: true,
+		Config: config,
+	})
+	return nil
+}
 
 func defaultWelcomeConfig() welcomeConfig {
 	return welcomeConfig{
@@ -35,15 +84,12 @@ func normalizeWelcomeConfig(cfg welcomeConfig) welcomeConfig {
 
 func (s *Service) getWelcomeConfig(groupID uint) (welcomeConfig, error) {
 	cfg := defaultWelcomeConfig()
-	setting, err := s.repo.GetGroupSetting(groupID, featureWelcome)
+	entry, err := s.readFeatureConfigEntry(groupID, featureWelcome)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	return normalizeWelcomeConfig(cfg), nil
 }
@@ -54,20 +100,17 @@ func (s *Service) saveWelcomeConfig(groupID uint, cfg welcomeConfig) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureWelcome, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureWelcome, string(b))
 }
 
 func (s *Service) getAntiSpamConfig(groupID uint) (antiSpamConfig, error) {
 	cfg := antiSpamConfig{WhitelistDomains: []string{}}
-	setting, err := s.repo.GetGroupSetting(groupID, featureAntiSpam)
+	entry, err := s.readFeatureConfigEntry(groupID, featureAntiSpam)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	if cfg.WhitelistDomains == nil {
 		cfg.WhitelistDomains = []string{}
@@ -75,26 +118,21 @@ func (s *Service) getAntiSpamConfig(groupID uint) (antiSpamConfig, error) {
 	return cfg, nil
 }
 
-func (s *Service) getAntiFloodConfig(groupID uint) (antiFloodConfig, error) {
-	cfg := antiFloodConfig{
-		WindowSec:       10,
+func defaultAntiFloodConfig() antiFloodConfig {
+	return antiFloodConfig{
+		WindowSec:       5,
 		MaxMessages:     5,
+		Penalty:         antiFloodPenaltyDeleteOnly,
 		MuteSec:         60,
+		WarnDeleteSec:   10,
 		RepeatWindow:    20,
 		RepeatThreshold: 3,
 	}
-	setting, err := s.repo.GetGroupSetting(groupID, featureAntiFlood)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
-		return cfg, err
-	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
-	}
+}
+
+func normalizeAntiFloodConfig(cfg antiFloodConfig) antiFloodConfig {
 	if cfg.WindowSec <= 0 {
-		cfg.WindowSec = 10
+		cfg.WindowSec = 5
 	}
 	if cfg.MaxMessages <= 0 {
 		cfg.MaxMessages = 5
@@ -102,42 +140,133 @@ func (s *Service) getAntiFloodConfig(groupID uint) (antiFloodConfig, error) {
 	if cfg.MuteSec <= 0 {
 		cfg.MuteSec = 60
 	}
-	if cfg.RepeatWindow <= 0 {
-		cfg.RepeatWindow = 20
+	if cfg.WarnDeleteSec < 0 {
+		cfg.WarnDeleteSec = 0
 	}
-	if cfg.RepeatThreshold <= 1 {
-		cfg.RepeatThreshold = 3
+	switch cfg.Penalty {
+	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
+	default:
+		cfg.Penalty = antiFloodPenaltyDeleteOnly
 	}
-	return cfg, nil
+	return cfg
+}
+
+func (s *Service) getAntiFloodState(groupID uint) (antiFloodState, error) {
+	s.antiFloodMu.RLock()
+	state, ok := s.antiFloodCache[groupID]
+	s.antiFloodMu.RUnlock()
+	if ok {
+		return state, nil
+	}
+
+	cfg := defaultAntiFloodConfig()
+	enabled := false
+	setting, err := s.repo.GetGroupSetting(groupID, featureAntiFlood)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			state = antiFloodState{Enabled: false, Config: cfg}
+			if saveErr := s.saveAntiFloodState(groupID, state); saveErr != nil {
+				return state, saveErr
+			}
+			return state, nil
+		}
+		return antiFloodState{}, err
+	}
+
+	enabled = setting.Enabled
+	rawCfg := cfg
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &rawCfg)
+	}
+	cfg = normalizeAntiFloodConfig(rawCfg)
+
+	state = antiFloodState{Enabled: enabled, Config: cfg}
+	s.antiFloodMu.Lock()
+	s.antiFloodCache[groupID] = state
+	s.antiFloodMu.Unlock()
+
+	// Ensure db has normalized config and key exists for persistence across restarts.
+	if setting.Config == "" || rawCfg != cfg {
+		_ = s.saveAntiFloodState(groupID, state)
+	}
+	return state, nil
+}
+
+func (s *Service) saveAntiFloodState(groupID uint, state antiFloodState) error {
+	state.Config = normalizeAntiFloodConfig(state.Config)
+	if err := s.repo.UpsertFeatureEnabled(groupID, featureAntiFlood, state.Enabled); err != nil {
+		return err
+	}
+	b, err := json.Marshal(state.Config)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiFlood, string(b)); err != nil {
+		return err
+	}
+	s.antiFloodMu.Lock()
+	s.antiFloodCache[groupID] = state
+	s.antiFloodMu.Unlock()
+	return nil
 }
 
 func (s *Service) getJoinVerifyConfig(groupID uint) (joinVerifyConfig, error) {
-	cfg := joinVerifyConfig{Type: "button", TimeoutSec: 120}
-	setting, err := s.repo.GetGroupSetting(groupID, featureJoinVerify)
+	cfg := joinVerifyConfig{Type: "button", TimeoutMinutes: 5, TimeoutAction: "mute"}
+	entry, err := s.readFeatureConfigEntry(groupID, featureJoinVerify)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if !entry.Exists {
+		if saveErr := s.saveJoinVerifyConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
 	}
-	if cfg.Type != "math" {
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = rawCfg
+	switch cfg.Type {
+	case "button", "math", "captcha":
+	default:
 		cfg.Type = "button"
 	}
-	if cfg.TimeoutSec <= 0 {
-		cfg.TimeoutSec = 120
+	if cfg.TimeoutMinutes <= 0 && cfg.TimeoutSec > 0 {
+		switch {
+		case cfg.TimeoutSec <= 60:
+			cfg.TimeoutMinutes = 1
+		case cfg.TimeoutSec <= 300:
+			cfg.TimeoutMinutes = 5
+		default:
+			cfg.TimeoutMinutes = 10
+		}
+	}
+	switch cfg.TimeoutMinutes {
+	case 1, 5, 10:
+	default:
+		cfg.TimeoutMinutes = 5
+	}
+	switch cfg.TimeoutAction {
+	case "mute", "kick":
+	default:
+		cfg.TimeoutAction = "mute"
+	}
+	if entry.Config == "" || rawCfg != cfg {
+		if saveErr := s.saveJoinVerifyConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
 	}
 	return cfg, nil
 }
 
 func (s *Service) saveJoinVerifyConfig(groupID uint, cfg joinVerifyConfig) error {
+	cfg.TimeoutSec = cfg.TimeoutMinutes * 60
 	b, err := json.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureJoinVerify, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureJoinVerify, string(b))
 }
 
 func (s *Service) getSystemCleanConfig(groupID uint) (systemCleanConfig, error) {
@@ -148,18 +277,18 @@ func (s *Service) getSystemCleanConfig(groupID uint) (systemCleanConfig, error) 
 		Photo: false,
 		Title: false,
 	}
-	setting, err := s.repo.GetGroupSetting(groupID, featureSystemClean)
+	entry, err := s.readFeatureConfigEntry(groupID, featureSystemClean)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if saveErr := s.saveSystemCleanConfig(groupID, cfg); saveErr != nil {
-				return cfg, saveErr
-			}
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if !entry.Exists {
+		if saveErr := s.saveSystemCleanConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	return cfg, nil
 }
@@ -169,20 +298,68 @@ func (s *Service) saveSystemCleanConfig(groupID uint, cfg systemCleanConfig) err
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureSystemClean, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureSystemClean, string(b))
+}
+
+func defaultLotteryConfig() lotteryConfig {
+	return lotteryConfig{
+		PublishPin:           true,
+		ResultPin:            true,
+		DeleteKeywordMinutes: 5,
+	}
+}
+
+func normalizeLotteryConfig(cfg lotteryConfig) lotteryConfig {
+	switch cfg.DeleteKeywordMinutes {
+	case 0, 1, 3, 5, 10, 30:
+	default:
+		cfg.DeleteKeywordMinutes = 5
+	}
+	return cfg
+}
+
+func (s *Service) getLotteryConfig(groupID uint) (lotteryConfig, error) {
+	cfg := defaultLotteryConfig()
+	entry, err := s.readFeatureConfigEntry(groupID, featureLottery)
+	if err != nil {
+		return cfg, err
+	}
+	if !entry.Exists {
+		if saveErr := s.saveLotteryConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = normalizeLotteryConfig(rawCfg)
+	if entry.Config == "" || rawCfg != cfg {
+		if saveErr := s.saveLotteryConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveLotteryConfig(groupID uint, cfg lotteryConfig) error {
+	cfg = normalizeLotteryConfig(cfg)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.saveFeatureConfigEntry(groupID, featureLottery, string(b))
 }
 
 func (s *Service) getKeywordMonitorConfig(groupID uint) (keywordMonitorConfig, error) {
 	cfg := keywordMonitorConfig{Keywords: []string{}}
-	setting, err := s.repo.GetGroupSetting(groupID, featureKeywordMonitor)
+	entry, err := s.readFeatureConfigEntry(groupID, featureKeywordMonitor)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	return cfg, nil
 }
@@ -192,20 +369,17 @@ func (s *Service) saveKeywordMonitorConfig(groupID uint, cfg keywordMonitorConfi
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureKeywordMonitor, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureKeywordMonitor, string(b))
 }
 
 func (s *Service) getChainConfig(groupID uint) (chainConfig, error) {
 	cfg := chainConfig{Active: false, Title: "", Entries: []string{}}
-	setting, err := s.repo.GetGroupSetting(groupID, featureChain)
+	entry, err := s.readFeatureConfigEntry(groupID, featureChain)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	return cfg, nil
 }
@@ -215,20 +389,17 @@ func (s *Service) saveChainConfig(groupID uint, cfg chainConfig) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureChain, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureChain, string(b))
 }
 
 func (s *Service) getPollMeta(groupID uint) (pollMeta, error) {
 	cfg := pollMeta{}
-	setting, err := s.repo.GetGroupSetting(groupID, featurePollMeta)
+	entry, err := s.readFeatureConfigEntry(groupID, featurePollMeta)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	return cfg, nil
 }
@@ -238,20 +409,17 @@ func (s *Service) savePollMeta(groupID uint, cfg pollMeta) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featurePollMeta, string(b))
+	return s.saveFeatureConfigEntry(groupID, featurePollMeta, string(b))
 }
 
 func (s *Service) getRBACConfig(groupID uint) (rbacConfig, error) {
 	cfg := rbacConfig{Roles: map[string]string{}, FeatureACL: map[string][]string{}}
-	setting, err := s.repo.GetGroupSetting(groupID, featureRBAC)
+	entry, err := s.readFeatureConfigEntry(groupID, featureRBAC)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, nil
-		}
 		return cfg, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	if cfg.Roles == nil {
 		cfg.Roles = map[string]string{}
@@ -267,20 +435,17 @@ func (s *Service) saveRBACConfig(groupID uint, cfg rbacConfig) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureRBAC, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureRBAC, string(b))
 }
 
 func (s *Service) getNewbieLimitMinutes(groupID uint) (int, error) {
 	cfg := newbieLimitConfig{Minutes: 10}
-	setting, err := s.repo.GetGroupSetting(groupID, featureNewbieLimit)
+	entry, err := s.readFeatureConfigEntry(groupID, featureNewbieLimit)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg.Minutes, nil
-		}
 		return 10, err
 	}
-	if setting.Config != "" {
-		_ = json.Unmarshal([]byte(setting.Config), &cfg)
+	if entry.Exists && entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &cfg)
 	}
 	if cfg.Minutes <= 0 {
 		cfg.Minutes = 10
@@ -296,7 +461,7 @@ func (s *Service) saveNewbieLimitMinutes(groupID uint, minutes int) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.UpsertFeatureConfig(groupID, featureNewbieLimit, string(b))
+	return s.saveFeatureConfigEntry(groupID, featureNewbieLimit, string(b))
 }
 func onOff(v bool) string {
 	if v {

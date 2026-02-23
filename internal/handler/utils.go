@@ -94,3 +94,57 @@ func onOffWithEmoji(v bool) string {
 	}
 	return "关闭❌"
 }
+
+func boolIcon(v bool) string {
+	if v {
+		return "✅"
+	}
+	return "❌"
+}
+
+func lotteryDeleteDesc(minutes int) string {
+	if minutes <= 0 {
+		return "关闭自动删除口令消息"
+	}
+	return fmt.Sprintf("%d分钟后自动删除群成员参加抽奖发送的口令消息", minutes)
+}
+
+func antiFloodPenaltyText(penalty string, muteSec int) string {
+	switch penalty {
+	case "warn":
+		return "警告"
+	case "mute":
+		return fmt.Sprintf("禁言（%d秒）", muteSec)
+	case "kick":
+		return "踢出"
+	case "kick_ban":
+		return "踢出+封禁"
+	default:
+		return "撤回消息+不处罚"
+	}
+}
+
+func antiFloodAlertDeleteText(seconds int) string {
+	if seconds <= 0 {
+		return "不自动删除"
+	}
+	return fmt.Sprintf("%d秒", seconds)
+}
+
+func verifyTypeLabel(v string) string {
+	switch v {
+	case "math":
+		return "数学题"
+	case "captcha":
+		return "验证码"
+	default:
+		return "按钮"
+	}
+}
+
+func verifyTimeoutActionLabel(v string) string {
+	if v == "kick" {
+		return "踢出"
+	}
+	return "禁言"
+}

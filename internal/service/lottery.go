@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"sort"
 	"strings"
@@ -85,7 +86,15 @@ func (s *Service) LotteryPanelViewByTGGroupID(tgGroupID int64) (*LotteryPanelVie
 	if err != nil {
 		return nil, err
 	}
-	out := &LotteryPanelView{}
+	cfg, err := s.getLotteryConfig(group.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := &LotteryPanelView{
+		PublishPin:        cfg.PublishPin,
+		ResultPin:         cfg.ResultPin,
+		DeleteKeywordMins: cfg.DeleteKeywordMinutes,
+	}
 
 	active, err := s.repo.GetActiveLottery(group.ID)
 	if err == nil && active != nil {
@@ -118,6 +127,105 @@ func (s *Service) LotteryPanelViewByTGGroupID(tgGroupID int64) (*LotteryPanelVie
 	}
 
 	return out, nil
+}
+
+func (s *Service) ToggleLotteryConfigByTGGroupID(tgGroupID int64, key string) (bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	cfg, err := s.getLotteryConfig(group.ID)
+	if err != nil {
+		return false, err
+	}
+	var v bool
+	switch key {
+	case "publish_pin":
+		cfg.PublishPin = !cfg.PublishPin
+		v = cfg.PublishPin
+	case "result_pin":
+		cfg.ResultPin = !cfg.ResultPin
+		v = cfg.ResultPin
+	default:
+		return false, errors.New("unknown lottery config key")
+	}
+	if err := s.saveLotteryConfig(group.ID, cfg); err != nil {
+		return false, err
+	}
+	_ = s.repo.CreateLog(group.ID, "toggle_lottery_"+key, 0, 0)
+	return v, nil
+}
+
+func (s *Service) CycleLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID int64) (int, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := s.getLotteryConfig(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	next := 1
+	switch cfg.DeleteKeywordMinutes {
+	case 0:
+		next = 1
+	case 1:
+		next = 3
+	case 3:
+		next = 5
+	case 5:
+		next = 10
+	case 10:
+		next = 30
+	default:
+		next = 0
+	}
+	cfg.DeleteKeywordMinutes = next
+	if err := s.saveLotteryConfig(group.ID, cfg); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_lottery_delete_keyword_%d", next), 0, 0)
+	return next, nil
+}
+
+func (s *Service) LotteryDeleteKeywordMinutesByGroupID(groupID uint) (int, error) {
+	cfg, err := s.getLotteryConfig(groupID)
+	if err != nil {
+		return 0, err
+	}
+	return cfg.DeleteKeywordMinutes, nil
+}
+
+func (s *Service) PinLotteryMessageByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, messageID int, kind string) error {
+	if bot == nil || messageID <= 0 {
+		return nil
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getLotteryConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	shouldPin := false
+	switch kind {
+	case "publish":
+		shouldPin = cfg.PublishPin
+	case "result":
+		shouldPin = cfg.ResultPin
+	default:
+		return errors.New("unknown lottery pin kind")
+	}
+	if !shouldPin {
+		return nil
+	}
+	_, err = bot.Request(tgbotapi.PinChatMessageConfig{
+		ChatID:              tgGroupID,
+		MessageID:           messageID,
+		DisableNotification: true,
+	})
+	return err
 }
 
 func (s *Service) CreateLotteryByTGGroupIDWithKeyword(tgGroupID int64, title string, winners int, keyword string) (*model.Lottery, error) {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/mojocn/base64Captcha"
 )
 
 func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
@@ -26,49 +28,90 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	verifyEnabled, err := s.IsFeatureEnabled(group.ID, featureJoinVerify, false)
 	if err == nil && verifyEnabled {
 		cfg, _ := s.getJoinVerifyConfig(group.ID)
-		timeout := cfg.TimeoutSec
-		if timeout <= 0 {
-			timeout = 120
+		timeoutMins := cfg.TimeoutMinutes
+		if timeoutMins <= 0 {
+			timeoutMins = 5
 		}
+		timeout := time.Duration(timeoutMins) * time.Minute
 		for _, m := range msg.NewChatMembers {
 			if m.IsBot {
 				continue
 			}
 			restrict := tgbotapi.RestrictChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
-				UntilDate:        time.Now().Add(time.Duration(timeout) * time.Second).Unix(),
+				UntilDate:        time.Now().Add(timeout).Unix(),
 				Permissions:      &tgbotapi.ChatPermissions{},
 			}
 			_, _ = bot.Request(restrict)
 
-			pending := verifyPending{Deadline: time.Now().Add(time.Duration(timeout) * time.Second), Mode: cfg.Type}
-			verifyText := fmt.Sprintf("新成员 @%s 请在 %d 秒内完成验证，否则将被移出。", m.UserName, timeout)
+			pending := verifyPending{
+				Deadline:      time.Now().Add(timeout),
+				Mode:          cfg.Type,
+				TimeoutAction: cfg.TimeoutAction,
+			}
+			verifyText := fmt.Sprintf("新成员 %s 请在 %d 分钟内完成验证，否则将%s。", verifyUserDisplayName(&m), timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction))
 			keyboard := tgbotapi.NewInlineKeyboardMarkup()
 			if cfg.Type == "math" {
 				a := rand.Intn(9) + 1
 				b := rand.Intn(9) + 1
 				answer := a + b
-				pending.Answer = answer
-				verifyText = fmt.Sprintf("新成员 @%s 请完成算术验证：%d + %d = ?（%d 秒内）", m.UserName, a, b, timeout)
+				pending.Answer = strconv.Itoa(answer)
+				verifyText = fmt.Sprintf("新成员 %s 请完成算术验证：%d + %d = ?（%d 分钟内）", verifyUserDisplayName(&m), a, b, timeoutMins)
 				options := buildMathOptions(answer)
 				row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
 				for _, opt := range options {
 					row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
 				}
 				keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
+			} else if cfg.Type == "captcha" {
+				captchaCode, imgBytes, imgErr := buildCaptchaImage()
+				if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
+					pending.Answer = captchaCode
+					verifyText = fmt.Sprintf("新成员 %s 请点击与图片验证码一致的数字（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					options := buildCaptchaOptions(captchaCode)
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[0])),
+							tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[1])),
+						),
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[2])),
+							tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[3])),
+						),
+					)
+					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_captcha.png", Bytes: imgBytes})
+					photo.Caption = verifyText
+					photo.ReplyMarkup = keyboard
+					if sent, sendErr := bot.Send(photo); sendErr == nil {
+						pending.MessageID = sent.MessageID
+					}
+				} else {
+					// Fallback: captcha generation failed, degrade to button verification.
+					pending.Mode = "button"
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
+						),
+					)
+					verifyText = fmt.Sprintf("新成员 %s 请点击按钮完成验证（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+				}
 			} else {
 				keyboard = tgbotapi.NewInlineKeyboardMarkup(
 					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:pass:%d:%d", group.TGGroupID, m.ID)),
+						tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 					),
 				)
 			}
+			if pending.MessageID == 0 {
+				verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
+				verifyMsg.ReplyMarkup = keyboard
+				if sent, sendErr := bot.Send(verifyMsg); sendErr == nil {
+					pending.MessageID = sent.MessageID
+				}
+			}
 			s.addVerifyPending(group.TGGroupID, m.ID, pending)
-			verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
-			verifyMsg.ReplyMarkup = keyboard
-			_, _ = bot.Send(verifyMsg)
 			_ = s.repo.CreateLog(group.ID, "join_verify_pending", 0, 0)
-			go s.verifyTimeoutKick(bot, group.TGGroupID, m.ID, time.Duration(timeout)*time.Second)
+			go s.verifyTimeoutHandle(bot, group.TGGroupID, m.ID, timeout)
 		}
 	}
 
@@ -94,7 +137,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	}
 	return nil
 }
-func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, actorID int64, answer *int) error {
+func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, actorID int64, mode string, answer string) error {
 	if actorID != tgUserID {
 		return errors.New("only target user can verify")
 	}
@@ -103,8 +146,11 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 		s.popVerifyPending(tgGroupID, tgUserID)
 		return errors.New("verification expired")
 	}
-	if pending.Mode == "math" {
-		if answer == nil || *answer != pending.Answer {
+	if pending.Mode != mode {
+		return errors.New("wrong verify mode")
+	}
+	if pending.Mode == "math" || pending.Mode == "captcha" {
+		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
 			return errors.New("wrong answer")
 		}
 	}
@@ -126,6 +172,10 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	if err != nil {
 		return err
 	}
+	if pending.MessageID > 0 {
+		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
+	}
+
 	if group, gErr := s.repo.FindGroupByTGID(tgGroupID); gErr == nil {
 		_ = s.repo.CreateLog(group.ID, "join_verify_pass", 0, 0)
 		welcomeEnabled, wErr := s.IsFeatureEnabled(group.ID, featureWelcome, true)
@@ -192,18 +242,42 @@ func (s *Service) popVerifyPending(tgGroupID, tgUserID int64) bool {
 	return ok
 }
 
-func (s *Service) verifyTimeoutKick(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, after time.Duration) {
+func (s *Service) verifyTimeoutHandle(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, after time.Duration) {
 	time.Sleep(after)
+	pending, ok := s.getVerifyPending(tgGroupID, tgUserID)
+	if !ok {
+		return
+	}
 	if !s.popVerifyPending(tgGroupID, tgUserID) {
 		return
 	}
-	_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-		UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
-	})
-	_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, fmt.Sprintf("用户 %d 验证超时，已移出群组", tgUserID)))
+	if pending.TimeoutAction == "kick" {
+		_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+			UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+		})
+		_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+			OnlyIfBanned:     true,
+		})
+		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, fmt.Sprintf("用户 %d 验证超时，已移出群组", tgUserID)))
+	} else {
+		_, _ = bot.Request(tgbotapi.RestrictChatMemberConfig{
+			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+			UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
+			Permissions:      &tgbotapi.ChatPermissions{},
+		})
+		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, fmt.Sprintf("用户 %d 验证超时，已禁言 24 小时", tgUserID)))
+	}
+	if pending.MessageID > 0 {
+		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
+	}
 	if group, err := s.repo.FindGroupByTGID(tgGroupID); err == nil {
-		_ = s.repo.CreateLog(group.ID, "join_verify_timeout_kick", 0, 0)
+		action := "mute"
+		if pending.TimeoutAction == "kick" {
+			action = "kick"
+		}
+		_ = s.repo.CreateLog(group.ID, "join_verify_timeout_"+action, 0, 0)
 	}
 }
 func buildMathOptions(answer int) []int {
@@ -224,6 +298,70 @@ func buildMathOptions(answer int) []int {
 	}
 	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return out
+}
+
+func buildCaptchaOptions(answer string) []string {
+	opts := map[string]struct{}{answer: {}}
+	for len(opts) < 4 {
+		v := randomDigits(4)
+		opts[v] = struct{}{}
+	}
+	out := make([]string, 0, len(opts))
+	for k := range opts {
+		out = append(out, k)
+	}
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
+}
+
+func randomDigits(n int) string {
+	if n <= 0 {
+		n = 4
+	}
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		b.WriteByte(byte('0' + rand.Intn(10)))
+	}
+	return b.String()
+}
+
+func verifyUserDisplayName(u *tgbotapi.User) string {
+	if u == nil {
+		return "新成员"
+	}
+	if strings.TrimSpace(u.UserName) != "" {
+		return "@" + strings.TrimSpace(u.UserName)
+	}
+	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if name != "" {
+		return name
+	}
+	return fmt.Sprintf("uid:%d", u.ID)
+}
+
+func verifyTimeoutActionText(action string) string {
+	if action == "kick" {
+		return "踢出"
+	}
+	return "禁言"
+}
+
+func buildCaptchaImage() (string, []byte, error) {
+	driver := base64Captcha.NewDriverDigit(80, 240, 4, 0.7, 80)
+	captcha := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
+	_, b64s, answer, err := captcha.Generate()
+	if err != nil {
+		return "", nil, err
+	}
+	encoded := b64s
+	if i := strings.Index(encoded, ","); i >= 0 && i+1 < len(encoded) {
+		encoded = encoded[i+1:]
+	}
+	imgBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", nil, err
+	}
+	return strings.TrimSpace(answer), imgBytes, nil
 }
 
 func formatWelcomeMentions(users []tgbotapi.User) string {

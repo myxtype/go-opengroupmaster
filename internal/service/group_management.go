@@ -277,10 +277,13 @@ func (s *Service) ToggleJoinVerifyTypeByTGGroupID(tgGroupID int64) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if cfg.Type == "math" {
-		cfg.Type = "button"
-	} else {
+	switch cfg.Type {
+	case "button":
 		cfg.Type = "math"
+	case "math":
+		cfg.Type = "captcha"
+	default:
+		cfg.Type = "button"
 	}
 	if err := s.saveJoinVerifyConfig(group.ID, cfg); err != nil {
 		return "", err

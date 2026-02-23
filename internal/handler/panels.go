@@ -204,6 +204,55 @@ func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget
 	h.render(bot, target, strings.Join(lines, "\n"), systemCleanKeyboard(tgGroupID, cfg))
 }
 
+func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.Enabled {
+		status = "✅ 启用"
+	}
+	lines := []string{
+		"💬 反刷屏",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("当前设置:在%d秒内发送%d条消息触发反刷屏", view.WindowSec, view.MaxMessages),
+		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.MuteSec)),
+		fmt.Sprintf("删除提醒:%s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiFloodKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.JoinVerifyViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载验证设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "关闭❌"
+	if view.Enabled {
+		status = "启用✅"
+	}
+	lines := []string{
+		"🤖 验证",
+		"启用后，用户进入群组需要验证才能发送消息",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("验证时间:%d分钟", view.TimeoutMinutes),
+		fmt.Sprintf("验证超时:%s", verifyTimeoutActionLabel(view.TimeoutAction)),
+		fmt.Sprintf("验证方式:%s", verifyTypeLabel(view.Type)),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), verifyKeyboard(tgGroupID, view))
+}
+
 func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
@@ -281,6 +330,14 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		"示例：周末福利|3|参加",
 		"成员在群内发送“参与关键词”即可参与",
 		"",
+		"⚙ 抽奖设置",
+		fmt.Sprintf("%s 发布置顶:", boolIcon(view.PublishPin)),
+		"└ 发布抽奖消息群内置顶",
+		fmt.Sprintf("%s 结果置顶:", boolIcon(view.ResultPin)),
+		"└ 中奖结果消息群内置顶",
+		fmt.Sprintf("%s 删除口令:", boolIcon(view.DeleteKeywordMins > 0)),
+		fmt.Sprintf("└ %s", lotteryDeleteDesc(view.DeleteKeywordMins)),
+		"",
 	}
 	if view.ActiveID > 0 {
 		lines = append(lines,
@@ -296,7 +353,7 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		lines = append(lines, "", fmt.Sprintf("最近一期：#%d %s [%s]", view.LatestID, view.LatestTitle, view.LatestStatus), fmt.Sprintf("关键词：%s", view.LatestJoinKeyword))
 	}
 
-	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID))
+	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 }
 
 func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

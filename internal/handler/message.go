@@ -79,7 +79,10 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", l.Title, l.WinnersCount, l.JoinKeyword)))
+		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", l.Title, l.WinnersCount, l.JoinKeyword)))
+		if sendErr == nil {
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, publishMsg.MessageID, "publish")
+		}
 	case "lottery_join":
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送当前抽奖设置的关键词参与（不再使用 /lottery_join）"))
 	case "lottery_draw":
@@ -88,7 +91,10 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖失败：没有足够参与者或无活动抽奖"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖结果："+joinWinnerNames(winners)))
+		resultMsg, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖结果："+joinWinnerNames(winners)))
+		if sendErr == nil {
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
+		}
 	}
 }
 
@@ -180,6 +186,10 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, title, winners, keyword); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
 			return
+		}
+		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(pending.TGGroupID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", title, winners, keyword)))
+		if sendErr == nil {
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
 		}
 		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "sched_add":

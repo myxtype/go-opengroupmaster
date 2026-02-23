@@ -52,27 +52,25 @@ func (h *Handler) handleVerifyCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		h.answerCallback(bot, cb.ID, "参数错误")
 		return
 	}
+	mode := parts[1]
+	if mode == "pass" {
+		mode = "button"
+	}
 	tgGroupID, err1 := strconv.ParseInt(parts[2], 10, 64)
 	tgUserID, err2 := strconv.ParseInt(parts[3], 10, 64)
 	if err1 != nil || err2 != nil {
 		h.answerCallback(bot, cb.ID, "参数错误")
 		return
 	}
-	var answer *int
+	answer := ""
 	if len(parts) >= 5 {
-		if v, err := strconv.Atoi(parts[4]); err == nil {
-			answer = &v
-		}
+		answer = parts[4]
 	}
-	if err := h.service.PassVerification(bot, tgGroupID, tgUserID, cb.From.ID, answer); err != nil {
+	if err := h.service.PassVerification(bot, tgGroupID, tgUserID, cb.From.ID, mode, answer); err != nil {
 		h.answerCallback(bot, cb.ID, "验证失败或已过期")
 		return
 	}
 	h.answerCallback(bot, cb.ID, "验证通过")
-	if cb.Message != nil {
-		target := renderTarget{ChatID: cb.Message.Chat.ID, MessageID: cb.Message.MessageID, Edit: true}
-		h.render(bot, target, "✅ 验证通过，可正常发言", tgbotapi.NewInlineKeyboardMarkup())
-	}
 }
 
 func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID int64, data string) {
@@ -189,7 +187,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	case "bw":
 		h.handleBannedWordFeature(bot, cb, target, userID, tgGroupID, action, parts)
 	case "lottery":
-		h.handleLotteryFeature(bot, cb, target, tgGroupID, action)
+		h.handleLotteryFeature(bot, cb, target, tgGroupID, action, parts)
 	case "sched":
 		h.handleScheduleFeature(bot, cb, target, userID, tgGroupID, action, parts)
 	case "stats":
@@ -233,7 +231,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
 	case "mod":
-		h.handleModerationFeature(bot, cb, target, userID, tgGroupID, action)
+		h.handleModerationFeature(bot, cb, target, userID, tgGroupID, action, parts)
 	case "rbac":
 		switch action {
 		case "view":
@@ -490,7 +488,7 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	}
 }
 
-func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, tgGroupID int64, action string) {
+func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "view":
 		h.answerCallback(bot, cb.ID, "加载抽奖")
@@ -503,11 +501,47 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(tgGroupID)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "开奖失败")
-			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", lotteryKeyboard(tgGroupID))
+			view, viewErr := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
+			if viewErr != nil {
+				h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", groupPanelKeyboard(tgGroupID))
+				return
+			}
+			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 			return
 		}
 		h.answerCallback(bot, cb.ID, "开奖完成")
-		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, "开奖结果："+joinWinnerNames(winners)))
+		resultMsg, sendErr := bot.Send(tgbotapi.NewMessage(tgGroupID, "开奖结果："+joinWinnerNames(winners)))
+		if sendErr == nil {
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, tgGroupID, resultMsg.MessageID, "result")
+		}
+		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
+	case "toggle":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		on, err := h.service.ToggleLotteryConfigByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "切换失败")
+			return
+		}
+		if on {
+			h.answerCallback(bot, cb.ID, "已开启")
+		} else {
+			h.answerCallback(bot, cb.ID, "已关闭")
+		}
+		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
+	case "delmins":
+		mins, err := h.service.CycleLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "切换失败")
+			return
+		}
+		if mins > 0 {
+			h.answerCallback(bot, cb.ID, fmt.Sprintf("口令消息将于 %d 分钟后删除", mins))
+		} else {
+			h.answerCallback(bot, cb.ID, "已关闭自动删除口令消息")
+		}
 		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
@@ -582,7 +616,134 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	}
 }
 
-func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string) {
+func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+	switch action {
+	case "flood", "floodview":
+		h.answerCallback(bot, cb.ID, "加载反刷屏")
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodon":
+		if _, err := h.service.SetAntiFloodEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "反刷屏已开启")
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "verify", "verifyview":
+		h.answerCallback(bot, cb.ID, "加载验证设置")
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifyon":
+		if _, err := h.service.SetJoinVerifyEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "进群验证已开启")
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifyoff":
+		if _, err := h.service.SetJoinVerifyEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "进群验证已关闭")
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifytime":
+		mins, err := h.service.CycleJoinVerifyTimeoutMinutesByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, fmt.Sprintf("验证时间已设为 %d 分钟", mins))
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifytimeout":
+		actionName, err := h.service.ToggleJoinVerifyTimeoutActionByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "验证超时已设为 "+verifyTimeoutActionLabel(actionName))
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifymethod":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mode, err := h.service.SetJoinVerifyTypeByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "验证方式已设为 "+verifyTypeLabel(mode))
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifytype":
+		mode, err := h.service.CycleJoinVerifyTypeByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "验证方式已切换为 "+verifyTypeLabel(mode))
+		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodoff":
+		if _, err := h.service.SetAntiFloodEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "反刷屏已关闭")
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodcount":
+		n, err := h.service.CycleAntiFloodMaxMessagesByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, fmt.Sprintf("触发条数已设为 %d", n))
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodwindow":
+		sec, err := h.service.CycleAntiFloodWindowSecByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, fmt.Sprintf("检测间隔已设为 %d 秒", sec))
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodpenalty":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		penalty, err := h.service.SetAntiFloodPenaltyByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "惩罚已设为 "+antiFloodPenaltyText(penalty, 60))
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodalertdel":
+		sec, err := h.service.CycleAntiFloodWarnDeleteSecByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		if sec <= 0 {
+			h.answerCallback(bot, cb.ID, "提醒自动删除：关闭")
+		} else {
+			h.answerCallback(bot, cb.ID, fmt.Sprintf("提醒自动删除：%d 秒", sec))
+		}
+		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		return
+	}
+
 	var (
 		featureKey string
 		label      string
@@ -591,24 +752,9 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	case "spam":
 		featureKey = "anti_spam"
 		label = "反垃圾"
-	case "flood":
-		featureKey = "anti_flood"
-		label = "反刷屏"
-	case "verify":
-		featureKey = "join_verify"
-		label = "进群验证"
 	case "newbie":
 		featureKey = "newbie_limit"
 		label = "新成员限制"
-	case "verifytype":
-		mode, err := h.service.ToggleJoinVerifyTypeByTGGroupID(tgGroupID)
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "切换失败")
-			return
-		}
-		h.answerCallback(bot, cb.ID, "验证类型已切换为 "+mode)
-		h.sendGroupPanel(bot, target, userID, tgGroupID)
-		return
 	case "newbietime":
 		mins, err := h.service.CycleNewbieLimitMinutesByTGGroupID(tgGroupID)
 		if err != nil {
