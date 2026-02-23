@@ -3,10 +3,10 @@ package service
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"supervisor/internal/model"
 
@@ -15,6 +15,8 @@ import (
 )
 
 var urlPattern = regexp.MustCompile(`(?i)\b(?:https?://|www\.|t\.me/|telegram\.me/)[^\s]+`)
+var ethAddressPattern = regexp.MustCompile(`(?i)\b0x[a-f0-9]{40}\b`)
+var mentionPattern = regexp.MustCompile(`@[A-Za-z0-9_]{2,}`)
 
 func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
 	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
@@ -38,23 +40,23 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		}
 	}
 
+	handled, err := s.applyModeration(bot, msg, group)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
+	}
+
+	limited, err := s.applyNewbieLimit(bot, msg, group)
+	if err != nil {
+		return err
+	}
+	if limited {
+		return nil
+	}
+
 	if msg.Text != "" {
-		handled, err := s.applyModeration(bot, msg, group)
-		if err != nil {
-			return err
-		}
-		if handled {
-			return nil
-		}
-
-		limited, err := s.applyNewbieLimit(bot, msg, group)
-		if err != nil {
-			return err
-		}
-		if limited {
-			return nil
-		}
-
 		_ = s.notifyKeywordMonitor(bot, group, msg)
 
 		banned, err := s.repo.ContainsBannedWord(group.ID, msg.Text)
@@ -112,33 +114,70 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 }
 
 func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
-	if msg.From == nil {
+	if msg.From == nil && msg.SenderChat == nil {
 		return false, nil
 	}
-	isAdmin, err := s.repo.CheckAdmin(group.ID, msg.From.ID)
-	if err != nil {
-		return false, err
-	}
-	if isAdmin {
-		return false, nil
-	}
-
-	antiSpam, err := s.IsFeatureEnabled(group.ID, featureAntiSpam, false)
-	if err != nil {
-		return false, err
-	}
-	if antiSpam {
-		cfg, err := s.getAntiSpamConfig(group.ID)
+	if msg.From != nil {
+		isAdmin, err := s.repo.CheckAdmin(group.ID, msg.From.ID)
 		if err != nil {
 			return false, err
 		}
-		blocked, _ := containsBlockedLink(msg.Text, cfg)
+		if isAdmin {
+			return false, nil
+		}
+	}
+
+	spamState, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return false, err
+	}
+	if spamState.Enabled {
+		cfg := normalizeAntiSpamConfig(spamState.Config)
+		blocked, reasonCode, reasonLabel := antiSpamViolation(msg, cfg)
 		if blocked {
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 检测到可疑链接，消息已删除", msg.From.UserName)))
-			_ = s.repo.CreateLog(group.ID, "anti_spam_delete", 0, 0)
+			appliedPenalty := cfg.Penalty
+			if msg.From == nil && (cfg.Penalty == antiFloodPenaltyMute || cfg.Penalty == antiFloodPenaltyKick || cfg.Penalty == antiFloodPenaltyKickBan) {
+				appliedPenalty = antiFloodPenaltyDeleteOnly
+			}
+			switch appliedPenalty {
+			case antiFloodPenaltyMute:
+				restrict := tgbotapi.RestrictChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
+					Permissions:      &tgbotapi.ChatPermissions{},
+				}
+				_, _ = bot.Request(restrict)
+			case antiFloodPenaltyKick:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+				})
+				_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					OnlyIfBanned:     true,
+				})
+			case antiFloodPenaltyKickBan:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					RevokeMessages:   true,
+				})
+			}
+			alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), reasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
+			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
+			if sendErr == nil && cfg.WarnDeleteSec > 0 {
+				go func(chatID int64, messageID int, seconds int) {
+					time.Sleep(time.Duration(seconds) * time.Second)
+					_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+				}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
+			}
+			_ = s.repo.CreateLog(group.ID, "anti_spam_"+appliedPenalty+"_"+reasonCode, 0, 0)
 			return true, nil
 		}
+	}
+
+	if msg.From == nil {
+		return false, nil
 	}
 
 	state, err := s.getAntiFloodState(group.ID)
@@ -251,54 +290,150 @@ func floodUserDisplayName(u *tgbotapi.User) string {
 	return name
 }
 
+func antiSpamActorDisplayName(msg *tgbotapi.Message) string {
+	if msg == nil {
+		return "该用户"
+	}
+	if msg.From != nil {
+		return floodUserDisplayName(msg.From)
+	}
+	if msg.SenderChat != nil {
+		title := strings.TrimSpace(msg.SenderChat.Title)
+		if title != "" {
+			return title
+		}
+		return fmt.Sprintf("chat:%d", msg.SenderChat.ID)
+	}
+	return "该用户"
+}
+
 func containsLink(text string) bool {
 	return urlPattern.MatchString(strings.ToLower(text))
 }
 
-func containsBlockedLink(text string, cfg antiSpamConfig) (bool, string) {
-	matches := urlPattern.FindAllString(text, -1)
-	for _, raw := range matches {
-		domain := extractDomain(raw)
-		if domain == "" {
-			return true, raw
-		}
-		if !domainAllowed(cfg.WhitelistDomains, domain) {
-			return true, raw
-		}
+func antiSpamMessageContent(msg *tgbotapi.Message) string {
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(msg.Text) != "" {
+		parts = append(parts, msg.Text)
 	}
-	return false, ""
+	if strings.TrimSpace(msg.Caption) != "" {
+		parts = append(parts, msg.Caption)
+	}
+	return strings.Join(parts, "\n")
 }
 
-func extractDomain(rawURL string) string {
-	s := rawURL
-	if strings.HasPrefix(strings.ToLower(s), "www.") || strings.HasPrefix(strings.ToLower(s), "t.me/") || strings.HasPrefix(strings.ToLower(s), "telegram.me/") {
-		s = "https://" + s
+func antiSpamExceptionHit(content string, keywords []string) bool {
+	if strings.TrimSpace(content) == "" || len(keywords) == 0 {
+		return false
 	}
-	u, err := url.Parse(s)
-	if err != nil {
-		return ""
-	}
-	host := strings.ToLower(u.Hostname())
-	host = strings.TrimPrefix(host, "www.")
-	return host
-}
-
-func normalizeSpamText(text string) string {
-	return strings.ToLower(strings.Join(strings.Fields(text), " "))
-}
-
-func domainAllowed(whitelist []string, domain string) bool {
-	for _, item := range whitelist {
-		if strings.EqualFold(strings.TrimSpace(item), domain) {
+	lower := strings.ToLower(content)
+	for _, kw := range keywords {
+		if strings.Contains(lower, strings.ToLower(strings.TrimSpace(kw))) {
 			return true
 		}
 	}
 	return false
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string, string) {
+	content := antiSpamMessageContent(msg)
+	if antiSpamExceptionHit(content, cfg.ExceptionKeywords) {
+		return false, "", ""
 	}
-	return b
+	if cfg.BlockPhoto && len(msg.Photo) > 0 {
+		return true, "photo", "图片"
+	}
+	if cfg.BlockChannelAlias && msg.SenderChat != nil {
+		return true, "channel_alias", "频道马甲发言"
+	}
+	if cfg.BlockForwardFromChannel && (msg.ForwardFromChat != nil || msg.IsAutomaticForward) {
+		return true, "forward_channel", "来自频道转发"
+	}
+	if cfg.BlockForwardFromUser && (msg.ForwardFrom != nil || strings.TrimSpace(msg.ForwardSenderName) != "") {
+		return true, "forward_user", "来自用户转发"
+	}
+	if cfg.BlockLink && containsLink(content) {
+		return true, "link", "链接"
+	}
+	if cfg.BlockAtGroupID && containsAtGroupID(content) {
+		return true, "at_group", "@群组ID"
+	}
+	if cfg.BlockAtUserID && containsAtUserID(content) {
+		return true, "at_user", "@用户ID"
+	}
+	if cfg.BlockEthAddress && containsETHAddress(content) {
+		return true, "eth", "以太坊地址"
+	}
+	if cfg.BlockLongMessage && utf8.RuneCountInString(strings.TrimSpace(content)) > cfg.MaxMessageLength {
+		return true, "long_message", "超长消息"
+	}
+	if cfg.BlockLongName && antiSpamNameLength(msg) > cfg.MaxNameLength {
+		return true, "long_name", "超长姓名"
+	}
+	return false, "", ""
+}
+
+func antiSpamNameLength(msg *tgbotapi.Message) int {
+	if msg == nil {
+		return 0
+	}
+	if msg.From != nil {
+		name := strings.TrimSpace(msg.From.FirstName + " " + msg.From.LastName)
+		if name == "" {
+			name = strings.TrimSpace(msg.From.UserName)
+		}
+		return utf8.RuneCountInString(name)
+	}
+	if msg.SenderChat != nil {
+		return utf8.RuneCountInString(strings.TrimSpace(msg.SenderChat.Title))
+	}
+	return 0
+}
+
+func containsAtGroupID(content string) bool {
+	for _, token := range mentionPattern.FindAllString(content, -1) {
+		id := strings.TrimPrefix(token, "@")
+		if id == "" {
+			continue
+		}
+		numeric := true
+		for _, r := range id {
+			if r < '0' || r > '9' {
+				numeric = false
+				break
+			}
+		}
+		if !numeric {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAtUserID(content string) bool {
+	for _, token := range mentionPattern.FindAllString(content, -1) {
+		id := strings.TrimPrefix(token, "@")
+		if id == "" {
+			continue
+		}
+		numeric := true
+		for _, r := range id {
+			if r < '0' || r > '9' {
+				numeric = false
+				break
+			}
+		}
+		if numeric {
+			return true
+		}
+	}
+	return strings.Contains(strings.ToLower(content), "tg://user?id=")
+}
+
+func containsETHAddress(content string) bool {
+	return ethAddressPattern.MatchString(content)
+}
+
+func normalizeSpamText(text string) string {
+	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }

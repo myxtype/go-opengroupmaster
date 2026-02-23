@@ -73,7 +73,7 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🧹 系统消息清理", fmt.Sprintf("feat:sys:view:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚫 反垃圾开关", fmt.Sprintf("feat:mod:spam:%s", id)),
+			tgbotapi.NewInlineKeyboardButtonData("🚫 反垃圾设置", fmt.Sprintf("feat:mod:spamview:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("⚡ 反刷屏设置", fmt.Sprintf("feat:mod:floodview:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
@@ -213,7 +213,7 @@ func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbot
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("全部", fmt.Sprintf("feat:logs:list:%s:1:all", gid)),
-		tgbotapi.NewInlineKeyboardButtonData("审核", fmt.Sprintf("feat:logs:list:%s:1:anti_spam_delete", gid)),
+		tgbotapi.NewInlineKeyboardButtonData("审核", fmt.Sprintf("feat:logs:list:%s:1:anti_spam*", gid)),
 		tgbotapi.NewInlineKeyboardButtonData("验证", fmt.Sprintf("feat:logs:list:%s:1:join_verify_pass", gid)),
 	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -277,6 +277,62 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:floodview:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+		),
+	)
+}
+
+func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("状态：✅启用", fmt.Sprintf("feat:mod:spamon:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("状态：❌关闭", fmt.Sprintf("feat:mod:spamoff:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("惩罚：警告", fmt.Sprintf("feat:mod:spampenalty:%s:warn", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("惩罚：禁言", fmt.Sprintf("feat:mod:spampenalty:%s:mute", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出", fmt.Sprintf("feat:mod:spampenalty:%s:kick", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出+封禁", fmt.Sprintf("feat:mod:spampenalty:%s:kick_ban", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("惩罚：撤回+不处罚", fmt.Sprintf("feat:mod:spampenalty:%s:delete_only", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽图片 "+onOffWithEmoji(view.BlockPhoto), fmt.Sprintf("feat:mod:spamopt:%s:photo", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽链接 "+onOffWithEmoji(view.BlockLink), fmt.Sprintf("feat:mod:spamopt:%s:link", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽频道马甲 "+onOffWithEmoji(view.BlockChannelAlias), fmt.Sprintf("feat:mod:spamopt:%s:senderchat", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽频道转发 "+onOffWithEmoji(view.BlockForwardFromChan), fmt.Sprintf("feat:mod:spamopt:%s:fwdchan", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽用户转发 "+onOffWithEmoji(view.BlockForwardFromUser), fmt.Sprintf("feat:mod:spamopt:%s:fwduser", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽@群组ID "+onOffWithEmoji(view.BlockAtGroupID), fmt.Sprintf("feat:mod:spamopt:%s:atgroup", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽@用户ID "+onOffWithEmoji(view.BlockAtUserID), fmt.Sprintf("feat:mod:spamopt:%s:atuser", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽ETH地址 "+onOffWithEmoji(view.BlockEthAddress), fmt.Sprintf("feat:mod:spamopt:%s:eth", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽超长消息 "+onOffWithEmoji(view.BlockLongMessage), fmt.Sprintf("feat:mod:spamopt:%s:longmsg", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("消息长度:%d", view.MaxMessageLength), fmt.Sprintf("feat:mod:spammsglen:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽超长姓名 "+onOffWithEmoji(view.BlockLongName), fmt.Sprintf("feat:mod:spamopt:%s:longname", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("姓名长度:%d", view.MaxNameLength), fmt.Sprintf("feat:mod:spamnamelen:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("例外+（%d）", view.ExceptionKeywordCount), fmt.Sprintf("feat:mod:spamexadd:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("例外-（按关键词）", fmt.Sprintf("feat:mod:spamexdel:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:spamalertdel:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("刷新", fmt.Sprintf("feat:mod:spamview:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 		),
 	)

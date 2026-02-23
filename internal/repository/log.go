@@ -2,7 +2,9 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 
+	"gorm.io/gorm"
 	"supervisor/internal/model"
 )
 
@@ -22,9 +24,7 @@ func (r *Repository) ListLogsPage(groupID uint, page, pageSize int, action strin
 		pageSize = 10
 	}
 	q := r.db.Model(&model.Log{}).Where("group_id = ?", groupID)
-	if action != "" && action != "all" {
-		q = q.Where("action = ?", action)
-	}
+	q = applyLogActionFilter(q, action)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -39,10 +39,19 @@ func (r *Repository) ListLogsForExport(groupID uint, action string, limit int) (
 		limit = 1000
 	}
 	q := r.db.Where("group_id = ?", groupID)
-	if action != "" && action != "all" {
-		q = q.Where("action = ?", action)
-	}
+	q = applyLogActionFilter(q, action)
 	out := make([]model.Log, 0, limit)
 	err := q.Order("id desc").Limit(limit).Find(&out).Error
 	return out, err
+}
+
+func applyLogActionFilter(q *gorm.DB, action string) *gorm.DB {
+	if action == "" || action == "all" {
+		return q
+	}
+	if strings.HasSuffix(action, "*") {
+		prefix := strings.TrimSuffix(action, "*")
+		return q.Where("action LIKE ?", prefix+"%")
+	}
+	return q.Where("action = ?", action)
 }

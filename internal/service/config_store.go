@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -103,19 +105,124 @@ func (s *Service) saveWelcomeConfig(groupID uint, cfg welcomeConfig) error {
 	return s.saveFeatureConfigEntry(groupID, featureWelcome, string(b))
 }
 
-func (s *Service) getAntiSpamConfig(groupID uint) (antiSpamConfig, error) {
-	cfg := antiSpamConfig{WhitelistDomains: []string{}}
-	entry, err := s.readFeatureConfigEntry(groupID, featureAntiSpam)
+func defaultAntiSpamConfig() antiSpamConfig {
+	return antiSpamConfig{
+		BlockPhoto:              false,
+		BlockLink:               true,
+		BlockChannelAlias:       false,
+		BlockForwardFromChannel: false,
+		BlockForwardFromUser:    false,
+		BlockAtGroupID:          false,
+		BlockAtUserID:           false,
+		BlockEthAddress:         false,
+		BlockLongMessage:        false,
+		MaxMessageLength:        100,
+		BlockLongName:           false,
+		MaxNameLength:           32,
+		ExceptionKeywords:       []string{},
+		Penalty:                 antiFloodPenaltyDeleteOnly,
+		MuteSec:                 60,
+		WarnDeleteSec:           10,
+	}
+}
+
+func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
+	if cfg.MaxMessageLength <= 0 {
+		cfg.MaxMessageLength = 100
+	}
+	if cfg.MaxNameLength <= 0 {
+		cfg.MaxNameLength = 32
+	}
+	if cfg.MuteSec <= 0 {
+		cfg.MuteSec = 60
+	}
+	if cfg.WarnDeleteSec < 0 {
+		cfg.WarnDeleteSec = 0
+	}
+	switch cfg.Penalty {
+	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
+	default:
+		cfg.Penalty = antiFloodPenaltyDeleteOnly
+	}
+	cfg.ExceptionKeywords = normalizeKeywordList(cfg.ExceptionKeywords)
+	return cfg
+}
+
+func normalizeKeywordList(items []string) []string {
+	uniq := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		kw := strings.TrimSpace(item)
+		if kw == "" {
+			continue
+		}
+		k := strings.ToLower(kw)
+		if _, ok := uniq[k]; ok {
+			continue
+		}
+		uniq[k] = struct{}{}
+		out = append(out, kw)
+	}
+	return out
+}
+
+func (s *Service) getAntiSpamState(groupID uint) (antiSpamState, error) {
+	s.antiSpamMu.RLock()
+	state, ok := s.antiSpamCache[groupID]
+	s.antiSpamMu.RUnlock()
+	if ok {
+		return state, nil
+	}
+
+	cfg := defaultAntiSpamConfig()
+	setting, err := s.repo.GetGroupSetting(groupID, featureAntiSpam)
 	if err != nil {
-		return cfg, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			state = antiSpamState{Enabled: false, Config: cfg}
+			if saveErr := s.saveAntiSpamState(groupID, state); saveErr != nil {
+				return state, saveErr
+			}
+			return state, nil
+		}
+		return antiSpamState{}, err
 	}
-	if entry.Exists && entry.Config != "" {
-		_ = json.Unmarshal([]byte(entry.Config), &cfg)
+
+	rawCfg := cfg
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &rawCfg)
 	}
-	if cfg.WhitelistDomains == nil {
-		cfg.WhitelistDomains = []string{}
+	cfg = normalizeAntiSpamConfig(rawCfg)
+	state = antiSpamState{
+		Enabled: setting.Enabled,
+		Config:  cfg,
 	}
-	return cfg, nil
+
+	s.antiSpamMu.Lock()
+	s.antiSpamCache[groupID] = state
+	s.antiSpamMu.Unlock()
+
+	if setting.Config == "" || !reflect.DeepEqual(rawCfg, cfg) {
+		_ = s.saveAntiSpamState(groupID, state)
+	}
+	return state, nil
+}
+
+func (s *Service) saveAntiSpamState(groupID uint, state antiSpamState) error {
+	state.Config = normalizeAntiSpamConfig(state.Config)
+	if err := s.repo.UpsertFeatureEnabled(groupID, featureAntiSpam, state.Enabled); err != nil {
+		return err
+	}
+	b, err := json.Marshal(state.Config)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiSpam, string(b)); err != nil {
+		return err
+	}
+	s.antiSpamMu.Lock()
+	s.antiSpamCache[groupID] = state
+	s.antiSpamMu.Unlock()
+	return nil
 }
 
 func defaultAntiFloodConfig() antiFloodConfig {

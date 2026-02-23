@@ -618,6 +618,99 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 
 func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "spam", "spamview":
+		h.answerCallback(bot, cb.ID, "加载反垃圾")
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamon":
+		if _, err := h.service.SetAntiSpamEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "反垃圾已开启")
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamoff":
+		if _, err := h.service.SetAntiSpamEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "反垃圾已关闭")
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamopt":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		enabled, err := h.service.ToggleAntiSpamOptionByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		if enabled {
+			h.answerCallback(bot, cb.ID, "已启用")
+		} else {
+			h.answerCallback(bot, cb.ID, "已关闭")
+		}
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
+	case "spampenalty":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		penalty, err := h.service.SetAntiSpamPenaltyByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "惩罚已设为 "+antiFloodPenaltyText(penalty, 60))
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
+	case "spammsglen":
+		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入消息最大长度")
+		h.setPending(userID, pendingInput{Kind: "spam_msg_len", TGGroupID: tgGroupID})
+		h.render(bot, target, fmt.Sprintf("检测到消息内容长度大于设定数时，将会判定为超长消息并处罚。\n当前设置最大长度:%d\n👉 输入允许的消息最大长度（例如:100）:", view.MaxMessageLength), pendingCancelKeyboard(tgGroupID))
+		return
+	case "spamnamelen":
+		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入姓名最大长度")
+		h.setPending(userID, pendingInput{Kind: "spam_name_len", TGGroupID: tgGroupID})
+		h.render(bot, target, fmt.Sprintf("检测到姓名长度大于设定数时，将会判定为超长姓名并处罚。\n当前设置最大长度:%d\n👉 输入允许的姓名最大长度（例如:32）:", view.MaxNameLength), pendingCancelKeyboard(tgGroupID))
+		return
+	case "spamexadd":
+		h.answerCallback(bot, cb.ID, "请输入例外关键词")
+		h.setPending(userID, pendingInput{Kind: "spam_exception_add", TGGroupID: tgGroupID})
+		h.render(bot, target, "输入一个例外关键词（命中后跳过反垃圾检测）", pendingCancelKeyboard(tgGroupID))
+		return
+	case "spamexdel":
+		h.answerCallback(bot, cb.ID, "请输入要移除的关键词")
+		h.setPending(userID, pendingInput{Kind: "spam_exception_remove", TGGroupID: tgGroupID})
+		h.render(bot, target, "输入要移除的例外关键词（精确匹配，不区分大小写）", pendingCancelKeyboard(tgGroupID))
+		return
+	case "spamalertdel":
+		sec, err := h.service.CycleAntiSpamWarnDeleteSecByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		if sec <= 0 {
+			h.answerCallback(bot, cb.ID, "提醒自动删除：关闭")
+		} else {
+			h.answerCallback(bot, cb.ID, fmt.Sprintf("提醒自动删除：%d 秒", sec))
+		}
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return
 	case "flood", "floodview":
 		h.answerCallback(bot, cb.ID, "加载反刷屏")
 		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
@@ -773,27 +866,5 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		return
 	}
 
-	var (
-		featureKey string
-		label      string
-	)
-	switch action {
-	case "spam":
-		featureKey = "anti_spam"
-		label = "反垃圾"
-	default:
-		h.answerCallback(bot, cb.ID, "未知操作")
-		return
-	}
-	enabled, err := h.service.ToggleFeatureByTGGroupID(tgGroupID, featureKey)
-	if err != nil {
-		h.answerCallback(bot, cb.ID, "切换失败")
-		return
-	}
-	if enabled {
-		h.answerCallback(bot, cb.ID, label+"已开启")
-	} else {
-		h.answerCallback(bot, cb.ID, label+"已关闭")
-	}
-	h.sendGroupPanel(bot, target, userID, tgGroupID)
+	h.answerCallback(bot, cb.ID, "未知操作")
 }

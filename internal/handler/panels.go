@@ -228,6 +228,55 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), antiFloodKeyboard(tgGroupID, view))
 }
 
+func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.Enabled {
+		status = "✅ 启用"
+	}
+	keywords := "无"
+	if len(view.ExceptionKeywords) > 0 {
+		show := view.ExceptionKeywords
+		if len(show) > 5 {
+			show = show[:5]
+		}
+		keywords = strings.Join(show, "、")
+		if len(view.ExceptionKeywords) > len(show) {
+			keywords += " ..."
+		}
+	}
+	lines := []string{
+		"📨 反垃圾",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.MuteSec)),
+		"",
+		fmt.Sprintf("1. 屏蔽图片: %s", onOffWithEmoji(view.BlockPhoto)),
+		fmt.Sprintf("2. 屏蔽链接: %s", onOffWithEmoji(view.BlockLink)),
+		fmt.Sprintf("3. 屏蔽频道马甲发言: %s", onOffWithEmoji(view.BlockChannelAlias)),
+		fmt.Sprintf("4. 屏蔽来自频道转发: %s", onOffWithEmoji(view.BlockForwardFromChan)),
+		fmt.Sprintf("5. 屏蔽来自用户转发: %s", onOffWithEmoji(view.BlockForwardFromUser)),
+		fmt.Sprintf("6. 屏蔽@群组ID: %s", onOffWithEmoji(view.BlockAtGroupID)),
+		fmt.Sprintf("7. 屏蔽@用户ID: %s", onOffWithEmoji(view.BlockAtUserID)),
+		fmt.Sprintf("8. 屏蔽以太坊地址: %s", onOffWithEmoji(view.BlockEthAddress)),
+		fmt.Sprintf("9. 屏蔽超长消息: %s", onOffWithEmoji(view.BlockLongMessage)),
+		fmt.Sprintf("10. 当前设置最大消息长度: %d", view.MaxMessageLength),
+		fmt.Sprintf("11. 屏蔽超长姓名: %s", onOffWithEmoji(view.BlockLongName)),
+		fmt.Sprintf("12. 当前设置最大姓名长度: %d", view.MaxNameLength),
+		fmt.Sprintf("13. 已添加例外: %d条", view.ExceptionKeywordCount),
+		fmt.Sprintf("例外关键词:%s", keywords),
+		fmt.Sprintf("14. 删除提醒: %s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiSpamKeyboard(tgGroupID, view))
+}
+
 func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

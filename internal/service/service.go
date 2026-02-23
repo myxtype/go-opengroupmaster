@@ -63,7 +63,22 @@ type welcomeConfig struct {
 }
 
 type antiSpamConfig struct {
-	WhitelistDomains []string `json:"whitelist_domains"`
+	BlockPhoto              bool     `json:"block_photo"`
+	BlockLink               bool     `json:"block_link"`
+	BlockChannelAlias       bool     `json:"block_channel_alias"`
+	BlockForwardFromChannel bool     `json:"block_forward_channel"`
+	BlockForwardFromUser    bool     `json:"block_forward_user"`
+	BlockAtGroupID          bool     `json:"block_at_group_id"`
+	BlockAtUserID           bool     `json:"block_at_user_id"`
+	BlockEthAddress         bool     `json:"block_eth_address"`
+	BlockLongMessage        bool     `json:"block_long_message"`
+	MaxMessageLength        int      `json:"max_message_length"`
+	BlockLongName           bool     `json:"block_long_name"`
+	MaxNameLength           int      `json:"max_name_length"`
+	ExceptionKeywords       []string `json:"exception_keywords"`
+	Penalty                 string   `json:"penalty"`
+	MuteSec                 int      `json:"mute_sec"`
+	WarnDeleteSec           int      `json:"warn_delete_sec"`
 }
 
 type antiFloodConfig struct {
@@ -79,6 +94,11 @@ type antiFloodConfig struct {
 type antiFloodState struct {
 	Enabled bool
 	Config  antiFloodConfig
+}
+
+type antiSpamState struct {
+	Enabled bool
+	Config  antiSpamConfig
 }
 
 type featureConfigCacheEntry struct {
@@ -128,6 +148,8 @@ type Service struct {
 	mu              sync.Mutex
 	configCacheMu   sync.RWMutex
 	configCache     map[string]featureConfigCacheEntry
+	antiSpamMu      sync.RWMutex
+	antiSpamCache   map[uint]antiSpamState
 	antiFloodMu     sync.RWMutex
 	antiFloodCache  map[uint]antiFloodState
 	flood           map[string][]floodEvent
@@ -209,6 +231,27 @@ type AntiFloodView struct {
 	WarnDeleteSec int
 }
 
+type AntiSpamView struct {
+	Enabled               bool
+	BlockPhoto            bool
+	BlockLink             bool
+	BlockChannelAlias     bool
+	BlockForwardFromChan  bool
+	BlockForwardFromUser  bool
+	BlockAtGroupID        bool
+	BlockAtUserID         bool
+	BlockEthAddress       bool
+	BlockLongMessage      bool
+	MaxMessageLength      int
+	BlockLongName         bool
+	MaxNameLength         int
+	ExceptionKeywordCount int
+	ExceptionKeywords     []string
+	Penalty               string
+	MuteSec               int
+	WarnDeleteSec         int
+}
+
 type LotteryPanelView struct {
 	ActiveID           uint
 	ActiveTitle        string
@@ -229,6 +272,7 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		repo:           repo,
 		logger:         logger,
 		configCache:    make(map[string]featureConfigCacheEntry),
+		antiSpamCache:  make(map[uint]antiSpamState),
 		antiFloodCache: make(map[uint]antiFloodState),
 		flood:          make(map[string][]floodEvent),
 		joinAt:         make(map[string]time.Time),

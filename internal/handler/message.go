@@ -372,6 +372,48 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_msg_len":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetAntiSpamMaxMessageLengthByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置超长消息长度失败"))
+			return
+		}
+		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_name_len":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetAntiSpamMaxNameLengthByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置超长姓名长度失败"))
+			return
+		}
+		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_exception_add":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			return
+		}
+		if _, err := h.service.AddAntiSpamExceptionByTGGroupID(pending.TGGroupID, text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "添加例外失败"))
+			return
+		}
+		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_exception_remove":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			return
+		}
+		if _, err := h.service.RemoveAntiSpamExceptionByTGGroupID(pending.TGGroupID, text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除例外失败"))
+			return
+		}
+		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {
