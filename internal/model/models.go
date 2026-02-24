@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// User 表示系统中的 Telegram 用户。
 type User struct {
 	ID        uint  `gorm:"primaryKey"`
 	TGUserID  int64 `gorm:"uniqueIndex;not null"`
@@ -12,6 +13,7 @@ type User struct {
 	CreatedAt time.Time
 }
 
+// Group 表示一个被机器人管理的 Telegram 群组。
 type Group struct {
 	ID        uint  `gorm:"primaryKey"`
 	TGGroupID int64 `gorm:"uniqueIndex;not null"`
@@ -21,6 +23,7 @@ type Group struct {
 	CreatedAt time.Time
 }
 
+// GroupAdmin 表示群组管理员与权限角色的关联关系。
 type GroupAdmin struct {
 	ID      uint   `gorm:"primaryKey"`
 	GroupID uint   `gorm:"index;not null"`
@@ -28,6 +31,7 @@ type GroupAdmin struct {
 	Role    string `gorm:"default:admin"`
 }
 
+// GroupSetting 表示群组功能开关和配置项。
 type GroupSetting struct {
 	ID         uint   `gorm:"primaryKey"`
 	GroupID    uint   `gorm:"index;not null"`
@@ -36,6 +40,7 @@ type GroupSetting struct {
 	Config     string `gorm:"type:text"`
 }
 
+// AutoReply 表示群组自动回复规则。
 type AutoReply struct {
 	ID         uint   `gorm:"primaryKey"`
 	GroupID    uint   `gorm:"index;not null"`
@@ -45,6 +50,7 @@ type AutoReply struct {
 	ButtonRows string `gorm:"type:text"`
 }
 
+// ScheduledMessage 表示按计划在群组发送的定时消息。
 type ScheduledMessage struct {
 	ID         uint   `gorm:"primaryKey"`
 	GroupID    uint   `gorm:"index;not null"`
@@ -54,12 +60,14 @@ type ScheduledMessage struct {
 	ButtonRows string `gorm:"type:text"`
 }
 
+// BannedWord 表示群组的违禁词条目。
 type BannedWord struct {
 	ID      uint   `gorm:"primaryKey"`
 	GroupID uint   `gorm:"index;not null"`
 	Word    string `gorm:"index;not null"`
 }
 
+// UserPoint 表示用户在群组内的积分记录。
 type UserPoint struct {
 	ID      uint `gorm:"primaryKey"`
 	GroupID uint `gorm:"index;not null"`
@@ -67,6 +75,7 @@ type UserPoint struct {
 	Points  int  `gorm:"default:0"`
 }
 
+// Lottery 表示群组内的一次抽奖活动。
 type Lottery struct {
 	ID           uint   `gorm:"primaryKey"`
 	GroupID      uint   `gorm:"index;not null"`
@@ -76,12 +85,14 @@ type Lottery struct {
 	Status       string `gorm:"default:active"`
 }
 
+// LotteryParticipant 表示抽奖活动参与者记录。
 type LotteryParticipant struct {
 	ID        uint `gorm:"primaryKey"`
 	LotteryID uint `gorm:"index;not null"`
 	UserID    uint `gorm:"index;not null"`
 }
 
+// Log 表示群组操作审计日志。
 type Log struct {
 	ID         uint      `gorm:"primaryKey"`
 	GroupID    uint      `gorm:"index;not null"`
@@ -91,6 +102,7 @@ type Log struct {
 	CreatedAt  time.Time `gorm:"autoCreateTime"`
 }
 
+// GroupBlacklist 表示群组级别的用户黑名单记录。
 type GroupBlacklist struct {
 	ID        uint  `gorm:"primaryKey"`
 	GroupID   uint  `gorm:"uniqueIndex:idx_group_blacklist_user;index;not null"`
