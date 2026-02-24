@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -161,4 +162,23 @@ func autoReplyMatchTypeLabel(v string) string {
 		return "包含触发"
 	}
 	return "精准触发"
+}
+
+func buttonRowsCount(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	var rows [][]struct {
+		Text string `json:"text"`
+		URL  string `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
+		return 0
+	}
+	total := 0
+	for _, row := range rows {
+		total += len(row)
+	}
+	return total
 }

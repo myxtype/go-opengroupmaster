@@ -8,8 +8,14 @@ func (r *Repository) ListEnabledScheduledMessages() ([]model.ScheduledMessage, e
 	return out, err
 }
 
-func (r *Repository) CreateScheduledMessage(groupID uint, content, cronExpr string) (*model.ScheduledMessage, error) {
-	item := &model.ScheduledMessage{GroupID: groupID, Content: content, CronExpr: cronExpr, Enabled: true}
+func (r *Repository) CreateScheduledMessage(groupID uint, content, cronExpr, buttonRows string) (*model.ScheduledMessage, error) {
+	item := &model.ScheduledMessage{
+		GroupID:    groupID,
+		Content:    content,
+		CronExpr:   cronExpr,
+		Enabled:    true,
+		ButtonRows: buttonRows,
+	}
 	if err := r.db.Create(item).Error; err != nil {
 		return nil, err
 	}

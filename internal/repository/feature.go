@@ -34,7 +34,7 @@ func (r *Repository) CreateDefaultDataIfEmpty(groupID uint) error {
 		return err
 	}
 	if count == 0 {
-		if err := r.db.Create(&model.AutoReply{GroupID: groupID, Keyword: "你好", Reply: "你好，我是 GroupMaster Bot", MatchType: "exact"}).Error; err != nil {
+		if err := r.db.Create(&model.AutoReply{GroupID: groupID, Keyword: "你好", Reply: "你好，我是 GroupMaster Bot", MatchType: "exact", ButtonRows: ""}).Error; err != nil {
 			return err
 		}
 	}

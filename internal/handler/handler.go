@@ -34,6 +34,7 @@ type pendingInput struct {
 	CronExpr  string
 	Keyword   string
 	MatchType string
+	Content   string
 }
 
 type Handler struct {

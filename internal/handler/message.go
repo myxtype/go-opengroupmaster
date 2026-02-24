@@ -233,8 +233,28 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
 			return
 		}
-		if err := h.service.AddAutoReplyByTGGroupID(pending.TGGroupID, pending.Keyword, reply, matchType); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "新增自动回复失败"))
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "auto_add_buttons",
+			TGGroupID: pending.TGGroupID,
+			Page:      pending.Page,
+			Keyword:   pending.Keyword,
+			MatchType: matchType,
+			Content:   reply,
+		})
+		h.render(bot, target, "第4步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "auto_add_buttons":
+		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少自动回复内容，请重新新增自动回复"))
+			return
+		}
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
+			return
+		}
+		if err := h.service.AddAutoReplyByTGGroupIDWithButtons(pending.TGGroupID, pending.Keyword, pending.Content, matchType, msg.Text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "新增自动回复失败："+err.Error()))
 			return
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, 1)
@@ -284,8 +304,36 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
 			return
 		}
-		if err := h.service.UpdateAutoReplyByTGGroupID(pending.TGGroupID, pending.RuleID, pending.Keyword, reply, matchType); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "更新自动回复失败"))
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "auto_edit_buttons",
+			TGGroupID: pending.TGGroupID,
+			RuleID:    pending.RuleID,
+			Page:      pending.Page,
+			Keyword:   pending.Keyword,
+			MatchType: matchType,
+			Content:   reply,
+		})
+		h.render(bot, target, "第4步（可选）：请输入新的链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”保持当前按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "auto_edit_buttons":
+		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少自动回复内容，请重新编辑"))
+			return
+		}
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
+			return
+		}
+		rawButtons := strings.TrimSpace(msg.Text)
+		var err error
+		if rawButtons == "" || rawButtons == "跳过" {
+			err = h.service.UpdateAutoReplyByTGGroupID(pending.TGGroupID, pending.RuleID, pending.Keyword, pending.Content, matchType)
+		} else {
+			err = h.service.UpdateAutoReplyByTGGroupIDWithButtons(pending.TGGroupID, pending.RuleID, pending.Keyword, pending.Content, matchType, msg.Text)
+		}
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "更新自动回复失败："+err.Error()))
 			return
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
@@ -353,7 +401,21 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少 cron 表达式，请重新创建定时消息"))
 			return
 		}
-		if err := h.service.CreateScheduledMessageByTGGroupID(pending.TGGroupID, content, pending.CronExpr); err != nil {
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "sched_add_buttons",
+			TGGroupID: pending.TGGroupID,
+			Page:      pending.Page,
+			CronExpr:  pending.CronExpr,
+			Content:   content,
+		})
+		h.render(bot, target, "第3步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "sched_add_buttons":
+		if strings.TrimSpace(pending.CronExpr) == "" || strings.TrimSpace(pending.Content) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少定时消息内容，请重新创建"))
+			return
+		}
+		if err := h.service.CreateScheduledMessageByTGGroupIDWithButtons(pending.TGGroupID, pending.Content, pending.CronExpr, msg.Text); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建定时消息失败："+err.Error()))
 			return
 		}

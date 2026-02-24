@@ -11,12 +11,20 @@ import (
 const maxScheduledMessagesPerGroup = 3
 
 func (s *Service) AddAutoReplyByTGGroupID(tgGroupID int64, keyword, reply, matchType string) error {
+	return s.AddAutoReplyByTGGroupIDWithButtons(tgGroupID, keyword, reply, matchType, "")
+}
+
+func (s *Service) AddAutoReplyByTGGroupIDWithButtons(tgGroupID int64, keyword, reply, matchType, rawButtons string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
 	}
 	matchType = normalizeAutoReplyMatchType(matchType)
-	return s.repo.CreateAutoReply(group.ID, keyword, reply, matchType)
+	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
+	if err != nil {
+		return err
+	}
+	return s.repo.CreateAutoReply(group.ID, keyword, reply, matchType, buttonRows)
 }
 
 func (s *Service) AddBannedWordByTGGroupID(tgGroupID int64, word string) error {
@@ -54,6 +62,19 @@ func (s *Service) UpdateAutoReplyByTGGroupID(tgGroupID int64, id uint, keyword, 
 	}
 	matchType = normalizeAutoReplyMatchType(matchType)
 	return s.repo.UpdateAutoReply(group.ID, id, keyword, reply, matchType)
+}
+
+func (s *Service) UpdateAutoReplyByTGGroupIDWithButtons(tgGroupID int64, id uint, keyword, reply, matchType, rawButtons string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	matchType = normalizeAutoReplyMatchType(matchType)
+	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
+	if err != nil {
+		return err
+	}
+	return s.repo.UpdateAutoReplyWithButtons(group.ID, id, keyword, reply, matchType, buttonRows)
 }
 
 func normalizeAutoReplyMatchType(matchType string) string {
@@ -94,6 +115,10 @@ func (s *Service) UpdateBannedWordByTGGroupID(tgGroupID int64, id uint, word str
 }
 
 func (s *Service) CreateScheduledMessageByTGGroupID(tgGroupID int64, content, cronExpr string) error {
+	return s.CreateScheduledMessageByTGGroupIDWithButtons(tgGroupID, content, cronExpr, "")
+}
+
+func (s *Service) CreateScheduledMessageByTGGroupIDWithButtons(tgGroupID int64, content, cronExpr, rawButtons string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
@@ -106,7 +131,12 @@ func (s *Service) CreateScheduledMessageByTGGroupID(tgGroupID int64, content, cr
 		return fmt.Errorf("每个群最多创建 %d 条定时消息", maxScheduledMessagesPerGroup)
 	}
 
-	item, err := s.repo.CreateScheduledMessage(group.ID, content, cronExpr)
+	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
+	if err != nil {
+		return err
+	}
+
+	item, err := s.repo.CreateScheduledMessage(group.ID, content, cronExpr, buttonRows)
 	if err != nil {
 		return err
 	}

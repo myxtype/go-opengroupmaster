@@ -37,19 +37,21 @@ type GroupSetting struct {
 }
 
 type AutoReply struct {
-	ID        uint   `gorm:"primaryKey"`
-	GroupID   uint   `gorm:"index;not null"`
-	Keyword   string `gorm:"index;not null"`
-	Reply     string `gorm:"type:text;not null"`
-	MatchType string `gorm:"default:exact"`
+	ID         uint   `gorm:"primaryKey"`
+	GroupID    uint   `gorm:"index;not null"`
+	Keyword    string `gorm:"index;not null"`
+	Reply      string `gorm:"type:text;not null"`
+	MatchType  string `gorm:"default:exact"`
+	ButtonRows string `gorm:"type:text"`
 }
 
 type ScheduledMessage struct {
-	ID       uint   `gorm:"primaryKey"`
-	GroupID  uint   `gorm:"index;not null"`
-	Content  string `gorm:"type:text;not null"`
-	CronExpr string `gorm:"not null"`
-	Enabled  bool   `gorm:"default:true"`
+	ID         uint   `gorm:"primaryKey"`
+	GroupID    uint   `gorm:"index;not null"`
+	Content    string `gorm:"type:text;not null"`
+	CronExpr   string `gorm:"not null"`
+	Enabled    bool   `gorm:"default:true"`
+	ButtonRows string `gorm:"type:text"`
 }
 
 type BannedWord struct {

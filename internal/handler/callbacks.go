@@ -636,7 +636,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送定时消息")
 		h.setPending(userID, pendingInput{Kind: "sched_add_cron", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持换行）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持换行），第3步可选设置链接按钮", pendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -997,7 +997,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 
 func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {
 	switch pending.Kind {
-	case "auto_add", "auto_add_mode", "auto_add_keyword", "auto_add_reply", "auto_edit", "auto_edit_mode", "auto_edit_keyword", "auto_edit_reply":
+	case "auto_add", "auto_add_mode", "auto_add_keyword", "auto_add_reply", "auto_add_buttons", "auto_edit", "auto_edit_mode", "auto_edit_keyword", "auto_edit_reply", "auto_edit_buttons":
 		page := pending.Page
 		if page < 1 {
 			page = 1
@@ -1011,7 +1011,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendBannedWordList(bot, target, userID, pending.TGGroupID, page)
 	case "lottery_create":
 		h.sendLotteryPanel(bot, target, userID, pending.TGGroupID)
-	case "sched_add_cron", "sched_add_content":
+	case "sched_add_cron", "sched_add_content", "sched_add_buttons":
 		page := pending.Page
 		if page < 1 {
 			page = 1

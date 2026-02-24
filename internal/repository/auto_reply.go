@@ -39,8 +39,14 @@ func (r *Repository) CountAutoReplies(groupID uint) (int64, error) {
 	return count, err
 }
 
-func (r *Repository) CreateAutoReply(groupID uint, keyword, reply, matchType string) error {
-	item := &model.AutoReply{GroupID: groupID, Keyword: keyword, Reply: reply, MatchType: matchType}
+func (r *Repository) CreateAutoReply(groupID uint, keyword, reply, matchType, buttonRows string) error {
+	item := &model.AutoReply{
+		GroupID:    groupID,
+		Keyword:    keyword,
+		Reply:      reply,
+		MatchType:  matchType,
+		ButtonRows: buttonRows,
+	}
 	return r.db.Create(item).Error
 }
 
@@ -66,5 +72,15 @@ func (r *Repository) DeleteAutoReply(groupID, id uint) error {
 
 func (r *Repository) UpdateAutoReply(groupID, id uint, keyword, reply, matchType string) error {
 	updates := map[string]any{"keyword": keyword, "reply": reply, "match_type": matchType}
+	return r.db.Model(&model.AutoReply{}).Where("group_id = ? and id = ?", groupID, id).Updates(updates).Error
+}
+
+func (r *Repository) UpdateAutoReplyWithButtons(groupID, id uint, keyword, reply, matchType, buttonRows string) error {
+	updates := map[string]any{
+		"keyword":     keyword,
+		"reply":       reply,
+		"match_type":  matchType,
+		"button_rows": buttonRows,
+	}
 	return r.db.Model(&model.AutoReply{}).Where("group_id = ? and id = ?", groupID, id).Updates(updates).Error
 }

@@ -99,6 +99,9 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		if rule != nil {
 			reply := tgbotapi.NewMessage(msg.Chat.ID, rule.Reply)
 			reply.ReplyToMessageID = msg.MessageID
+			if markup, ok := InlineKeyboardFromButtonRowsJSON(rule.ButtonRows); ok {
+				reply.ReplyMarkup = markup
+			}
 			_, _ = bot.Send(reply)
 		}
 	}

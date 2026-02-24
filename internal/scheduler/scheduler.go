@@ -61,7 +61,11 @@ func (s *Scheduler) AddJob(job model.ScheduledMessage) error {
 		if err != nil || group == nil {
 			return
 		}
-		_, _ = s.bot.Send(tgbotapi.NewMessage(group.TGGroupID, j.Content))
+		msg := tgbotapi.NewMessage(group.TGGroupID, j.Content)
+		if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+			msg.ReplyMarkup = markup
+		}
+		_, _ = s.bot.Send(msg)
 	})
 	if err != nil {
 		return err

@@ -68,7 +68,8 @@ func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, t
 		lines = append(lines, "暂无规则")
 	}
 	for _, item := range data.Items {
-		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s", item.ID, autoReplyMatchTypeLabel(item.MatchType), item.Keyword, item.Reply))
+		btnCount := buttonRowsCount(item.ButtonRows)
+		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（链接按钮:%d）", item.ID, autoReplyMatchTypeLabel(item.MatchType), item.Keyword, item.Reply, btnCount))
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), autoReplyListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
@@ -124,7 +125,8 @@ func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, t
 		if item.Enabled {
 			status = "启用"
 		}
-		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s", item.ID, status, item.CronExpr, item.Content))
+		btnCount := buttonRowsCount(item.ButtonRows)
+		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（链接按钮:%d）", item.ID, status, item.CronExpr, item.Content, btnCount))
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), scheduledListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
