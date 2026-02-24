@@ -53,6 +53,9 @@ func (h *Handler) HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	if update.Message != nil {
 		h.handleMessage(bot, update.Message)
 	}
+	if update.ChatMember != nil {
+		h.handleChatMemberUpdate(update.ChatMember)
+	}
 	if update.CallbackQuery != nil {
 		h.handleCallback(bot, update.CallbackQuery)
 	}

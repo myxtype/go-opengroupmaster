@@ -21,6 +21,7 @@ const featureChain = "chain"
 const featurePollMeta = "poll_meta"
 const featureRBAC = "rbac"
 const featureLottery = "lottery"
+const featureInvite = "invite"
 
 const (
 	antiFloodPenaltyWarn       = "warn"
@@ -149,6 +150,12 @@ type lotteryConfig struct {
 	PublishPin           bool `json:"publish_pin"`
 	ResultPin            bool `json:"result_pin"`
 	DeleteKeywordMinutes int  `json:"delete_keyword_minutes"`
+}
+
+type inviteConfig struct {
+	ExpireDate    int64 `json:"expire_date"`
+	MemberLimit   int   `json:"member_limit"`
+	GenerateLimit int   `json:"generate_limit"`
 }
 
 type rbacConfig struct {
@@ -296,6 +303,27 @@ type LotteryPanelView struct {
 	PublishPin         bool
 	ResultPin          bool
 	DeleteKeywordMins  int
+}
+
+type InvitePanelView struct {
+	Enabled        bool
+	TotalInvited   int64
+	ExpireDate     int64
+	MemberLimit    int
+	GenerateLimit  int
+	GeneratedCount int64
+}
+
+type InviteUserStats struct {
+	InvitedCount   int64
+	GeneratedCount int64
+}
+
+type InviteGenerateResult struct {
+	Link           string
+	UserStats      InviteUserStats
+	GroupGenerated int64
+	GenerateLimit  int
 }
 
 func New(repo *repository.Repository, logger *log.Logger) *Service {

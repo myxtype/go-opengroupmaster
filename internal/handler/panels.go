@@ -158,6 +158,35 @@ func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	h.render(bot, target, strings.Join(lines, "\n"), markup)
 }
 
+func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.InvitePanelViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载邀请链接设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.Enabled {
+		status = "✅ 开启"
+	}
+	lines := []string{
+		"邀请链接生成",
+		"开启后群组中成员使用 /link 指令自动生成链接/查询邀请统计",
+		"",
+		"防作弊:",
+		"└ 只有第一次进群视为有效邀请数，退群再用其他人的链接加群不计算邀请数",
+		"",
+		fmt.Sprintf("┌状态:%s", status),
+		fmt.Sprintf("├总邀请人数:%d", view.TotalInvited),
+		fmt.Sprintf("├链接过期时间:%s", inviteExpireText(view.ExpireDate)),
+		fmt.Sprintf("├最大邀请人数:%s", inviteLimitText(view.MemberLimit)),
+		fmt.Sprintf("└生成数量上限:%s     已生成数量:%d", inviteLimitText(view.GenerateLimit), view.GeneratedCount),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), inviteKeyboard(tgGroupID, view.Enabled))
+}
+
 func (h *Handler) sendLogPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int, filter string) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

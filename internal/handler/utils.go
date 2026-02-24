@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"supervisor/internal/model"
 	"supervisor/internal/tgmention"
@@ -100,6 +101,20 @@ func onOffWithEmoji(v bool) string {
 		return "启用✅"
 	}
 	return "关闭❌"
+}
+
+func inviteExpireText(unixTs int64) string {
+	if unixTs <= 0 {
+		return "无限制"
+	}
+	return time.Unix(unixTs, 0).In(time.Local).Format("2006-01-02 15:04")
+}
+
+func inviteLimitText(v int) string {
+	if v <= 0 {
+		return "无限制"
+	}
+	return strconv.Itoa(v)
 }
 
 func boolIcon(v bool) string {

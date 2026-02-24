@@ -120,3 +120,34 @@ type GroupBlacklist struct {
 	Reason    string
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
+
+// InviteLink 表示群组中成员生成的邀请链接记录。
+type InviteLink struct {
+	ID              uint   `gorm:"primaryKey"`
+	GroupID         uint   `gorm:"uniqueIndex:idx_invite_link_group_link,priority:1;index:idx_invite_link_group_created,priority:1;index:idx_invite_link_creator;not null"`
+	CreatorTGUserID int64  `gorm:"index:idx_invite_link_creator;not null"`
+	Link            string `gorm:"uniqueIndex:idx_invite_link_group_link,priority:2;type:text;not null"`
+	ExpireDate      int64
+	MemberLimit     int
+	CreatedAt       time.Time `gorm:"index:idx_invite_link_group_created,priority:2;autoCreateTime"`
+}
+
+// InviteEvent 表示一次有效邀请（仅首次进群计数）。
+type InviteEvent struct {
+	ID              uint      `gorm:"primaryKey"`
+	GroupID         uint      `gorm:"uniqueIndex:idx_invite_event_group_invitee,priority:1;index:idx_invite_event_group_inviter,priority:1;index:idx_invite_event_group_joined,priority:1;not null"`
+	InviterTGUserID int64     `gorm:"index:idx_invite_event_group_inviter,priority:2;not null"`
+	InviteeTGUserID int64     `gorm:"uniqueIndex:idx_invite_event_group_invitee,priority:2;not null"`
+	Link            string    `gorm:"type:text;not null"`
+	JoinedAt        time.Time `gorm:"index:idx_invite_event_group_joined,priority:2;not null"`
+	CreatedAt       time.Time `gorm:"autoCreateTime"`
+}
+
+// GroupMemberJoin 表示成员首次进群记录（用于邀请防作弊）。
+type GroupMemberJoin struct {
+	ID          uint      `gorm:"primaryKey"`
+	GroupID     uint      `gorm:"uniqueIndex:idx_group_member_first_join,priority:1;index;not null"`
+	TGUserID    int64     `gorm:"uniqueIndex:idx_group_member_first_join,priority:2;index;not null"`
+	FirstJoinAt time.Time `gorm:"not null"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+}

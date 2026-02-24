@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+
+	svc "supervisor/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -105,6 +109,38 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		if sendErr == nil {
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
 		}
+	case "link":
+		res, err := h.service.CreateInviteLinkForUserByTGGroupID(bot, msg.Chat.ID, msg.From.ID)
+		if err != nil {
+			switch {
+			case errors.Is(err, svc.ErrInviteFeatureDisabled):
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "邀请链接功能未开启，请联系管理员在面板中开启"))
+			case errors.Is(err, svc.ErrInviteGenerateLimitReached):
+				stats, statErr := h.service.InviteUserStatsByTGGroupID(msg.Chat.ID, msg.From.ID)
+				if statErr != nil {
+					_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前生成数量已达到上限，暂时无法生成新链接"))
+					return
+				}
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("当前生成数量已达到上限，暂时无法生成新链接\n你的邀请统计：\n有效邀请人数：%d\n已生成链接数量：%d", stats.InvitedCount, stats.GeneratedCount)))
+			default:
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "生成邀请链接失败"))
+			}
+			return
+		}
+		lines := []string{
+			"你的专属邀请链接：",
+			res.Link,
+			"",
+			"你的邀请统计：",
+			fmt.Sprintf("有效邀请人数：%d", res.UserStats.InvitedCount),
+			fmt.Sprintf("已生成链接数量：%d", res.UserStats.GeneratedCount),
+		}
+		if res.GenerateLimit > 0 {
+			lines = append(lines, fmt.Sprintf("群组生成总数：%d/%d", res.GroupGenerated, res.GenerateLimit))
+		} else {
+			lines = append(lines, fmt.Sprintf("群组生成总数：%d", res.GroupGenerated))
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, strings.Join(lines, "\n")))
 	case "black_add":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
@@ -430,26 +466,47 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendScheduledList(bot, target, msg.From.ID, pending.TGGroupID, 1)
-	case "invite_create":
-		expireHours := 24
-		memberLimit := 0
-		parts := strings.SplitN(text, "|", 2)
-		if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
-			if v, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil {
-				expireHours = v
+	case "invite_set_expire":
+		if text == "0" {
+			if _, err := h.service.SetInviteExpireDateByTGGroupID(pending.TGGroupID, 0); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+				return
 			}
+			h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
+			break
 		}
-		if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
-			if v, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-				memberLimit = v
-			}
-		}
-		link, err := h.service.CreateInviteLinkByTGGroupID(bot, pending.TGGroupID, expireHours, memberLimit)
+		expireAt, err := time.ParseInLocation("2006-01-02 15:04", text, time.Local)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建邀请链接失败"))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时间格式错误，请按格式输入：2026-02-24 17:09"))
 			return
 		}
-		h.render(bot, target, "邀请链接已生成：\n"+link, groupPanelKeyboard(pending.TGGroupID))
+		if _, err := h.service.SetInviteExpireDateByTGGroupID(pending.TGGroupID, expireAt.Unix()); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			return
+		}
+		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "invite_set_member_limit":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效数字，0 表示不限制"))
+			return
+		}
+		if _, err := h.service.SetInviteMemberLimitByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			return
+		}
+		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "invite_set_generate_limit":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效数字，0 表示不限制"))
+			return
+		}
+		if _, err := h.service.SetInviteGenerateLimitByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			return
+		}
+		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "chain_start":
 		if text == "" {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入接龙标题"))
@@ -683,6 +740,7 @@ func privateHelpText() string {
 		"/help - 查看群内命令列表",
 		"/lottery_create 标题|人数|口令 - 创建抽奖",
 		"/lottery_draw - 立即开奖",
+		"/link - 生成专属邀请链接并查看邀请统计",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
 		"",
@@ -697,6 +755,7 @@ func groupHelpText() string {
 		"/help - 显示帮助",
 		"/lottery_create 标题|人数|口令 - 创建抽奖（口令可省略，默认“参加”）",
 		"/lottery_draw - 立即开奖",
+		"/link - 生成专属邀请链接并查看邀请统计",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
 		"",

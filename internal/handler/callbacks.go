@@ -312,10 +312,76 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 	case "invite":
 		switch action {
-		case "create":
-			h.answerCallback(bot, cb.ID, "请输入邀请参数")
-			h.setPending(userID, pendingInput{Kind: "invite_create", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：过期小时|人数上限\n示例：24|100（人数上限可省略）", pendingCancelKeyboard(tgGroupID))
+		case "noop":
+			h.answerCallback(bot, cb.ID, "")
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载邀请设置")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "on":
+			if _, err := h.service.SetInviteEnabledByTGGroupID(tgGroupID, true); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "邀请链接已开启")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "off":
+			if _, err := h.service.SetInviteEnabledByTGGroupID(tgGroupID, false); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "邀请链接已关闭")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "expire":
+			h.answerCallback(bot, cb.ID, "请输入过期时间")
+			h.setPending(userID, pendingInput{Kind: "invite_set_expire", TGGroupID: tgGroupID})
+			h.render(bot, target, "1. 配置过期时间\n👉 请回复链接过期时间(不限制请输入:0)\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n格式:年-月-日 时:分\n例如:2026-02-24 17:09", inviteExpireInputKeyboard(tgGroupID))
+		case "expireunlimit":
+			if _, err := h.service.SetInviteExpireDateByTGGroupID(tgGroupID, 0); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "链接过期时间：无限制")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "member":
+			h.answerCallback(bot, cb.ID, "请输入最大邀请人数")
+			h.setPending(userID, pendingInput{Kind: "invite_set_member_limit", TGGroupID: tgGroupID})
+			h.render(bot, target, "2. 最大邀请数配置\n\n👉 邀请达到设定人数后链接失效\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复单个链接最大邀请人数(不限制请输入:0)", inviteMemberInputKeyboard(tgGroupID))
+		case "memberunlimit":
+			if _, err := h.service.SetInviteMemberLimitByTGGroupID(tgGroupID, 0); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "最大邀请人数：无限制")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "gen":
+			h.answerCallback(bot, cb.ID, "请输入生成数量上限")
+			h.setPending(userID, pendingInput{Kind: "invite_set_generate_limit", TGGroupID: tgGroupID})
+			h.render(bot, target, "3. 生成数量限制配置\n\n👉 生成链接数量达到设定数量后，不再生成新的链接\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复生成链接数量上限(不限制请输入:0)", inviteGenerateInputKeyboard(tgGroupID))
+		case "genunlimit":
+			if _, err := h.service.SetInviteGenerateLimitByTGGroupID(tgGroupID, 0); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "生成数量上限：无限制")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "export":
+			name, content, err := h.service.ExportInviteCSVByTGGroupID(tgGroupID)
+			if err != nil {
+				h.answerCallback(bot, cb.ID, "导出失败")
+				return
+			}
+			doc := tgbotapi.NewDocument(target.ChatID, tgbotapi.FileBytes{Name: name, Bytes: content})
+			doc.Caption = "邀请数据 CSV 导出"
+			_, _ = bot.Send(doc)
+			h.answerCallback(bot, cb.ID, "已导出")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
+		case "clear":
+			if err := h.service.ClearInviteDataByTGGroupID(tgGroupID); err != nil {
+				h.answerCallback(bot, cb.ID, "清空失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "邀请数据已清空")
+			h.sendInvitePanel(bot, target, userID, tgGroupID)
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -1135,8 +1201,8 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendAntiSpamPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
-	case "invite_create":
-		h.sendGroupPanel(bot, target, userID, pending.TGGroupID)
+	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":
+		h.sendInvitePanel(bot, target, userID, pending.TGGroupID)
 	default:
 		h.sendGroupPanel(bot, target, userID, pending.TGGroupID)
 	}

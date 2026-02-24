@@ -553,6 +553,64 @@ func (s *Service) saveLotteryConfig(groupID uint, cfg lotteryConfig) error {
 	return s.saveFeatureConfigEntry(groupID, featureLottery, string(b))
 }
 
+func defaultInviteConfig() inviteConfig {
+	return inviteConfig{
+		ExpireDate:    0,
+		MemberLimit:   0,
+		GenerateLimit: 0,
+	}
+}
+
+func normalizeInviteConfig(cfg inviteConfig) inviteConfig {
+	if cfg.ExpireDate < 0 {
+		cfg.ExpireDate = 0
+	}
+	if cfg.MemberLimit < 0 {
+		cfg.MemberLimit = 0
+	}
+	if cfg.MemberLimit > 99999 {
+		cfg.MemberLimit = 99999
+	}
+	if cfg.GenerateLimit < 0 {
+		cfg.GenerateLimit = 0
+	}
+	return cfg
+}
+
+func (s *Service) getInviteConfig(groupID uint) (inviteConfig, error) {
+	cfg := defaultInviteConfig()
+	entry, err := s.readFeatureConfigEntry(groupID, featureInvite)
+	if err != nil {
+		return cfg, err
+	}
+	if !entry.Exists {
+		if saveErr := s.saveInviteConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = normalizeInviteConfig(rawCfg)
+	if entry.Config == "" || rawCfg != cfg {
+		if saveErr := s.saveInviteConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveInviteConfig(groupID uint, cfg inviteConfig) error {
+	cfg = normalizeInviteConfig(cfg)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.saveFeatureConfigEntry(groupID, featureInvite, string(b))
+}
+
 func (s *Service) getKeywordMonitorConfig(groupID uint) (keywordMonitorConfig, error) {
 	cfg := keywordMonitorConfig{Keywords: []string{}}
 	entry, err := s.readFeatureConfigEntry(groupID, featureKeywordMonitor)

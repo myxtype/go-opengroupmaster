@@ -18,6 +18,7 @@ func Run(bot *tgbotapi.BotAPI, h *handler.Handler, logger *log.Logger, workers i
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
+	u.AllowedUpdates = []string{"message", "edited_message", "callback_query", "chat_member", "my_chat_member"}
 
 	logger.Printf("update workers=%d", workers)
 	updates := bot.GetUpdatesChan(u)
@@ -65,6 +66,12 @@ func updateRouteKey(update tgbotapi.Update) uint64 {
 		if update.CallbackQuery.From != nil {
 			return uint64(update.CallbackQuery.From.ID)
 		}
+	}
+	if update.ChatMember != nil {
+		return uint64(update.ChatMember.Chat.ID)
+	}
+	if update.MyChatMember != nil {
+		return uint64(update.MyChatMember.Chat.ID)
 	}
 	return uint64(update.UpdateID)
 }
