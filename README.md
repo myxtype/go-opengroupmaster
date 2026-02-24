@@ -50,6 +50,8 @@
 │   │   ├── stats_logs.go
 │   │   ├── advanced_features.go
 │   │   └── config_store.go
+│   ├── tgmention/
+│   │   └── mention.go
 │   ├── handler/
 │   │   ├── handler.go
 │   │   ├── message.go
@@ -203,7 +205,10 @@ go run ./cmd
 - 日志导出为 CSV 文件发送到当前私聊会话
 - 欢迎文案支持 `{user}`，会使用 `text_mention` 提及新成员（即使无 username 也可点击）；未写占位符时会自动附加新成员信息
 - 黑名单/违禁词/新成员限制等提醒会优先使用 `text_mention`（基于用户 ID），避免出现空 `@`
+- 关键词监控命中通知中的“用户”会使用 `text_mention`（基于用户 ID）
+- 开奖结果中的中奖用户名单会使用 `text_mention`（基于用户 ID），支持无 username 的可点击提及
 - `text_mention` 生效前提：机器人已拿到目标用户 `id`（如来自发言、入群事件、回调查询等）
+- mention 文本/实体构造逻辑已统一抽取到 `internal/tgmention`，避免 handler 与 service 重复实现
 - 欢迎语、反垃圾/反刷屏提醒、抽奖关键词消息的“自动删除”已改为 SQLite 持久化队列 + 单 worker 执行，重启后会继续处理到期任务
 - 系统消息清理默认配置：
   - 进群: 启用✅

@@ -98,7 +98,10 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖失败：没有足够参与者或无活动抽奖"))
 			return
 		}
-		resultMsg, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖结果："+joinWinnerNames(winners)))
+		resultText, resultEntities := lotteryResultText(winners)
+		result := tgbotapi.NewMessage(msg.Chat.ID, resultText)
+		result.Entities = resultEntities
+		resultMsg, sendErr := bot.Send(result)
 		if sendErr == nil {
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
 		}

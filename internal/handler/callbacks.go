@@ -602,7 +602,10 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 			return
 		}
 		h.answerCallback(bot, cb.ID, "开奖完成")
-		resultMsg, sendErr := bot.Send(tgbotapi.NewMessage(tgGroupID, "开奖结果："+joinWinnerNames(winners)))
+		resultText, resultEntities := lotteryResultText(winners)
+		result := tgbotapi.NewMessage(tgGroupID, resultText)
+		result.Entities = resultEntities
+		resultMsg, sendErr := bot.Send(result)
 		if sendErr == nil {
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, tgGroupID, resultMsg.MessageID, "result")
 		}

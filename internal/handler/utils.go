@@ -8,6 +8,9 @@ import (
 	"strings"
 
 	"supervisor/internal/model"
+	"supervisor/internal/tgmention"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func permissionFeatureKey(feature, action string) string {
@@ -70,23 +73,26 @@ func maxPages(total int64, pageSize int) int {
 	return pages
 }
 
-func joinWinnerNames(winners []model.User) string {
+func joinWinnerNames(winners []model.User) (string, []tgbotapi.MessageEntity) {
 	if len(winners) == 0 {
-		return "无"
+		return "无", nil
 	}
-	names := make([]string, 0, len(winners))
+	refs := make([]tgmention.UserRef, 0, len(winners))
 	for _, w := range winners {
-		if w.Username != "" {
-			names = append(names, "@"+w.Username)
-			continue
-		}
-		n := strings.TrimSpace(w.FirstName + " " + w.LastName)
-		if n == "" {
-			n = fmt.Sprintf("uid:%d", w.TGUserID)
-		}
-		names = append(names, n)
+		refs = append(refs, tgmention.UserRef{
+			ID:        w.TGUserID,
+			Username:  w.Username,
+			FirstName: w.FirstName,
+			LastName:  w.LastName,
+		})
 	}
-	return strings.Join(names, ", ")
+	return tgmention.JoinMentions(refs, ", ")
+}
+
+func lotteryResultText(winners []model.User) (string, []tgbotapi.MessageEntity) {
+	namesText, entities := joinWinnerNames(winners)
+	prefix := "开奖结果："
+	return prefix + namesText, tgmention.ShiftEntities(entities, tgmention.UTF16Len(prefix))
 }
 
 func onOffWithEmoji(v bool) string {

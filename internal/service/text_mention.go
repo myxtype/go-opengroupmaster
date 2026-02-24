@@ -1,88 +1,58 @@
 package service
 
 import (
-	"fmt"
 	"strings"
-	"unicode/utf16"
+
+	"supervisor/internal/tgmention"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func utf16TextLen(s string) int {
-	return len(utf16.Encode([]rune(s)))
+	return tgmention.UTF16Len(s)
 }
 
 func userMentionLabel(u *tgbotapi.User) string {
 	if u == nil {
 		return "该用户"
 	}
-	if username := strings.TrimSpace(u.UserName); username != "" {
-		return "@" + username
-	}
-	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
-	if name != "" {
-		return name
-	}
-	return fmt.Sprintf("uid:%d", u.ID)
+	return tgmention.UserLabel(tgmention.UserRef{
+		ID:        u.ID,
+		Username:  u.UserName,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Fallback:  "该用户",
+	})
 }
 
 func composeTextWithUserMention(prefix string, user *tgbotapi.User, suffix string) (string, []tgbotapi.MessageEntity) {
-	mentionText := userMentionLabel(user)
-	text := prefix + mentionText + suffix
-	if user == nil || user.ID == 0 {
-		return text, nil
+	if user == nil {
+		return tgmention.ComposeTextWithMention(prefix, tgmention.UserRef{Fallback: "该用户"}, suffix)
 	}
-	return text, []tgbotapi.MessageEntity{
-		{
-			Type:   "text_mention",
-			Offset: utf16TextLen(prefix),
-			Length: utf16TextLen(mentionText),
-			User:   user,
-		},
-	}
+	return tgmention.ComposeTextWithMention(prefix, tgmention.UserRef{
+		ID:        user.ID,
+		Username:  user.UserName,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Fallback:  "该用户",
+	}, suffix)
 }
 
 func formatWelcomeMentions(users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {
-	var textBuilder strings.Builder
-	entities := make([]tgbotapi.MessageEntity, 0, len(users))
-	offset := 0
+	refs := make([]tgmention.UserRef, 0, len(users))
 	for _, u := range users {
-		label := userMentionLabel(&u)
-		if strings.TrimSpace(label) == "" {
-			continue
-		}
-		if textBuilder.Len() > 0 {
-			textBuilder.WriteString(" ")
-			offset += utf16TextLen(" ")
-		}
-		start := offset
-		textBuilder.WriteString(label)
-		labelLen := utf16TextLen(label)
-		offset += labelLen
-		if u.ID != 0 {
-			userCopy := u
-			entities = append(entities, tgbotapi.MessageEntity{
-				Type:   "text_mention",
-				Offset: start,
-				Length: labelLen,
-				User:   &userCopy,
-			})
-		}
+		refs = append(refs, tgmention.UserRef{
+			ID:        u.ID,
+			Username:  u.UserName,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+		})
 	}
-	return textBuilder.String(), entities
+	return tgmention.JoinMentions(refs, " ")
 }
 
 func shiftMentionEntities(entities []tgbotapi.MessageEntity, offset int) []tgbotapi.MessageEntity {
-	if len(entities) == 0 {
-		return nil
-	}
-	shifted := make([]tgbotapi.MessageEntity, 0, len(entities))
-	for _, entity := range entities {
-		item := entity
-		item.Offset += offset
-		shifted = append(shifted, item)
-	}
-	return shifted
+	return tgmention.ShiftEntities(entities, offset)
 }
 
 func buildWelcomeTextWithMentions(template string, users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {
