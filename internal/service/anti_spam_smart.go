@@ -13,8 +13,6 @@ import (
 
 var smartLeadPattern = regexp.MustCompile(`(?i)(私聊我|联系我|加我|飞机号|tg号|telegram|whatsapp|vx|v信|微信|line|客服|推广|带单|充值|返现)`)
 var smartPhonePattern = regexp.MustCompile(`(?i)(?:\+?86[-\s]?)?1[3-9]\d{9}`)
-var smartRepeatCharPattern = regexp.MustCompile(`(?i)([\pL\pN])\1{4,}`)
-var smartRepeatChunkPattern = regexp.MustCompile(`(?i)(.{1,4})\1{2,}`)
 
 var smartShortLinkDomains = []string{
 	"bit.ly/", "t.cn/", "tinyurl.com/", "goo.gl/", "ow.ly/", "is.gd/", "cutt.ly/", "rebrand.ly/",
@@ -138,7 +136,7 @@ func (s *Service) evaluateSmartAntiSpam(tgGroupID int64, msg *tgbotapi.Message, 
 		score.addSpam(20, "媒体+引流文案")
 	}
 
-	if smartRepeatCharPattern.MatchString(trimmed) || smartRepeatChunkPattern.MatchString(strings.Join(strings.Fields(lower), "")) {
+	if hasLongRepeatedRune(trimmed, 5) || hasRepeatedChunk(strings.Join(strings.Fields(lower), ""), 1, 4, 3) {
 		score.addSpam(15, "重复字符/句式")
 	}
 
@@ -317,4 +315,59 @@ func isLowInfoText(content string) bool {
 		return false
 	}
 	return nonInfo*100/total >= 60
+}
+
+func hasLongRepeatedRune(content string, minRun int) bool {
+	if minRun <= 1 {
+		return strings.TrimSpace(content) != ""
+	}
+	var (
+		prev    rune
+		run     int
+		hasPrev bool
+	)
+	for _, r := range content {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			hasPrev = false
+			run = 0
+			continue
+		}
+		if !hasPrev || r != prev {
+			prev = r
+			run = 1
+			hasPrev = true
+			continue
+		}
+		run++
+		if run >= minRun {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRepeatedChunk(content string, minChunk, maxChunk, minRepeat int) bool {
+	if minRepeat <= 1 || content == "" {
+		return false
+	}
+	runes := []rune(content)
+	for size := minChunk; size <= maxChunk; size++ {
+		if size <= 0 || len(runes) < size*minRepeat {
+			continue
+		}
+		for start := 0; start+size*minRepeat <= len(runes); start++ {
+			chunk := string(runes[start : start+size])
+			repeat := 1
+			for pos := start + size; pos+size <= len(runes); pos += size {
+				if string(runes[pos:pos+size]) != chunk {
+					break
+				}
+				repeat++
+				if repeat >= minRepeat {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
