@@ -116,6 +116,7 @@ go run ./cmd
 
 群内：
 
+- `/help`（查看群内常用命令）
 - `/lottery_create 活动抽奖|2`
 - 在群内发送抽奖关键词（如：`参加`）
 - `/lottery_draw`
@@ -126,6 +127,7 @@ go run ./cmd
 私聊机器人：
 
 - `/start`
+- `/help`（查看常用命令与说明）
 - `/groups`
 
 ## Inline Keyboard 操作流

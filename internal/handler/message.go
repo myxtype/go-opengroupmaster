@@ -46,6 +46,8 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 	switch msg.Command() {
 	case "start":
 		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard())
+	case "help":
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, privateHelpText()))
 	case "groups":
 		h.sendGroupsMenu(bot, target, msg.From.ID, 1)
 	case "settings":
@@ -57,6 +59,8 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 
 func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 	switch msg.Command() {
+	case "help":
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, groupHelpText()))
 	case "lottery_create":
 		args := strings.TrimSpace(msg.CommandArguments())
 		title := "默认抽奖"
@@ -659,4 +663,38 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	}
 
 	h.clearPending(msg.From.ID)
+}
+
+func privateHelpText() string {
+	lines := []string{
+		"常用命令（私聊）：",
+		"/start - 打开主菜单",
+		"/groups - 查看并管理你的群组",
+		"/settings - 打开设置面板",
+		"/help - 查看帮助",
+		"",
+		"常用命令（群内）：",
+		"/help - 查看群内命令列表",
+		"/lottery_create 标题|人数|口令 - 创建抽奖",
+		"/lottery_draw - 立即开奖",
+		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
+		"/black_remove @用户名 - 移除本群黑名单（管理员）",
+		"",
+		"提示：也可以通过私聊面板按钮进行大多数管理操作。",
+	}
+	return strings.Join(lines, "\n")
+}
+
+func groupHelpText() string {
+	lines := []string{
+		"常用群命令：",
+		"/help - 显示帮助",
+		"/lottery_create 标题|人数|口令 - 创建抽奖（口令可省略，默认“参加”）",
+		"/lottery_draw - 立即开奖",
+		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
+		"/black_remove @用户名 - 移除本群黑名单（管理员）",
+		"",
+		"更多功能可私聊机器人后通过按钮面板管理：/start、/groups。",
+	}
+	return strings.Join(lines, "\n")
 }
