@@ -87,6 +87,31 @@ go mod tidy
 go run ./cmd
 ```
 
+## 构建
+
+项目已提供构建脚本：
+
+```bash
+# 默认构建当前机器可执行文件到 bin/go-tg-supervisor
+./scripts/build.sh
+
+# 指定目标平台
+./scripts/build.sh linux-amd64
+
+# 一次构建多个平台产物
+./scripts/build.sh all
+```
+
+支持目标：
+
+- `local`（默认）
+- `linux-amd64`
+- `linux-arm64`
+- `darwin-amd64`
+- `darwin-arm64`
+- `windows-amd64`
+- `all`
+
 ## 命令示例
 
 群内：
