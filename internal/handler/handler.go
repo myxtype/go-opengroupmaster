@@ -32,6 +32,8 @@ type pendingInput struct {
 	RuleID    uint
 	Page      int
 	CronExpr  string
+	Keyword   string
+	MatchType string
 }
 
 type Handler struct {

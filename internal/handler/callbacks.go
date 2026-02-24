@@ -408,9 +408,27 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 		h.answerCallback(bot, cb.ID, "加载自动回复")
 		h.sendAutoReplyList(bot, target, userID, tgGroupID, 1)
 	case "add":
-		h.answerCallback(bot, cb.ID, "请发送自动回复配置")
-		h.setPending(userID, pendingInput{Kind: "auto_add", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "请发送：关键词=>回复内容\n示例：官网=>https://example.com", pendingCancelKeyboard(tgGroupID))
+		h.answerCallback(bot, cb.ID, "请选择触发方式")
+		h.setPending(userID, pendingInput{Kind: "auto_add_mode", TGGroupID: tgGroupID, Page: 1})
+		h.render(bot, target, "第1步：请选择触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", autoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:addmode:%d", tgGroupID)))
+	case "addmode":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		matchType := strings.TrimSpace(parts[4])
+		if matchType != "exact" && matchType != "contains" {
+			h.answerCallback(bot, cb.ID, "触发方式错误")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入关键词")
+		h.setPending(userID, pendingInput{
+			Kind:      "auto_add_keyword",
+			TGGroupID: tgGroupID,
+			Page:      1,
+			MatchType: matchType,
+		})
+		h.render(bot, target, "第2步：请输入自动回复关键词", pendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -454,9 +472,37 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 		if page < 1 {
 			page = 1
 		}
-		h.answerCallback(bot, cb.ID, "请输入新规则")
-		h.setPending(userID, pendingInput{Kind: "auto_edit", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请发送新内容：关键词=>回复内容", pendingCancelKeyboard(tgGroupID))
+		h.answerCallback(bot, cb.ID, "请选择触发方式")
+		h.setPending(userID, pendingInput{Kind: "auto_edit_mode", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
+		h.render(bot, target, "第1步：请选择新触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", autoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:editmode:%d:%d:%d", tgGroupID, id, page)))
+	case "editmode":
+		if len(parts) < 7 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		matchType := strings.TrimSpace(parts[6])
+		if matchType != "exact" && matchType != "contains" {
+			h.answerCallback(bot, cb.ID, "触发方式错误")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入关键词")
+		h.setPending(userID, pendingInput{
+			Kind:      "auto_edit_keyword",
+			TGGroupID: tgGroupID,
+			RuleID:    uint(id),
+			Page:      page,
+			MatchType: matchType,
+		})
+		h.render(bot, target, "第2步：请输入新的关键词", pendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
@@ -951,7 +997,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 
 func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {
 	switch pending.Kind {
-	case "auto_add", "auto_edit":
+	case "auto_add", "auto_add_mode", "auto_add_keyword", "auto_add_reply", "auto_edit", "auto_edit_mode", "auto_edit_keyword", "auto_edit_reply":
 		page := pending.Page
 		if page < 1 {
 			page = 1

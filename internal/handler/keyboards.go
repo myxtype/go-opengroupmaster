@@ -158,6 +158,22 @@ func autoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, total
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
+func autoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("精准触发", fmt.Sprintf("%s:exact", modeSelectPrefix)),
+			tgbotapi.NewInlineKeyboardButtonData("包含触发", fmt.Sprintf("%s:contains", modeSelectPrefix)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("返回上级面板", fmt.Sprintf("feat:pending:back:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("取消并返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+		),
+	)
+}
+
 func bannedWordListKeyboard(tgGroupID int64, items []model.BannedWord, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+4)

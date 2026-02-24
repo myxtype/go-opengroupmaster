@@ -155,3 +155,10 @@ func nightModeActionLabel(mode string) string {
 	}
 	return "删除媒体（视频/图片等）"
 }
+
+func autoReplyMatchTypeLabel(v string) string {
+	if strings.TrimSpace(strings.ToLower(v)) == "contains" {
+		return "包含触发"
+	}
+	return "精准触发"
+}

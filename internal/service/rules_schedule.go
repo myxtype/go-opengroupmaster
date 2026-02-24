@@ -15,9 +15,7 @@ func (s *Service) AddAutoReplyByTGGroupID(tgGroupID int64, keyword, reply, match
 	if err != nil {
 		return err
 	}
-	if matchType == "" {
-		matchType = "exact"
-	}
+	matchType = normalizeAutoReplyMatchType(matchType)
 	return s.repo.CreateAutoReply(group.ID, keyword, reply, matchType)
 }
 
@@ -54,10 +52,17 @@ func (s *Service) UpdateAutoReplyByTGGroupID(tgGroupID int64, id uint, keyword, 
 	if err != nil {
 		return err
 	}
-	if matchType == "" {
-		matchType = "contains"
-	}
+	matchType = normalizeAutoReplyMatchType(matchType)
 	return s.repo.UpdateAutoReply(group.ID, id, keyword, reply, matchType)
+}
+
+func normalizeAutoReplyMatchType(matchType string) string {
+	switch strings.TrimSpace(strings.ToLower(matchType)) {
+	case "contains":
+		return "contains"
+	default:
+		return "exact"
+	}
 }
 
 func (s *Service) ListBannedWordsByTGGroupID(tgGroupID int64, page, pageSize int) (*BannedWordPage, error) {

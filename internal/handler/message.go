@@ -198,19 +198,42 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 
 	text := strings.TrimSpace(msg.Text)
 	switch pending.Kind {
-	case "auto_add":
-		parts := strings.SplitN(text, "=>", 2)
-		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：关键词=>回复内容"))
+	case "auto_add_keyword":
+		keyword := strings.TrimSpace(msg.Text)
+		if keyword == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
 			return
 		}
-		keyword := strings.TrimSpace(parts[0])
-		reply := strings.TrimSpace(parts[1])
-		if keyword == "" || reply == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词和回复都不能为空"))
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
 			return
 		}
-		if err := h.service.AddAutoReplyByTGGroupID(pending.TGGroupID, keyword, reply, "contains"); err != nil {
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "auto_add_reply",
+			TGGroupID: pending.TGGroupID,
+			Page:      pending.Page,
+			Keyword:   keyword,
+			MatchType: matchType,
+		})
+		h.render(bot, target, "第3步：请输入自动回复内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "auto_add_reply":
+		reply := msg.Text
+		if strings.TrimSpace(pending.Keyword) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少关键词，请重新新增自动回复"))
+			return
+		}
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
+			return
+		}
+		if strings.TrimSpace(reply) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
+			return
+		}
+		if err := h.service.AddAutoReplyByTGGroupID(pending.TGGroupID, pending.Keyword, reply, matchType); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "新增自动回复失败"))
 			return
 		}
@@ -225,19 +248,43 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
-	case "auto_edit":
-		parts := strings.SplitN(text, "=>", 2)
-		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：关键词=>回复内容"))
+	case "auto_edit_keyword":
+		keyword := strings.TrimSpace(msg.Text)
+		if keyword == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
 			return
 		}
-		keyword := strings.TrimSpace(parts[0])
-		reply := strings.TrimSpace(parts[1])
-		if keyword == "" || reply == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词和回复都不能为空"))
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
 			return
 		}
-		if err := h.service.UpdateAutoReplyByTGGroupID(pending.TGGroupID, pending.RuleID, keyword, reply, "contains"); err != nil {
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "auto_edit_reply",
+			TGGroupID: pending.TGGroupID,
+			RuleID:    pending.RuleID,
+			Page:      pending.Page,
+			Keyword:   keyword,
+			MatchType: matchType,
+		})
+		h.render(bot, target, "第3步：请输入新的回复内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "auto_edit_reply":
+		reply := msg.Text
+		if strings.TrimSpace(pending.Keyword) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少关键词，请重新编辑自动回复"))
+			return
+		}
+		matchType := strings.TrimSpace(pending.MatchType)
+		if matchType != "exact" && matchType != "contains" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
+			return
+		}
+		if strings.TrimSpace(reply) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
+			return
+		}
+		if err := h.service.UpdateAutoReplyByTGGroupID(pending.TGGroupID, pending.RuleID, pending.Keyword, reply, matchType); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "更新自动回复失败"))
 			return
 		}

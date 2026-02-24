@@ -68,7 +68,7 @@ func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, t
 		lines = append(lines, "暂无规则")
 	}
 	for _, item := range data.Items {
-		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s", item.ID, item.MatchType, item.Keyword, item.Reply))
+		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s", item.ID, autoReplyMatchTypeLabel(item.MatchType), item.Keyword, item.Reply))
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), autoReplyListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
