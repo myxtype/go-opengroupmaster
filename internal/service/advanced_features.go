@@ -359,10 +359,13 @@ func (s *Service) notifyKeywordMonitor(bot *tgbotapi.BotAPI, group *model.Group,
 	if err != nil {
 		return err
 	}
-	notice := fmt.Sprintf("关键词监控命中\n群：%s(%d)\n关键词：%s\n用户：@%s\n消息：%s",
-		group.Title, group.TGGroupID, strings.Join(matched, ","), msg.From.String(), msg.Text)
+	noticePrefix := fmt.Sprintf("关键词监控命中\n群：%s(%d)\n关键词：%s\n用户：",
+		group.Title, group.TGGroupID, strings.Join(matched, ","))
+	notice, entities := composeTextWithUserMention(noticePrefix, msg.From, fmt.Sprintf("\n消息：%s", msg.Text))
 	for _, adminID := range adminIDs {
-		_, _ = bot.Send(tgbotapi.NewMessage(adminID, notice))
+		message := tgbotapi.NewMessage(adminID, notice)
+		message.Entities = entities
+		_, _ = bot.Send(message)
 	}
 	_ = s.repo.CreateLog(group.ID, "keyword_monitor_hit", 0, 0)
 	return nil
