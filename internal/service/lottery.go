@@ -188,12 +188,41 @@ func (s *Service) CycleLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID int64) (
 	return next, nil
 }
 
+func (s *Service) SetLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedLotteryDeleteKeywordMinutes(minutes) {
+		return 0, errors.New("invalid lottery delete keyword minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := s.getLotteryConfig(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg.DeleteKeywordMinutes = minutes
+	if err := s.saveLotteryConfig(group.ID, cfg); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_lottery_delete_keyword_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
 func (s *Service) LotteryDeleteKeywordMinutesByGroupID(groupID uint) (int, error) {
 	cfg, err := s.getLotteryConfig(groupID)
 	if err != nil {
 		return 0, err
 	}
 	return cfg.DeleteKeywordMinutes, nil
+}
+
+func isAllowedLotteryDeleteKeywordMinutes(minutes int) bool {
+	switch minutes {
+	case 0, 1, 3, 5, 10, 30:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) PinLotteryMessageByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, messageID int, kind string) error {

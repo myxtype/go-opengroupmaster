@@ -64,6 +64,28 @@ func (s *Service) CycleAntiFloodMaxMessagesByTGGroupID(tgGroupID int64) (int, er
 	return cfg.MaxMessages, nil
 }
 
+func (s *Service) SetAntiFloodMaxMessagesByTGGroupID(tgGroupID int64, n int) (int, error) {
+	if !isAllowedAntiFloodMaxMessages(n) {
+		return 0, fmt.Errorf("invalid anti flood max messages")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.MaxMessages = n
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_max_messages_%d", cfg.MaxMessages), 0, 0)
+	return cfg.MaxMessages, nil
+}
+
 func (s *Service) CycleAntiFloodWindowSecByTGGroupID(tgGroupID int64) (int, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -75,6 +97,28 @@ func (s *Service) CycleAntiFloodWindowSecByTGGroupID(tgGroupID int64) (int, erro
 	}
 	cfg := normalizeAntiFloodConfig(state.Config)
 	cfg.WindowSec = nextCycleInt(cfg.WindowSec, []int{3, 5, 10, 15, 20, 30})
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_window_%d", cfg.WindowSec), 0, 0)
+	return cfg.WindowSec, nil
+}
+
+func (s *Service) SetAntiFloodWindowSecByTGGroupID(tgGroupID int64, sec int) (int, error) {
+	if !isAllowedAntiFloodWindowSec(sec) {
+		return 0, fmt.Errorf("invalid anti flood window seconds")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WindowSec = sec
 	state.Config = cfg
 	if err := s.saveAntiFloodState(group.ID, state); err != nil {
 		return 0, err
@@ -124,6 +168,55 @@ func (s *Service) CycleAntiFloodWarnDeleteSecByTGGroupID(tgGroupID int64) (int, 
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_warn_delete_%d", cfg.WarnDeleteSec), 0, 0)
 	return cfg.WarnDeleteSec, nil
+}
+
+func (s *Service) SetAntiFloodWarnDeleteSecByTGGroupID(tgGroupID int64, sec int) (int, error) {
+	if !isAllowedAntiFloodWarnDeleteSec(sec) {
+		return 0, fmt.Errorf("invalid anti flood warn delete seconds")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WarnDeleteSec = sec
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_warn_delete_%d", cfg.WarnDeleteSec), 0, 0)
+	return cfg.WarnDeleteSec, nil
+}
+
+func isAllowedAntiFloodWarnDeleteSec(sec int) bool {
+	switch sec {
+	case 0, 5, 10, 20, 30, 60:
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedAntiFloodMaxMessages(n int) bool {
+	switch n {
+	case 3, 5, 8, 10, 15, 20:
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedAntiFloodWindowSec(sec int) bool {
+	switch sec {
+	case 3, 5, 10, 15, 20, 30:
+		return true
+	default:
+		return false
+	}
 }
 
 func nextCycleInt(current int, options []int) int {

@@ -339,6 +339,81 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 	)
 }
 
+func antiFloodAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	offLabel := selectedLabel("关闭", currentSec <= 0)
+	sec5Label := selectedLabel("5秒", currentSec == 5)
+	sec10Label := selectedLabel("10秒", currentSec == 10)
+	sec20Label := selectedLabel("20秒", currentSec == 20)
+	sec30Label := selectedLabel("30秒", currentSec == 30)
+	sec60Label := selectedLabel("60秒", currentSec == 60)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(offLabel, fmt.Sprintf("feat:mod:floodalertset:%s:0", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec5Label, fmt.Sprintf("feat:mod:floodalertset:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec10Label, fmt.Sprintf("feat:mod:floodalertset:%s:10", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(sec20Label, fmt.Sprintf("feat:mod:floodalertset:%s:20", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec30Label, fmt.Sprintf("feat:mod:floodalertset:%s:30", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec60Label, fmt.Sprintf("feat:mod:floodalertset:%s:60", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回反刷屏面板", fmt.Sprintf("feat:mod:floodview:%s", gid)),
+		),
+	)
+}
+
+func antiFloodCountKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	c3Label := selectedLabel("3条", current == 3)
+	c5Label := selectedLabel("5条", current == 5)
+	c8Label := selectedLabel("8条", current == 8)
+	c10Label := selectedLabel("10条", current == 10)
+	c15Label := selectedLabel("15条", current == 15)
+	c20Label := selectedLabel("20条", current == 20)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(c3Label, fmt.Sprintf("feat:mod:floodcountset:%s:3", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(c5Label, fmt.Sprintf("feat:mod:floodcountset:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(c8Label, fmt.Sprintf("feat:mod:floodcountset:%s:8", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(c10Label, fmt.Sprintf("feat:mod:floodcountset:%s:10", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(c15Label, fmt.Sprintf("feat:mod:floodcountset:%s:15", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(c20Label, fmt.Sprintf("feat:mod:floodcountset:%s:20", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回反刷屏面板", fmt.Sprintf("feat:mod:floodview:%s", gid)),
+		),
+	)
+}
+
+func antiFloodWindowKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	sec3Label := selectedLabel("3秒", currentSec == 3)
+	sec5Label := selectedLabel("5秒", currentSec == 5)
+	sec10Label := selectedLabel("10秒", currentSec == 10)
+	sec15Label := selectedLabel("15秒", currentSec == 15)
+	sec20Label := selectedLabel("20秒", currentSec == 20)
+	sec30Label := selectedLabel("30秒", currentSec == 30)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(sec3Label, fmt.Sprintf("feat:mod:floodwindowset:%s:3", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec5Label, fmt.Sprintf("feat:mod:floodwindowset:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec10Label, fmt.Sprintf("feat:mod:floodwindowset:%s:10", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(sec15Label, fmt.Sprintf("feat:mod:floodwindowset:%s:15", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec20Label, fmt.Sprintf("feat:mod:floodwindowset:%s:20", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(sec30Label, fmt.Sprintf("feat:mod:floodwindowset:%s:30", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回反刷屏面板", fmt.Sprintf("feat:mod:floodview:%s", gid)),
+		),
+	)
+}
+
 func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	warnLabel := selectedLabel("惩罚：警告", view.Penalty == "warn")
@@ -346,6 +421,12 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
 	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
 	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
+	warnDeleteOffLabel := selectedLabel("关闭", view.WarnDeleteSec <= 0)
+	warnDelete5Label := selectedLabel("5秒", view.WarnDeleteSec == 5)
+	warnDelete10Label := selectedLabel("10秒", view.WarnDeleteSec == 10)
+	warnDelete20Label := selectedLabel("20秒", view.WarnDeleteSec == 20)
+	warnDelete30Label := selectedLabel("30秒", view.WarnDeleteSec == 30)
+	warnDelete60Label := selectedLabel("60秒", view.WarnDeleteSec == 60)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -393,7 +474,15 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("例外-（按关键词）", fmt.Sprintf("feat:mod:spamexdel:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:spamalertdel:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("删除提醒：", fmt.Sprintf("feat:mod:noop:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnDeleteOffLabel, fmt.Sprintf("feat:mod:spamalertdel:%s:0", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnDelete5Label, fmt.Sprintf("feat:mod:spamalertdel:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnDelete10Label, fmt.Sprintf("feat:mod:spamalertdel:%s:10", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(warnDelete20Label, fmt.Sprintf("feat:mod:spamalertdel:%s:20", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnDelete30Label, fmt.Sprintf("feat:mod:spamalertdel:%s:30", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnDelete60Label, fmt.Sprintf("feat:mod:spamalertdel:%s:60", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:spamview:%s", gid)),
 	)
@@ -451,6 +540,40 @@ func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotap
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("限制时长：%d分钟", view.Minutes), fmt.Sprintf("feat:mod:newbietime:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:newbieview:%s", gid)),
+	)
+}
+
+func verifyTimeoutMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	m1Label := selectedLabel("1分钟", current == 1)
+	m5Label := selectedLabel("5分钟", current == 5)
+	m10Label := selectedLabel("10分钟", current == 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(m1Label, fmt.Sprintf("feat:mod:verifytimeset:%s:1", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m5Label, fmt.Sprintf("feat:mod:verifytimeset:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m10Label, fmt.Sprintf("feat:mod:verifytimeset:%s:10", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回验证面板", fmt.Sprintf("feat:mod:verifyview:%s", gid)),
+		),
+	)
+}
+
+func newbieLimitMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	m10Label := selectedLabel("10分钟", current == 10)
+	m30Label := selectedLabel("30分钟", current == 30)
+	m60Label := selectedLabel("60分钟", current == 60)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(m10Label, fmt.Sprintf("feat:mod:newbietimeset:%s:10", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m30Label, fmt.Sprintf("feat:mod:newbietimeset:%s:30", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m60Label, fmt.Sprintf("feat:mod:newbietimeset:%s:60", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回新成员限制面板", fmt.Sprintf("feat:mod:newbieview:%s", gid)),
+		),
 	)
 }
 
@@ -542,6 +665,31 @@ func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKey
 	)
 }
 
+func lotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	offLabel := selectedLabel("关闭", current <= 0)
+	m1Label := selectedLabel("1分钟", current == 1)
+	m3Label := selectedLabel("3分钟", current == 3)
+	m5Label := selectedLabel("5分钟", current == 5)
+	m10Label := selectedLabel("10分钟", current == 10)
+	m30Label := selectedLabel("30分钟", current == 30)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(offLabel, fmt.Sprintf("feat:lottery:delminsset:%s:0", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m1Label, fmt.Sprintf("feat:lottery:delminsset:%s:1", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m3Label, fmt.Sprintf("feat:lottery:delminsset:%s:3", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(m5Label, fmt.Sprintf("feat:lottery:delminsset:%s:5", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m10Label, fmt.Sprintf("feat:lottery:delminsset:%s:10", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m30Label, fmt.Sprintf("feat:lottery:delminsset:%s:30", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回抽奖面板", fmt.Sprintf("feat:lottery:view:%s", gid)),
+		),
+	)
+}
+
 func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	_ = enabled
@@ -573,6 +721,29 @@ func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes i
 			tgbotapi.NewInlineKeyboardButtonData("预览", fmt.Sprintf("feat:welcome:preview:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:welcome:view:%s", gid)),
+	)
+}
+
+func welcomeDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	offLabel := selectedLabel("关闭", current <= 0)
+	m1Label := selectedLabel("1分钟", current == 1)
+	m5Label := selectedLabel("5分钟", current == 5)
+	m10Label := selectedLabel("10分钟", current == 10)
+	m30Label := selectedLabel("30分钟", current == 30)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(offLabel, fmt.Sprintf("feat:welcome:delminsset:%s:0", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m1Label, fmt.Sprintf("feat:welcome:delminsset:%s:1", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m5Label, fmt.Sprintf("feat:welcome:delminsset:%s:5", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(m10Label, fmt.Sprintf("feat:welcome:delminsset:%s:10", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m30Label, fmt.Sprintf("feat:welcome:delminsset:%s:30", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回欢迎面板", fmt.Sprintf("feat:welcome:view:%s", gid)),
+		),
 	)
 }
 

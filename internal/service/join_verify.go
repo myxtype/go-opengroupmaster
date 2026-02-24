@@ -59,6 +59,26 @@ func (s *Service) CycleJoinVerifyTimeoutMinutesByTGGroupID(tgGroupID int64) (int
 	return cfg.TimeoutMinutes, nil
 }
 
+func (s *Service) SetJoinVerifyTimeoutMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedJoinVerifyTimeoutMinutes(minutes) {
+		return 0, fmt.Errorf("invalid verify timeout minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := s.getJoinVerifyConfig(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg.TimeoutMinutes = minutes
+	if err := s.saveJoinVerifyConfig(group.ID, cfg); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_join_verify_timeout_minutes_%d", cfg.TimeoutMinutes), 0, 0)
+	return cfg.TimeoutMinutes, nil
+}
+
 func (s *Service) ToggleJoinVerifyTimeoutActionByTGGroupID(tgGroupID int64) (string, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -126,4 +146,13 @@ func (s *Service) CycleJoinVerifyTypeByTGGroupID(tgGroupID int64) (string, error
 	}
 	_ = s.repo.CreateLog(group.ID, "switch_verify_type_"+cfg.Type, 0, 0)
 	return cfg.Type, nil
+}
+
+func isAllowedJoinVerifyTimeoutMinutes(minutes int) bool {
+	switch minutes {
+	case 1, 5, 10:
+		return true
+	default:
+		return false
+	}
 }

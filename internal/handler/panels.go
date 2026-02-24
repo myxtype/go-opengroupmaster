@@ -230,6 +230,60 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), antiFloodKeyboard(tgGroupID, view))
 }
 
+func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"💬 反刷屏 - 删除提醒",
+		"",
+		fmt.Sprintf("当前设置:%s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
+		"请选择提醒消息自动删除时间：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiFloodAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
+}
+
+func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"💬 反刷屏 - 触发条数",
+		"",
+		fmt.Sprintf("当前设置:%d 条", view.MaxMessages),
+		"请选择触发条数：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiFloodCountKeyboard(tgGroupID, view.MaxMessages))
+}
+
+func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"💬 反刷屏 - 检测间隔",
+		"",
+		fmt.Sprintf("当前设置:%d 秒", view.WindowSec),
+		"请选择检测间隔：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiFloodWindowKeyboard(tgGroupID, view.WindowSec))
+}
+
 func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
@@ -304,6 +358,24 @@ func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	h.render(bot, target, strings.Join(lines, "\n"), verifyKeyboard(tgGroupID, view))
 }
 
+func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.JoinVerifyViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载验证设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"🤖 验证 - 验证时间",
+		"",
+		fmt.Sprintf("当前设置:%d分钟", view.TimeoutMinutes),
+		"请选择验证时间：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), verifyTimeoutMinutesKeyboard(tgGroupID, view.TimeoutMinutes))
+}
+
 func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
@@ -325,6 +397,24 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 		fmt.Sprintf("限制时长:%d分钟", view.Minutes),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.NewbieLimitViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载新成员限制失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"🔒 新成员限制 - 限制时长",
+		"",
+		fmt.Sprintf("当前设置:%d分钟", view.Minutes),
+		"请选择限制时长：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitMinutesKeyboard(tgGroupID, view.Minutes))
 }
 
 func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -455,6 +545,24 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 }
 
+func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载抽奖面板失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"🎯 抽奖 - 删除口令",
+		"",
+		fmt.Sprintf("当前设置:%s", lotteryDeleteDesc(view.DeleteKeywordMins)),
+		"请选择自动删除口令消息时长：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), lotteryDeleteMinutesKeyboard(tgGroupID, view.DeleteKeywordMins))
+}
+
 func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
@@ -493,6 +601,28 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		fmt.Sprintf("└📄 文本内容: %s", onOffWithEmoji(strings.TrimSpace(cfg.Text) != "")),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), welcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))
+}
+
+func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	cfg, _, err := h.service.WelcomeViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载欢迎设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	deleteText := "关闭"
+	if cfg.DeleteMinutes > 0 {
+		deleteText = fmt.Sprintf("%d分钟", cfg.DeleteMinutes)
+	}
+	lines := []string{
+		"🎉 欢迎 - 删除消息",
+		"",
+		fmt.Sprintf("当前设置:%s", deleteText),
+		"请选择欢迎消息自动删除时间：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), welcomeDeleteMinutesKeyboard(tgGroupID, cfg.DeleteMinutes))
 }
 
 func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

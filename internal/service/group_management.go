@@ -305,6 +305,26 @@ func (s *Service) CycleWelcomeDeleteMinutesByTGGroupID(tgGroupID int64) (int, er
 	return next, nil
 }
 
+func (s *Service) SetWelcomeDeleteMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedWelcomeDeleteMinutes(minutes) {
+		return 0, errors.New("invalid welcome delete minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg.DeleteMinutes = minutes
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_welcome_delete_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
 func (s *Service) SetWelcomeMediaByTGGroupID(tgGroupID int64, fileID string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -443,4 +463,37 @@ func (s *Service) CycleNewbieLimitMinutesByTGGroupID(tgGroupID int64) (int, erro
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_newbie_limit_%d", next), 0, 0)
 	return next, nil
+}
+
+func (s *Service) SetNewbieLimitMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedNewbieLimitMinutes(minutes) {
+		return 0, errors.New("invalid newbie limit minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.saveNewbieLimitMinutes(group.ID, minutes); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_newbie_limit_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func isAllowedWelcomeDeleteMinutes(minutes int) bool {
+	switch minutes {
+	case 0, 1, 5, 10, 30:
+		return true
+	default:
+		return false
+	}
+}
+
+func isAllowedNewbieLimitMinutes(minutes int) bool {
+	switch minutes {
+	case 10, 30, 60:
+		return true
+	default:
+		return false
+	}
 }

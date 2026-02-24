@@ -247,7 +247,10 @@ func (s *Service) RemoveAntiSpamExceptionByTGGroupID(tgGroupID int64, keyword st
 	return len(cfg.ExceptionKeywords), nil
 }
 
-func (s *Service) CycleAntiSpamWarnDeleteSecByTGGroupID(tgGroupID int64) (int, error) {
+func (s *Service) SetAntiSpamWarnDeleteSecByTGGroupID(tgGroupID int64, sec int) (int, error) {
+	if !isAllowedAntiSpamWarnDeleteSec(sec) {
+		return 0, errors.New("invalid anti spam warn delete seconds")
+	}
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return 0, err
@@ -257,11 +260,20 @@ func (s *Service) CycleAntiSpamWarnDeleteSecByTGGroupID(tgGroupID int64) (int, e
 		return 0, err
 	}
 	cfg := normalizeAntiSpamConfig(state.Config)
-	cfg.WarnDeleteSec = nextCycleInt(cfg.WarnDeleteSec, []int{0, 5, 10, 20, 30, 60})
+	cfg.WarnDeleteSec = sec
 	state.Config = cfg
 	if err := s.saveAntiSpamState(group.ID, state); err != nil {
 		return 0, err
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_warn_delete_%d", cfg.WarnDeleteSec), 0, 0)
 	return cfg.WarnDeleteSec, nil
+}
+
+func isAllowedAntiSpamWarnDeleteSec(sec int) bool {
+	switch sec {
+	case 0, 5, 10, 20, 30, 60:
+		return true
+	default:
+		return false
+	}
 }

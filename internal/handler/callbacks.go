@@ -184,9 +184,21 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			}
 			h.sendWelcomePanel(bot, target, userID, tgGroupID)
 		case "delmins":
-			mins, err := h.service.CycleWelcomeDeleteMinutesByTGGroupID(tgGroupID)
+			h.answerCallback(bot, cb.ID, "请选择删除时间")
+			h.sendWelcomeDeleteMinutesPanel(bot, target, userID, tgGroupID)
+		case "delminsset":
+			if len(parts) < 5 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			v, err := strconv.Atoi(parts[4])
 			if err != nil {
-				h.answerCallback(bot, cb.ID, "切换失败")
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			mins, err := h.service.SetWelcomeDeleteMinutesByTGGroupID(tgGroupID, v)
+			if err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
 				return
 			}
 			if mins == 0 {
@@ -194,7 +206,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			} else {
 				h.answerCallback(bot, cb.ID, fmt.Sprintf("删除消息：%d 分钟", mins))
 			}
-			h.sendWelcomePanel(bot, target, userID, tgGroupID)
+			h.sendWelcomeDeleteMinutesPanel(bot, target, userID, tgGroupID)
 		case "set":
 			h.answerCallback(bot, cb.ID, "请输入欢迎文案")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit", TGGroupID: tgGroupID})
@@ -612,9 +624,21 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		}
 		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	case "delmins":
-		mins, err := h.service.CycleLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择删除时长")
+		h.sendLotteryDeleteMinutesPanel(bot, target, cb.From.ID, tgGroupID)
+	case "delminsset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
 		if err != nil {
-			h.answerCallback(bot, cb.ID, "切换失败")
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mins, err := h.service.SetLotteryDeleteKeywordMinutesByTGGroupID(tgGroupID, v)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
 		if mins > 0 {
@@ -622,7 +646,7 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		} else {
 			h.answerCallback(bot, cb.ID, "已关闭自动删除口令消息")
 		}
-		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
+		h.sendLotteryDeleteMinutesPanel(bot, target, cb.From.ID, tgGroupID)
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
@@ -782,7 +806,17 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.render(bot, target, "输入要移除的例外关键词（精确匹配，不区分大小写）", pendingCancelKeyboard(tgGroupID))
 		return
 	case "spamalertdel":
-		sec, err := h.service.CycleAntiSpamWarnDeleteSecByTGGroupID(tgGroupID)
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "请选择具体秒数")
+			h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+			return
+		}
+		secValue, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		sec, err := h.service.SetAntiSpamWarnDeleteSecByTGGroupID(tgGroupID, secValue)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
@@ -827,13 +861,26 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendVerifyPanel(bot, target, userID, tgGroupID)
 		return
 	case "verifytime":
-		mins, err := h.service.CycleJoinVerifyTimeoutMinutesByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择验证时间")
+		h.sendVerifyTimeoutMinutesPanel(bot, target, userID, tgGroupID)
+		return
+	case "verifytimeset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mins, err := h.service.SetJoinVerifyTimeoutMinutesByTGGroupID(tgGroupID, v)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
 		h.answerCallback(bot, cb.ID, fmt.Sprintf("验证时间已设为 %d 分钟", mins))
-		h.sendVerifyPanel(bot, target, userID, tgGroupID)
+		h.sendVerifyTimeoutMinutesPanel(bot, target, userID, tgGroupID)
 		return
 	case "verifytimeout":
 		actionName, err := h.service.ToggleJoinVerifyTimeoutActionByTGGroupID(tgGroupID)
@@ -930,13 +977,26 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
 		return
 	case "newbietime":
-		mins, err := h.service.CycleNewbieLimitMinutesByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择限制时长")
+		h.sendNewbieLimitMinutesPanel(bot, target, userID, tgGroupID)
+		return
+	case "newbietimeset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
 		if err != nil {
-			h.answerCallback(bot, cb.ID, "切换失败")
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mins, err := h.service.SetNewbieLimitMinutesByTGGroupID(tgGroupID, v)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
 		h.answerCallback(bot, cb.ID, fmt.Sprintf("限制时长已设为 %d 分钟", mins))
-		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
+		h.sendNewbieLimitMinutesPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodoff":
 		if _, err := h.service.SetAntiFloodEnabledByTGGroupID(tgGroupID, false); err != nil {
@@ -947,22 +1007,48 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodcount":
-		n, err := h.service.CycleAntiFloodMaxMessagesByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择触发条数")
+		h.sendAntiFloodCountPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodcountset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		n, err := h.service.SetAntiFloodMaxMessagesByTGGroupID(tgGroupID, v)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
 		h.answerCallback(bot, cb.ID, fmt.Sprintf("触发条数已设为 %d", n))
-		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		h.sendAntiFloodCountPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodwindow":
-		sec, err := h.service.CycleAntiFloodWindowSecByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择检测间隔")
+		h.sendAntiFloodWindowPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodwindowset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		sec, err := h.service.SetAntiFloodWindowSecByTGGroupID(tgGroupID, v)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
 		h.answerCallback(bot, cb.ID, fmt.Sprintf("检测间隔已设为 %d 秒", sec))
-		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		h.sendAntiFloodWindowPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodpenalty":
 		if len(parts) < 5 {
@@ -978,7 +1064,20 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodalertdel":
-		sec, err := h.service.CycleAntiFloodWarnDeleteSecByTGGroupID(tgGroupID)
+		h.answerCallback(bot, cb.ID, "请选择删除提醒时长")
+		h.sendAntiFloodAlertDeletePanel(bot, target, userID, tgGroupID)
+		return
+	case "floodalertset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		secValue, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		sec, err := h.service.SetAntiFloodWarnDeleteSecByTGGroupID(tgGroupID, secValue)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
@@ -988,7 +1087,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		} else {
 			h.answerCallback(bot, cb.ID, fmt.Sprintf("提醒自动删除：%d 秒", sec))
 		}
-		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		h.sendAntiFloodAlertDeletePanel(bot, target, userID, tgGroupID)
 		return
 	}
 
