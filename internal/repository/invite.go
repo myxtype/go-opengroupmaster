@@ -39,6 +39,17 @@ func (r *Repository) FindInviteLinkByLink(groupID uint, link string) (*model.Inv
 	return &out, nil
 }
 
+func (r *Repository) FindLatestInviteLinkByCreator(groupID uint, creatorTGUserID int64) (*model.InviteLink, error) {
+	var out model.InviteLink
+	if err := r.db.
+		Where("group_id = ? AND creator_tg_user_id = ?", groupID, creatorTGUserID).
+		Order("id desc").
+		First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (r *Repository) CreateInviteEvent(item *model.InviteEvent) (bool, error) {
 	if item == nil {
 		return false, fmt.Errorf("nil invite event")
@@ -63,6 +74,14 @@ func (r *Repository) CountInviteEventsByInviter(groupID uint, inviterTGUserID in
 	var total int64
 	err := r.db.Model(&model.InviteEvent{}).
 		Where("group_id = ? AND inviter_tg_user_id = ?", groupID, inviterTGUserID).
+		Count(&total).Error
+	return total, err
+}
+
+func (r *Repository) CountInviteEventsByLink(groupID uint, link string) (int64, error) {
+	var total int64
+	err := r.db.Model(&model.InviteEvent{}).
+		Where("group_id = ? AND link = ?", groupID, link).
 		Count(&total).Error
 	return total, err
 }

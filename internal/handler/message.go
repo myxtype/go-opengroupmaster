@@ -110,20 +110,25 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
 		}
 	case "link":
+		sendLinkReply := func(text string) {
+			out := tgbotapi.NewMessage(msg.Chat.ID, text)
+			out.ReplyToMessageID = msg.MessageID
+			_, _ = bot.Send(out)
+		}
 		res, err := h.service.CreateInviteLinkForUserByTGGroupID(bot, msg.Chat.ID, msg.From.ID)
 		if err != nil {
 			switch {
 			case errors.Is(err, svc.ErrInviteFeatureDisabled):
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "邀请链接功能未开启，请联系管理员在面板中开启"))
+				sendLinkReply("邀请链接功能未开启，请联系管理员在面板中开启")
 			case errors.Is(err, svc.ErrInviteGenerateLimitReached):
 				stats, statErr := h.service.InviteUserStatsByTGGroupID(msg.Chat.ID, msg.From.ID)
 				if statErr != nil {
-					_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前生成数量已达到上限，暂时无法生成新链接"))
+					sendLinkReply("当前生成数量已达到上限，暂时无法生成新链接")
 					return
 				}
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("当前生成数量已达到上限，暂时无法生成新链接\n你的邀请统计：\n有效邀请人数：%d\n已生成链接数量：%d", stats.InvitedCount, stats.GeneratedCount)))
+				sendLinkReply(fmt.Sprintf("当前生成数量已达到上限，暂时无法生成新链接\n你的邀请统计：\n有效邀请人数：%d\n已生成链接数量：%d", stats.InvitedCount, stats.GeneratedCount))
 			default:
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "生成邀请链接失败"))
+				sendLinkReply("生成邀请链接失败")
 			}
 			return
 		}
@@ -140,7 +145,7 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		} else {
 			lines = append(lines, fmt.Sprintf("群组生成总数：%d", res.GroupGenerated))
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, strings.Join(lines, "\n")))
+		sendLinkReply(strings.Join(lines, "\n"))
 	case "black_add":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {

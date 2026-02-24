@@ -140,17 +140,17 @@ func inviteKeyboard(tgGroupID int64, enabled bool) tgbotapi.InlineKeyboardMarkup
 			fmt.Sprintf("feat:invite:off:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("1. 配置过期时间", fmt.Sprintf("feat:invite:expire:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("配置过期时间", fmt.Sprintf("feat:invite:expire:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("2. 最大邀请数配置", fmt.Sprintf("feat:invite:member:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("最大邀请数配置", fmt.Sprintf("feat:invite:member:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("3. 生成数量限制配置", fmt.Sprintf("feat:invite:gen:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("生成数量限制配置", fmt.Sprintf("feat:invite:gen:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("4. 导出", fmt.Sprintf("feat:invite:export:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("5. 清空数据", fmt.Sprintf("feat:invite:clear:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("导出", fmt.Sprintf("feat:invite:export:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("清空数据", fmt.Sprintf("feat:invite:clear:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:invite:view:%s", gid)),
 	)
@@ -160,7 +160,7 @@ func inviteExpireInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("无限制", fmt.Sprintf("feat:invite:expireunlimit:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:expireunlimit:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
@@ -173,7 +173,7 @@ func inviteMemberInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("无限制", fmt.Sprintf("feat:invite:memberunlimit:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:memberunlimit:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
@@ -186,7 +186,7 @@ func inviteGenerateInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup 
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("无限制", fmt.Sprintf("feat:invite:genunlimit:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:genunlimit:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),

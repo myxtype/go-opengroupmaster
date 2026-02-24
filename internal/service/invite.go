@@ -164,6 +164,34 @@ func (s *Service) CreateInviteLinkForUserByTGGroupID(bot *tgbotapi.BotAPI, tgGro
 	if err != nil {
 		return nil, err
 	}
+
+	// Prefer returning user's latest still-usable link to avoid generating a new one on every /link query.
+	latestLink, err := s.repo.FindLatestInviteLinkByCreator(group.ID, tgUserID)
+	if err == nil {
+		reusable, reErr := s.isInviteLinkReusable(group.ID, latestLink)
+		if reErr != nil {
+			return nil, reErr
+		}
+		if reusable {
+			groupGenerated, cErr := s.repo.CountInviteLinks(group.ID)
+			if cErr != nil {
+				return nil, cErr
+			}
+			userStats, sErr := s.inviteUserStatsByGroupID(group.ID, tgUserID)
+			if sErr != nil {
+				return nil, sErr
+			}
+			return &InviteGenerateResult{
+				Link:           latestLink.Link,
+				UserStats:      *userStats,
+				GroupGenerated: groupGenerated,
+				GenerateLimit:  cfg.GenerateLimit,
+			}, nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
 	generatedCount, err := s.repo.CountInviteLinks(group.ID)
 	if err != nil {
 		return nil, err
@@ -228,6 +256,25 @@ func (s *Service) CreateInviteLinkForUserByTGGroupID(bot *tgbotapi.BotAPI, tgGro
 		GroupGenerated: groupGenerated,
 		GenerateLimit:  cfg.GenerateLimit,
 	}, nil
+}
+
+func (s *Service) isInviteLinkReusable(groupID uint, link *model.InviteLink) (bool, error) {
+	if link == nil || strings.TrimSpace(link.Link) == "" {
+		return false, nil
+	}
+	if link.ExpireDate > 0 && link.ExpireDate <= time.Now().Unix() {
+		return false, nil
+	}
+	if link.MemberLimit > 0 {
+		used, err := s.repo.CountInviteEventsByLink(groupID, link.Link)
+		if err != nil {
+			return false, err
+		}
+		if used >= int64(link.MemberLimit) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (s *Service) TrackInviteByChatMemberUpdate(update *tgbotapi.ChatMemberUpdated) error {
