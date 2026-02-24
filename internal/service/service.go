@@ -161,6 +161,9 @@ type Service struct {
 	logger          *log.Logger
 	scheduleRuntime ScheduleRuntime
 	mu              sync.Mutex
+	adminSyncMu     sync.Mutex
+	adminSyncAt     map[int64]time.Time
+	adminSyncEvery  time.Duration
 	configCacheMu   sync.RWMutex
 	configCache     map[string]featureConfigCacheEntry
 	antiSpamMu      sync.RWMutex
@@ -302,6 +305,8 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		flood:          make(map[string][]floodEvent),
 		joinAt:         make(map[string]time.Time),
 		verify:         make(map[string]verifyPending),
+		adminSyncAt:    make(map[int64]time.Time),
+		adminSyncEvery: 5 * time.Minute,
 	}
 }
 
@@ -311,4 +316,13 @@ type ScheduleRuntime interface {
 
 func (s *Service) SetScheduleRuntime(runtime ScheduleRuntime) {
 	s.scheduleRuntime = runtime
+}
+
+func (s *Service) SetAdminSyncInterval(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	s.adminSyncMu.Lock()
+	defer s.adminSyncMu.Unlock()
+	s.adminSyncEvery = d
 }

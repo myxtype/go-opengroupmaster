@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
@@ -25,14 +26,19 @@ func (s *Service) RegisterGroupAndUser(msg *tgbotapi.Message) (*model.Group, *mo
 }
 
 func (s *Service) SyncGroupAdmins(bot *tgbotapi.BotAPI, group *model.Group) error {
+	if !s.tryBeginAdminSync(group.TGGroupID) {
+		return nil
+	}
 	admins, err := bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{ChatConfig: tgbotapi.ChatConfig{ChatID: group.TGGroupID}})
 	if err != nil {
+		s.finishAdminSync(group.TGGroupID, false)
 		return err
 	}
 	rows := make([]model.GroupAdmin, 0, len(admins))
 	for _, a := range admins {
 		u, err := s.repo.UpsertUserFromTG(a.User)
 		if err != nil {
+			s.finishAdminSync(group.TGGroupID, false)
 			return err
 		}
 		role := "admin"
@@ -42,9 +48,15 @@ func (s *Service) SyncGroupAdmins(bot *tgbotapi.BotAPI, group *model.Group) erro
 		rows = append(rows, model.GroupAdmin{GroupID: group.ID, UserID: u.ID, Role: role})
 	}
 	if err := s.repo.ReplaceGroupAdmins(group.ID, rows); err != nil {
+		s.finishAdminSync(group.TGGroupID, false)
 		return err
 	}
-	return s.repo.CreateDefaultDataIfEmpty(group.ID)
+	if err := s.repo.CreateDefaultDataIfEmpty(group.ID); err != nil {
+		s.finishAdminSync(group.TGGroupID, false)
+		return err
+	}
+	s.finishAdminSync(group.TGGroupID, true)
+	return nil
 }
 
 func (s *Service) ListManageableGroups(tgUserID int64) ([]model.Group, error) {
@@ -156,6 +168,27 @@ func (s *Service) IsFeatureEnabled(groupID uint, featureKey string, defaultValue
 		return false, err
 	}
 	return setting.Enabled, nil
+}
+
+func (s *Service) tryBeginAdminSync(tgGroupID int64) bool {
+	now := time.Now()
+	s.adminSyncMu.Lock()
+	defer s.adminSyncMu.Unlock()
+	last, ok := s.adminSyncAt[tgGroupID]
+	if ok && now.Sub(last) < s.adminSyncEvery {
+		return false
+	}
+	s.adminSyncAt[tgGroupID] = now
+	return true
+}
+
+func (s *Service) finishAdminSync(tgGroupID int64, ok bool) {
+	if ok {
+		return
+	}
+	s.adminSyncMu.Lock()
+	defer s.adminSyncMu.Unlock()
+	delete(s.adminSyncAt, tgGroupID)
 }
 
 func (s *Service) ToggleWelcomeByTGGroupID(tgGroupID int64) (bool, error) {

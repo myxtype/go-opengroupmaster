@@ -75,7 +75,10 @@
 cp .env.example .env
 ```
 
-2. 设置 `BOT_TOKEN`
+2. 设置 `BOT_TOKEN`（可选调优项：`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`）
+
+   - `UPDATE_WORKERS`：Update 并发 worker 数（默认 `8`，同一会话按 chat/user 分片后保持有序）
+   - `ADMIN_SYNC_INTERVAL_SECS`：同一群管理员同步最小间隔秒数（默认 `300`，避免每条消息都请求管理员列表）
 
 3. 安装依赖并运行
 
@@ -190,6 +193,7 @@ go run ./cmd
 ## 注意事项
 
 - SQLite 已启用 WAL：`PRAGMA journal_mode=WAL`
+- Update 处理已支持分片并发（默认 8 worker），同一 chat/user 仍保持顺序处理，避免私聊输入态错乱
 - Telegram 无法直接查询“某用户管理的所有群”，当前采用“机器人入群后同步管理员”方案。
 - 生产建议切换 webhook、增加限流/审计日志、并把数据库迁移到 PostgreSQL。
 

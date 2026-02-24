@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"supervisor/internal/bot"
 	"supervisor/internal/config"
@@ -33,6 +34,7 @@ func main() {
 	botAPI.Debug = cfg.BotDebug
 
 	svc := service.New(repo, l)
+	svc.SetAdminSyncInterval(time.Duration(cfg.AdminSyncIntervalSecs) * time.Second)
 	h := handler.New(svc, l)
 
 	sch := scheduler.New(svc, botAPI, l)
@@ -43,5 +45,5 @@ func main() {
 	defer sch.Stop()
 
 	l.Printf("bot authorized on account %s", botAPI.Self.UserName)
-	bot.Run(botAPI, h, l)
+	bot.Run(botAPI, h, l, cfg.UpdateWorkers)
 }
