@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${ROOT_DIR}/bin"
 CACHE_DIR="${ROOT_DIR}/.cache"
 ENTRY="${ENTRY:-./cmd}"
-APP_NAME="${APP_NAME:-go-tg-supervisor}"
+APP_NAME="${APP_NAME:-groupmasterbot}"
 TARGET="${1:-local}"
 GOCACHE="${GOCACHE:-${CACHE_DIR}/go-build}"
 
