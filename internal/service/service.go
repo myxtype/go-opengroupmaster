@@ -70,9 +70,6 @@ type welcomeButton struct {
 type antiSpamConfig struct {
 	BlockPhoto              bool     `json:"block_photo"`
 	BlockLink               bool     `json:"block_link"`
-	SmartDetectEnabled      bool     `json:"smart_detect_enabled"`
-	SmartDeleteScore        int      `json:"smart_delete_score"`
-	SmartPunishScore        int      `json:"smart_punish_score"`
 	BlockChannelAlias       bool     `json:"block_channel_alias"`
 	BlockForwardFromChannel bool     `json:"block_forward_channel"`
 	BlockForwardFromUser    bool     `json:"block_forward_user"`
@@ -176,7 +173,6 @@ type Service struct {
 	nightModeMu     sync.RWMutex
 	nightModeCache  map[uint]nightModeState
 	flood           map[string][]floodEvent
-	spamRecent      map[string][]floodEvent
 	joinAt          map[string]time.Time
 	verify          map[string]verifyPending
 }
@@ -259,9 +255,6 @@ type AntiSpamView struct {
 	Enabled               bool
 	BlockPhoto            bool
 	BlockLink             bool
-	SmartDetectEnabled    bool
-	SmartDeleteScore      int
-	SmartPunishScore      int
 	BlockChannelAlias     bool
 	BlockForwardFromChan  bool
 	BlockForwardFromUser  bool
@@ -310,7 +303,6 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		antiFloodCache: make(map[uint]antiFloodState),
 		nightModeCache: make(map[uint]nightModeState),
 		flood:          make(map[string][]floodEvent),
-		spamRecent:     make(map[string][]floodEvent),
 		joinAt:         make(map[string]time.Time),
 		verify:         make(map[string]verifyPending),
 		adminSyncAt:    make(map[int64]time.Time),

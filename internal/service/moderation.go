@@ -158,64 +158,46 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	}
 	if spamState.Enabled {
 		cfg := normalizeAntiSpamConfig(spamState.Config)
-		content := antiSpamMessageContent(msg)
-		if !antiSpamExceptionHit(content, cfg.ExceptionKeywords) {
-			decision := antiSpamDecisionFromRules(msg, cfg)
-			if !decision.Blocked && cfg.SmartDetectEnabled {
-				decision = s.evaluateSmartAntiSpam(group.TGGroupID, msg, content, cfg)
+		blocked, reasonCode, reasonLabel := antiSpamViolation(msg, cfg)
+		if blocked {
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+			appliedPenalty := cfg.Penalty
+			if msg.From == nil && (cfg.Penalty == antiFloodPenaltyMute || cfg.Penalty == antiFloodPenaltyKick || cfg.Penalty == antiFloodPenaltyKickBan) {
+				appliedPenalty = antiFloodPenaltyDeleteOnly
 			}
-			if decision.Blocked {
-				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-				appliedPenalty := cfg.Penalty
-				if decision.Smart && decision.Score >= cfg.SmartPunishScore {
-					appliedPenalty = antiSpamUpgradePenalty(appliedPenalty)
+			switch appliedPenalty {
+			case antiFloodPenaltyMute:
+				restrict := tgbotapi.RestrictChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
+					Permissions:      &tgbotapi.ChatPermissions{},
 				}
-				if msg.From == nil && (appliedPenalty == antiFloodPenaltyMute || appliedPenalty == antiFloodPenaltyKick || appliedPenalty == antiFloodPenaltyKickBan) {
-					appliedPenalty = antiFloodPenaltyDeleteOnly
-				}
-				switch appliedPenalty {
-				case antiFloodPenaltyMute:
-					restrict := tgbotapi.RestrictChatMemberConfig{
-						ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-						UntilDate:        time.Now().Add(time.Duration(cfg.MuteSec) * time.Second).Unix(),
-						Permissions:      &tgbotapi.ChatPermissions{},
-					}
-					_, _ = bot.Request(restrict)
-				case antiFloodPenaltyKick:
-					_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-						ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-						UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
-					})
-					_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
-						ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-						OnlyIfBanned:     true,
-					})
-				case antiFloodPenaltyKickBan:
-					_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-						ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-						RevokeMessages:   true,
-					})
-				}
-				alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), decision.ReasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
-				if decision.Smart {
-					alertText = fmt.Sprintf("%s 触发反垃圾（智能识别:%s，score=%d，命中:%s），已%s",
-						antiSpamActorDisplayName(msg),
-						decision.Category,
-						decision.Score,
-						antiSpamReasonListPreview(decision.Reasons),
-						antiFloodActionLabel(appliedPenalty, cfg.MuteSec),
-					)
-				}
-				alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
-				if sendErr == nil && cfg.WarnDeleteSec > 0 {
-					go func(chatID int64, messageID int, seconds int) {
-						time.Sleep(time.Duration(seconds) * time.Second)
-						_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-					}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
-				}
-				_ = s.repo.CreateLog(group.ID, "anti_spam_"+appliedPenalty+"_"+decision.ReasonCode, 0, 0)
-				return true, nil
+				_, _ = bot.Request(restrict)
+			case antiFloodPenaltyKick:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+				})
+				_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					OnlyIfBanned:     true,
+				})
+			case antiFloodPenaltyKickBan:
+				_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+					ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+					RevokeMessages:   true,
+				})
 			}
+			alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), reasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
+			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
+			if sendErr == nil && cfg.WarnDeleteSec > 0 {
+				go func(chatID int64, messageID int, seconds int) {
+					time.Sleep(time.Duration(seconds) * time.Second)
+					_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+				}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
+			}
+			_ = s.repo.CreateLog(group.ID, "anti_spam_"+appliedPenalty+"_"+reasonCode, 0, 0)
+			return true, nil
 		}
 	}
 

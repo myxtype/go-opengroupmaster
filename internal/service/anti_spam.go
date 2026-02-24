@@ -21,9 +21,6 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		Enabled:               state.Enabled,
 		BlockPhoto:            cfg.BlockPhoto,
 		BlockLink:             cfg.BlockLink,
-		SmartDetectEnabled:    cfg.SmartDetectEnabled,
-		SmartDeleteScore:      cfg.SmartDeleteScore,
-		SmartPunishScore:      cfg.SmartPunishScore,
 		BlockChannelAlias:     cfg.BlockChannelAlias,
 		BlockForwardFromChan:  cfg.BlockForwardFromChannel,
 		BlockForwardFromUser:  cfg.BlockForwardFromUser,
@@ -107,10 +104,6 @@ func (s *Service) ToggleAntiSpamOptionByTGGroupID(tgGroupID int64, option string
 		cfg.BlockLink = !cfg.BlockLink
 		next = cfg.BlockLink
 		log = "set_anti_spam_link"
-	case "smart":
-		cfg.SmartDetectEnabled = !cfg.SmartDetectEnabled
-		next = cfg.SmartDetectEnabled
-		log = "set_anti_spam_smart"
 	case "senderchat":
 		cfg.BlockChannelAlias = !cfg.BlockChannelAlias
 		next = cfg.BlockChannelAlias
