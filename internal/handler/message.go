@@ -278,13 +278,35 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
 		}
 		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
-	case "sched_add":
-		cronExpr, content, err := h.service.ParseScheduledInput(text)
-		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：cron表达式=>消息内容"))
+	case "sched_add_cron":
+		cronExpr := strings.TrimSpace(msg.Text)
+		if cronExpr == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "cron 表达式不能为空"))
 			return
 		}
-		if err := h.service.CreateScheduledMessageByTGGroupID(pending.TGGroupID, content, cronExpr); err != nil {
+		if err := h.service.ValidateCronExpr(cronExpr); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "cron 表达式格式错误，请按 5 段格式：分钟 小时 日 月 星期\n示例：0 9 * * *"))
+			return
+		}
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:      "sched_add_content",
+			TGGroupID: pending.TGGroupID,
+			Page:      pending.Page,
+			CronExpr:  cronExpr,
+		})
+		h.render(bot, target, "第2步：请输入要发送的消息内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "sched_add_content":
+		content := msg.Text
+		if strings.TrimSpace(content) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "消息内容不能为空"))
+			return
+		}
+		if strings.TrimSpace(pending.CronExpr) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少 cron 表达式，请重新创建定时消息"))
+			return
+		}
+		if err := h.service.CreateScheduledMessageByTGGroupID(pending.TGGroupID, content, pending.CronExpr); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建定时消息失败："+err.Error()))
 			return
 		}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/robfig/cron/v3"
 )
 
 const maxScheduledMessagesPerGroup = 3
@@ -151,4 +153,9 @@ func (s *Service) ParseScheduledInput(raw string) (cronExpr, content string, err
 		return "", "", errors.New("empty field")
 	}
 	return cronExpr, content, nil
+}
+
+func (s *Service) ValidateCronExpr(cronExpr string) error {
+	_, err := cron.ParseStandard(strings.TrimSpace(cronExpr))
+	return err
 }

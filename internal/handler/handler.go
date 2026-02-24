@@ -31,6 +31,7 @@ type pendingInput struct {
 	TGGroupID int64
 	RuleID    uint
 	Page      int
+	CronExpr  string
 }
 
 type Handler struct {
