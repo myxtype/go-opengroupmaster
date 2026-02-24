@@ -429,7 +429,7 @@ func (s *Service) getJoinVerifyConfig(groupID uint) (joinVerifyConfig, error) {
 	}
 	cfg = rawCfg
 	switch cfg.Type {
-	case "button", "math", "captcha":
+	case "button", "math", "captcha", "zhchar":
 	default:
 		cfg.Type = "button"
 	}

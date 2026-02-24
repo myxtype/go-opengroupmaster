@@ -97,6 +97,38 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 					)
 					verifyText = fmt.Sprintf("新成员 %s 请点击按钮完成验证（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
 				}
+			} else if cfg.Type == "zhchar" {
+				captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
+				if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
+					pending.Answer = captchaChar
+					verifyText = fmt.Sprintf("新成员 %s 请点击与图片验证码一致的中文字符（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					options := buildChineseCaptchaOptions(captchaChar)
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[0])),
+							tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[1])),
+						),
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[2])),
+							tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[3])),
+						),
+					)
+					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_chinese_captcha.png", Bytes: imgBytes})
+					photo.Caption = verifyText
+					photo.ReplyMarkup = keyboard
+					if sent, sendErr := bot.Send(photo); sendErr == nil {
+						pending.MessageID = sent.MessageID
+					}
+				} else {
+					// Fallback: Chinese captcha generation failed, degrade to button verification.
+					pending.Mode = "button"
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
+						),
+					)
+					verifyText = fmt.Sprintf("新成员 %s 请点击按钮完成验证（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+				}
 			} else {
 				keyboard = tgbotapi.NewInlineKeyboardMarkup(
 					tgbotapi.NewInlineKeyboardRow(
@@ -151,7 +183,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	if pending.Mode != mode {
 		return errors.New("wrong verify mode")
 	}
-	if pending.Mode == "math" || pending.Mode == "captcha" {
+	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
 			return errors.New("wrong answer")
 		}
@@ -314,6 +346,53 @@ func buildCaptchaOptions(answer string) []string {
 	}
 	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return out
+}
+
+func buildChineseCaptchaOptions(answer string) []string {
+	pool := chineseCaptchaPool()
+	opts := map[string]struct{}{answer: {}}
+	for len(opts) < 4 {
+		opts[pool[rand.Intn(len(pool))]] = struct{}{}
+	}
+	out := make([]string, 0, len(opts))
+	for k := range opts {
+		out = append(out, k)
+	}
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
+}
+
+func buildChineseCaptchaImage() (string, []byte, error) {
+	source := strings.Join(chineseCaptchaPool(), ",")
+	driver := base64Captcha.NewDriverChinese(
+		80,
+		240,
+		16,
+		base64Captcha.OptionShowHollowLine|base64Captcha.OptionShowSineLine,
+		1,
+		source,
+		nil,
+		nil,
+		[]string{"wqy-microhei.ttc"},
+	)
+	captcha := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
+	_, b64s, answer, err := captcha.Generate()
+	if err != nil {
+		return "", nil, err
+	}
+	encoded := b64s
+	if i := strings.Index(encoded, ","); i >= 0 && i+1 < len(encoded) {
+		encoded = encoded[i+1:]
+	}
+	imgBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", nil, err
+	}
+	return strings.TrimSpace(answer), imgBytes, nil
+}
+
+func chineseCaptchaPool() []string {
+	return []string{"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安", "全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾"}
 }
 
 func randomDigits(n int) string {

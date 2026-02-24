@@ -154,6 +154,8 @@ func verifyTypeLabelForSummary(v string) string {
 		return "数学题"
 	case "captcha":
 		return "验证码"
+	case "zhchar":
+		return "中文字符验证码"
 	default:
 		return "按钮"
 	}
@@ -406,6 +408,8 @@ func (s *Service) ToggleJoinVerifyTypeByTGGroupID(tgGroupID int64) (string, erro
 		cfg.Type = "math"
 	case "math":
 		cfg.Type = "captcha"
+	case "captcha":
+		cfg.Type = "zhchar"
 	default:
 		cfg.Type = "button"
 	}

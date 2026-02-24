@@ -395,6 +395,7 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("方式：验证码", fmt.Sprintf("feat:mod:verifymethod:%s:captcha", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("方式：中文字符验证码", fmt.Sprintf("feat:mod:verifymethod:%s:zhchar", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:verifyview:%s", gid)),
 	)

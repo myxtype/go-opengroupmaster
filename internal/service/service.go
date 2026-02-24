@@ -306,7 +306,7 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		joinAt:         make(map[string]time.Time),
 		verify:         make(map[string]verifyPending),
 		adminSyncAt:    make(map[int64]time.Time),
-		adminSyncEvery: 5 * time.Minute,
+		adminSyncEvery: 3 * time.Minute,
 	}
 }
 
