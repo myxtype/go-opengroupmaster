@@ -34,7 +34,10 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
 				UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
 			})
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 命中本群黑名单，已移出群组", msg.From.UserName)))
+			alertText, entities := composeTextWithUserMention("", msg.From, " 命中本群黑名单，已移出群组")
+			alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+			alert.Entities = entities
+			_, _ = bot.Send(alert)
 			_ = s.repo.CreateLog(group.ID, "group_blacklist_kick", 0, 0)
 			return nil
 		}
@@ -65,7 +68,9 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		}
 		if banned {
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			warn := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 消息触发违禁词，已删除", msg.From.UserName))
+			warnText, entities := composeTextWithUserMention("", msg.From, " 消息触发违禁词，已删除")
+			warn := tgbotapi.NewMessage(msg.Chat.ID, warnText)
+			warn.Entities = entities
 			_, _ = bot.Send(warn)
 			_ = s.repo.CreateLog(group.ID, "banned_word_delete", 0, 0)
 			return nil
@@ -277,7 +282,10 @@ func (s *Service) applyNewbieLimit(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, 
 		return false, nil
 	}
 	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-	_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("@%s 新成员限制中，暂不可发链接或媒体", msg.From.UserName)))
+	noticeText, entities := composeTextWithUserMention("", msg.From, " 新成员限制中，暂不可发链接或媒体")
+	notice := tgbotapi.NewMessage(msg.Chat.ID, noticeText)
+	notice.Entities = entities
+	_, _ = bot.Send(notice)
 	_ = s.repo.CreateLog(group.ID, "newbie_limit_delete", 0, 0)
 	return true, nil
 }
@@ -304,17 +312,7 @@ func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFlo
 }
 
 func floodUserDisplayName(u *tgbotapi.User) string {
-	if u == nil {
-		return "该用户"
-	}
-	if strings.TrimSpace(u.UserName) != "" {
-		return "@" + strings.TrimSpace(u.UserName)
-	}
-	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
-	if name == "" {
-		return fmt.Sprintf("uid:%d", u.ID)
-	}
-	return name
+	return userMentionLabel(u)
 }
 
 func antiSpamActorDisplayName(msg *tgbotapi.Message) string {

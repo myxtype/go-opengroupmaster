@@ -39,6 +39,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			if m.IsBot {
 				continue
 			}
+			target := m
 			restrict := tgbotapi.RestrictChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
 				UntilDate:        time.Now().Add(timeout).Unix(),
@@ -51,14 +52,14 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				Mode:          cfg.Type,
 				TimeoutAction: cfg.TimeoutAction,
 			}
-			verifyText := fmt.Sprintf("新成员 %s 请在 %d 分钟内完成验证，否则将%s。", verifyUserDisplayName(&m), timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction))
+			verifyText, verifyEntities := composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction)))
 			keyboard := tgbotapi.NewInlineKeyboardMarkup()
 			if cfg.Type == "math" {
 				a := rand.Intn(9) + 1
 				b := rand.Intn(9) + 1
 				answer := a + b
 				pending.Answer = strconv.Itoa(answer)
-				verifyText = fmt.Sprintf("新成员 %s 请完成算术验证：%d + %d = ?（%d 分钟内）", verifyUserDisplayName(&m), a, b, timeoutMins)
+				verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, timeoutMins))
 				options := buildMathOptions(answer)
 				row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
 				for _, opt := range options {
@@ -69,7 +70,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				captchaCode, imgBytes, imgErr := buildCaptchaImage()
 				if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
 					pending.Answer = captchaCode
-					verifyText = fmt.Sprintf("新成员 %s 请点击与图片验证码一致的数字（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", timeoutMins))
 					options := buildCaptchaOptions(captchaCode)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
 						tgbotapi.NewInlineKeyboardRow(
@@ -83,6 +84,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 					)
 					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_captcha.png", Bytes: imgBytes})
 					photo.Caption = verifyText
+					photo.CaptionEntities = verifyEntities
 					photo.ReplyMarkup = keyboard
 					if sent, sendErr := bot.Send(photo); sendErr == nil {
 						pending.MessageID = sent.MessageID
@@ -95,13 +97,13 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
 					)
-					verifyText = fmt.Sprintf("新成员 %s 请点击按钮完成验证（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
 				}
 			} else if cfg.Type == "zhchar" {
 				captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
 				if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
 					pending.Answer = captchaChar
-					verifyText = fmt.Sprintf("新成员 %s 请点击与图片验证码一致的中文字符（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", timeoutMins))
 					options := buildChineseCaptchaOptions(captchaChar)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
 						tgbotapi.NewInlineKeyboardRow(
@@ -115,6 +117,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 					)
 					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_chinese_captcha.png", Bytes: imgBytes})
 					photo.Caption = verifyText
+					photo.CaptionEntities = verifyEntities
 					photo.ReplyMarkup = keyboard
 					if sent, sendErr := bot.Send(photo); sendErr == nil {
 						pending.MessageID = sent.MessageID
@@ -127,7 +130,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
 					)
-					verifyText = fmt.Sprintf("新成员 %s 请点击按钮完成验证（%d 分钟内）", verifyUserDisplayName(&m), timeoutMins)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
 				}
 			} else {
 				keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -138,6 +141,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			}
 			if pending.MessageID == 0 {
 				verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
+				verifyMsg.Entities = verifyEntities
 				verifyMsg.ReplyMarkup = keyboard
 				if sent, sendErr := bot.Send(verifyMsg); sendErr == nil {
 					pending.MessageID = sent.MessageID
@@ -406,20 +410,6 @@ func randomDigits(n int) string {
 	return b.String()
 }
 
-func verifyUserDisplayName(u *tgbotapi.User) string {
-	if u == nil {
-		return "新成员"
-	}
-	if strings.TrimSpace(u.UserName) != "" {
-		return "@" + strings.TrimSpace(u.UserName)
-	}
-	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
-	if name != "" {
-		return name
-	}
-	return fmt.Sprintf("uid:%d", u.ID)
-}
-
 func verifyTimeoutActionText(action string) string {
 	if action == "kick" {
 		return "踢出"
@@ -445,21 +435,6 @@ func buildCaptchaImage() (string, []byte, error) {
 	return strings.TrimSpace(answer), imgBytes, nil
 }
 
-func formatWelcomeMentions(users []tgbotapi.User) string {
-	mentions := make([]string, 0, len(users))
-	for _, u := range users {
-		if u.UserName != "" {
-			mentions = append(mentions, "@"+u.UserName)
-		} else {
-			name := strings.TrimSpace(u.FirstName + " " + u.LastName)
-			if name != "" {
-				mentions = append(mentions, name)
-			}
-		}
-	}
-	return strings.Join(mentions, " ")
-}
-
 func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, users []tgbotapi.User, cfg welcomeConfig) error {
 	sentMessageID, err := s.sendWelcomeMessage(bot, chatID, users, cfg)
 	if err != nil {
@@ -481,13 +456,7 @@ func (s *Service) sendWelcomePreview(bot *tgbotapi.BotAPI, chatID int64, users [
 }
 
 func (s *Service) sendWelcomeMessage(bot *tgbotapi.BotAPI, chatID int64, users []tgbotapi.User, cfg welcomeConfig) (int, error) {
-	mentions := formatWelcomeMentions(users)
-	text := cfg.Text
-	if strings.Contains(text, "{user}") {
-		text = strings.ReplaceAll(text, "{user}", mentions)
-	} else if mentions != "" {
-		text = fmt.Sprintf("%s\n%s", text, mentions)
-	}
+	text, entities := buildWelcomeTextWithMentions(cfg.Text, users)
 
 	var markup any
 	if len(cfg.ButtonRows) > 0 {
@@ -513,6 +482,7 @@ func (s *Service) sendWelcomeMessage(bot *tgbotapi.BotAPI, chatID int64, users [
 	if strings.TrimSpace(cfg.MediaFileID) != "" {
 		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(cfg.MediaFileID))
 		photo.Caption = text
+		photo.CaptionEntities = entities
 		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
 			photo.ReplyMarkup = m
 		}
@@ -523,6 +493,7 @@ func (s *Service) sendWelcomeMessage(bot *tgbotapi.BotAPI, chatID int64, users [
 		sentMessageID = msg.MessageID
 	} else {
 		message := tgbotapi.NewMessage(chatID, text)
+		message.Entities = entities
 		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
 			message.ReplyMarkup = m
 		}
