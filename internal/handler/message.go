@@ -48,7 +48,7 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 	target := renderTarget{ChatID: msg.Chat.ID}
 	switch msg.Command() {
 	case "start":
-		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard())
+		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard(bot.Self.UserName))
 	case "help":
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, privateHelpText()))
 	case "groups":

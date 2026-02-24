@@ -11,11 +11,11 @@ import (
 func (h *Handler) sendGroupsMenu(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64, page int) {
 	groups, err := h.service.ListManageableGroups(tgUserID)
 	if err != nil {
-		h.render(bot, target, "获取群列表失败", mainMenuKeyboard())
+		h.render(bot, target, "获取群列表失败", mainMenuKeyboard(bot.Self.UserName))
 		return
 	}
 	if len(groups) == 0 {
-		h.render(bot, target, "你当前没有可管理且机器人已加入的群", mainMenuKeyboard())
+		h.render(bot, target, "你当前没有可管理且机器人已加入的群", mainMenuKeyboard(bot.Self.UserName))
 		return
 	}
 	totalPages := (len(groups) + groupPageSize - 1) / groupPageSize
@@ -41,7 +41,7 @@ func (h *Handler) sendGroupPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	summary, err := h.service.GroupPanelSummary(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载群面板失败", mainMenuKeyboard())
+		h.render(bot, target, "加载群面板失败", mainMenuKeyboard(bot.Self.UserName))
 		return
 	}
 	h.render(bot, target, summary, groupPanelKeyboard(tgGroupID))

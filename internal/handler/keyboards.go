@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"supervisor/internal/model"
 	"supervisor/internal/service"
@@ -39,11 +40,18 @@ func selectedLabel(label string, selected bool) string {
 	return label
 }
 
-func mainMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
+func mainMenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
+	addToGroupURL := "https://t.me"
+	if username := strings.TrimSpace(botUsername); username != "" {
+		addToGroupURL = fmt.Sprintf("https://t.me/%s?startgroup=true", username)
+	}
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📊 我的群组", cbMenuGroups),
 			tgbotapi.NewInlineKeyboardButtonData("⚙️ 设置", cbMenuSettings),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("➕ 拉机器人入群", addToGroupURL),
 		),
 	)
 }
