@@ -160,6 +160,10 @@ type Service struct {
 	repo            *repository.Repository
 	logger          *log.Logger
 	scheduleRuntime ScheduleRuntime
+	autoDeleteMu    sync.Mutex
+	autoDeleteWake  chan struct{}
+	autoDeleteStop  chan struct{}
+	autoDeleteDone  chan struct{}
 	mu              sync.Mutex
 	adminSyncMu     sync.Mutex
 	adminSyncAt     map[int64]time.Time

@@ -35,6 +35,8 @@ func main() {
 
 	svc := service.New(repo, l)
 	svc.SetAdminSyncInterval(time.Duration(cfg.AdminSyncIntervalSecs) * time.Second)
+	svc.StartAutoDeleteWorker(botAPI)
+	defer svc.StopAutoDeleteWorker()
 	h := handler.New(svc, l)
 
 	sch := scheduler.New(svc, botAPI, l)

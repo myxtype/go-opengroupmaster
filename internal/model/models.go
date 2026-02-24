@@ -60,6 +60,16 @@ type ScheduledMessage struct {
 	ButtonRows string `gorm:"type:text"`
 }
 
+// AutoDeleteTask 表示待执行的消息自动删除任务（持久化队列）。
+type AutoDeleteTask struct {
+	ID        uint      `gorm:"primaryKey"`
+	ChatID    int64     `gorm:"index:idx_auto_delete_due,priority:2;not null"`
+	MessageID int       `gorm:"not null"`
+	ExecuteAt time.Time `gorm:"index:idx_auto_delete_due,priority:1;not null"`
+	Attempts  int       `gorm:"default:0"`
+	CreatedAt time.Time
+}
+
 // BannedWord 表示群组的违禁词条目。
 type BannedWord struct {
 	ID      uint   `gorm:"primaryKey"`

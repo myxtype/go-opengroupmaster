@@ -83,10 +83,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			}
 			if matched {
 				if mins, cfgErr := s.LotteryDeleteKeywordMinutesByGroupID(group.ID); cfgErr == nil && mins > 0 {
-					go func(chatID int64, messageID int, delayMins int) {
-						time.Sleep(time.Duration(delayMins) * time.Minute)
-						_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-					}(msg.Chat.ID, msg.MessageID, mins)
+					s.ScheduleMessageDelete(msg.Chat.ID, msg.MessageID, time.Duration(mins)*time.Minute)
 				}
 				if joined {
 					reply := tgbotapi.NewMessage(msg.Chat.ID, "参与抽奖成功")
@@ -198,10 +195,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), reasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
 			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
 			if sendErr == nil && cfg.WarnDeleteSec > 0 {
-				go func(chatID int64, messageID int, seconds int) {
-					time.Sleep(time.Duration(seconds) * time.Second)
-					_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-				}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
+				s.ScheduleMessageDelete(msg.Chat.ID, alert.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 			}
 			_ = s.repo.CreateLog(group.ID, "anti_spam_"+appliedPenalty+"_"+reasonCode, 0, 0)
 			return true, nil
@@ -250,10 +244,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			}
 			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
 			if sendErr == nil && cfg.WarnDeleteSec > 0 {
-				go func(chatID int64, messageID int, seconds int) {
-					time.Sleep(time.Duration(seconds) * time.Second)
-					_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-				}(msg.Chat.ID, alert.MessageID, cfg.WarnDeleteSec)
+				s.ScheduleMessageDelete(msg.Chat.ID, alert.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 			}
 			_ = s.repo.CreateLog(group.ID, "anti_flood_"+cfg.Penalty+"_"+reason, 0, 0)
 			return true, nil

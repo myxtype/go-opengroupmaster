@@ -54,22 +54,23 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			}
 			verifyText, verifyEntities := composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction)))
 			keyboard := tgbotapi.NewInlineKeyboardMarkup()
-			if cfg.Type == "math" {
-				a := rand.Intn(9) + 1
-				b := rand.Intn(9) + 1
-				answer := a + b
-				pending.Answer = strconv.Itoa(answer)
+				switch cfg.Type {
+				case "math":
+					a := rand.Intn(9) + 1
+					b := rand.Intn(9) + 1
+					answer := a + b
+					pending.Answer = strconv.Itoa(answer)
 				verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, timeoutMins))
 				options := buildMathOptions(answer)
 				row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
-				for _, opt := range options {
-					row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
-				}
-				keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
-			} else if cfg.Type == "captcha" {
-				captchaCode, imgBytes, imgErr := buildCaptchaImage()
-				if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
-					pending.Answer = captchaCode
+					for _, opt := range options {
+						row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
+					}
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
+				case "captcha":
+					captchaCode, imgBytes, imgErr := buildCaptchaImage()
+					if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
+						pending.Answer = captchaCode
 					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", timeoutMins))
 					options := buildCaptchaOptions(captchaCode)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -96,13 +97,13 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
-					)
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-				}
-			} else if cfg.Type == "zhchar" {
-				captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
-				if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
-					pending.Answer = captchaChar
+						)
+						verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
+					}
+				case "zhchar":
+					captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
+					if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
+						pending.Answer = captchaChar
 					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", timeoutMins))
 					options := buildChineseCaptchaOptions(captchaChar)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -129,15 +130,15 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
+						)
+						verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
+					}
+				default:
+					keyboard = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
+						),
 					)
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-				}
-			} else {
-				keyboard = tgbotapi.NewInlineKeyboardMarkup(
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
-					),
-				)
 			}
 			if pending.MessageID == 0 {
 				verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
@@ -442,10 +443,7 @@ func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, 
 	}
 	_ = s.repo.CreateLog(groupID, "welcome_sent_"+cfg.Mode, 0, 0)
 	if cfg.DeleteMinutes > 0 && sentMessageID > 0 {
-		go func(chatID int64, messageID int, minutes int) {
-			time.Sleep(time.Duration(minutes) * time.Minute)
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-		}(chatID, sentMessageID, cfg.DeleteMinutes)
+		s.ScheduleMessageDelete(chatID, sentMessageID, time.Duration(cfg.DeleteMinutes)*time.Minute)
 	}
 	return nil
 }
