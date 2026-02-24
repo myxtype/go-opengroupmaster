@@ -1,6 +1,6 @@
 # GroupMaster Bot (Go + SQLite)
 
-基于 Telegram Bot API 的群管理机器人模板，按 PRD 拆分为 `handler/service/repository` 分层，默认可运行 MVP。
+基于 Telegram Bot API 的群管理机器人，按 PRD 拆分为 `handler/service/repository` 分层，默认可运行 MVP。
 
 ## 已实现 MVP
 
