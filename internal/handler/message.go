@@ -579,7 +579,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "welcome_edit_button":
 		if text == "关闭" {
-			if err := h.service.SetWelcomeButtonByTGGroupID(pending.TGGroupID, "", ""); err != nil {
+			if err := h.service.ClearWelcomeButtonsByTGGroupID(pending.TGGroupID); err != nil {
 				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空欢迎按钮失败"))
 				return
 			}

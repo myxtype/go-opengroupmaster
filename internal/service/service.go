@@ -59,8 +59,6 @@ type welcomeConfig struct {
 	Mode          string            `json:"mode"`
 	DeleteMinutes int               `json:"delete_minutes"`
 	MediaFileID   string            `json:"media_file_id"`
-	ButtonText    string            `json:"button_text"`
-	ButtonURL     string            `json:"button_url"`
 	ButtonRows    [][]welcomeButton `json:"button_rows,omitempty"`
 }
 

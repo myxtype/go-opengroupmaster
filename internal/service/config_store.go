@@ -64,8 +64,6 @@ func defaultWelcomeConfig() welcomeConfig {
 		Mode:          "verify",
 		DeleteMinutes: 1,
 		MediaFileID:   "",
-		ButtonText:    "",
-		ButtonURL:     "",
 		ButtonRows:    [][]welcomeButton{},
 	}
 }
@@ -83,18 +81,6 @@ func normalizeWelcomeConfig(cfg welcomeConfig) welcomeConfig {
 		cfg.DeleteMinutes = 1
 	}
 	cfg.ButtonRows = normalizeWelcomeButtonRows(cfg.ButtonRows)
-	if len(cfg.ButtonRows) == 0 {
-		if strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
-			if normURL, err := normalizeWelcomeButtonURL(cfg.ButtonURL); err == nil {
-				cfg.ButtonRows = [][]welcomeButton{{{Text: strings.TrimSpace(cfg.ButtonText), URL: normURL}}}
-			}
-		}
-	}
-	if len(cfg.ButtonRows) > 0 {
-		// Migrate from legacy single-button fields.
-		cfg.ButtonText = ""
-		cfg.ButtonURL = ""
-	}
 	return cfg
 }
 
@@ -106,6 +92,19 @@ func (s *Service) getWelcomeConfig(groupID uint) (welcomeConfig, error) {
 	}
 	if entry.Exists && entry.Config != "" {
 		_ = json.Unmarshal([]byte(entry.Config), &cfg)
+		if len(cfg.ButtonRows) == 0 {
+			var legacy struct {
+				ButtonText string `json:"button_text"`
+				ButtonURL  string `json:"button_url"`
+			}
+			if err := json.Unmarshal([]byte(entry.Config), &legacy); err == nil {
+				if strings.TrimSpace(legacy.ButtonText) != "" && strings.TrimSpace(legacy.ButtonURL) != "" {
+					if normURL, nErr := normalizeWelcomeButtonURL(legacy.ButtonURL); nErr == nil {
+						cfg.ButtonRows = [][]welcomeButton{{{Text: strings.TrimSpace(legacy.ButtonText), URL: normURL}}}
+					}
+				}
+			}
+		}
 	}
 	return normalizeWelcomeConfig(cfg), nil
 }

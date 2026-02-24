@@ -286,34 +286,6 @@ func (s *Service) SetWelcomeMediaByTGGroupID(tgGroupID int64, fileID string) err
 	return s.repo.CreateLog(group.ID, "set_welcome_media", 0, 0)
 }
 
-func (s *Service) SetWelcomeButtonByTGGroupID(tgGroupID int64, text, url string) error {
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return err
-	}
-	cfg, err := s.getWelcomeConfig(group.ID)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(text) == "" && strings.TrimSpace(url) == "" {
-		cfg.ButtonText = ""
-		cfg.ButtonURL = ""
-		cfg.ButtonRows = [][]welcomeButton{}
-	} else {
-		normURL, err := normalizeWelcomeButtonURL(url)
-		if err != nil {
-			return err
-		}
-		cfg.ButtonText = ""
-		cfg.ButtonURL = ""
-		cfg.ButtonRows = [][]welcomeButton{{{Text: strings.TrimSpace(text), URL: normURL}}}
-	}
-	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
-		return err
-	}
-	return s.repo.CreateLog(group.ID, "set_welcome_button", 0, 0)
-}
-
 func (s *Service) SetWelcomeButtonsByTGGroupID(tgGroupID int64, raw string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -327,13 +299,27 @@ func (s *Service) SetWelcomeButtonsByTGGroupID(tgGroupID int64, raw string) erro
 	if err != nil {
 		return err
 	}
-	cfg.ButtonText = ""
-	cfg.ButtonURL = ""
 	cfg.ButtonRows = rows
 	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
 		return err
 	}
 	return s.repo.CreateLog(group.ID, "set_welcome_buttons_multi", 0, 0)
+}
+
+func (s *Service) ClearWelcomeButtonsByTGGroupID(tgGroupID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.ButtonRows = [][]welcomeButton{}
+	if err := s.saveWelcomeConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	return s.repo.CreateLog(group.ID, "clear_welcome_buttons", 0, 0)
 }
 
 func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, previewChatID, tgUserID int64) error {

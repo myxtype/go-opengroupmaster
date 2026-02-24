@@ -474,9 +474,6 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	for _, row := range cfg.ButtonRows {
 		buttonCount += len(row)
 	}
-	if buttonCount == 0 && strings.TrimSpace(cfg.ButtonText) != "" && strings.TrimSpace(cfg.ButtonURL) != "" {
-		buttonCount = 1
-	}
 	buttonText := onOffWithEmoji(buttonCount > 0)
 	if buttonCount > 0 {
 		buttonText = fmt.Sprintf("%s（%d个）", buttonText, buttonCount)
