@@ -218,7 +218,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "button":
 			h.answerCallback(bot, cb.ID, "请输入按钮")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit_button", TGGroupID: tgGroupID})
-			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
 		case "preview":
 			if err := h.service.SendWelcomePreviewByTGGroupID(bot, tgGroupID, target.ChatID, userID); err != nil {
 				h.answerCallback(bot, cb.ID, "预览失败")
