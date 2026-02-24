@@ -32,6 +32,13 @@ func panelRefreshBackRow(gid string, refreshData string) []tgbotapi.InlineKeyboa
 	)
 }
 
+func selectedLabel(label string, selected bool) string {
+	if selected {
+		return "✅" + label
+	}
+	return label
+}
+
 func mainMenuKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -240,6 +247,9 @@ func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page
 
 func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	allLabel := selectedLabel("全部", filter == "all")
+	spamLabel := selectedLabel("审核", filter == "anti_spam*")
+	verifyLabel := selectedLabel("验证", filter == "join_verify_pass")
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, 3)
 	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
 	if page > 1 {
@@ -252,9 +262,9 @@ func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbot
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(nav...))
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("全部", fmt.Sprintf("feat:logs:list:%s:1:all", gid)),
-		tgbotapi.NewInlineKeyboardButtonData("审核", fmt.Sprintf("feat:logs:list:%s:1:anti_spam*", gid)),
-		tgbotapi.NewInlineKeyboardButtonData("验证", fmt.Sprintf("feat:logs:list:%s:1:join_verify_pass", gid)),
+		tgbotapi.NewInlineKeyboardButtonData(allLabel, fmt.Sprintf("feat:logs:list:%s:1:all", gid)),
+		tgbotapi.NewInlineKeyboardButtonData(spamLabel, fmt.Sprintf("feat:logs:list:%s:1:anti_spam*", gid)),
+		tgbotapi.NewInlineKeyboardButtonData(verifyLabel, fmt.Sprintf("feat:logs:list:%s:1:join_verify_pass", gid)),
 	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("导出 CSV", fmt.Sprintf("feat:logs:export:%s:%s", gid, filter)),
@@ -266,13 +276,16 @@ func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbot
 
 func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	strictSelected := cfg.Join && cfg.Leave && cfg.Pin && cfg.Photo && cfg.Title
+	offSelected := !cfg.Join && !cfg.Leave && !cfg.Pin && !cfg.Photo && !cfg.Title
+	recommendedSelected := cfg.Join && cfg.Leave && !cfg.Pin && !cfg.Photo && !cfg.Title
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("严格", fmt.Sprintf("feat:sys:preset:%s:strict", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("推荐", fmt.Sprintf("feat:sys:preset:%s:recommended", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("严格", strictSelected), fmt.Sprintf("feat:sys:preset:%s:strict", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("推荐", recommendedSelected), fmt.Sprintf("feat:sys:preset:%s:recommended", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("关闭", fmt.Sprintf("feat:sys:preset:%s:off", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("关闭", offSelected), fmt.Sprintf("feat:sys:preset:%s:off", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("进群 "+onOffWithEmoji(cfg.Join), fmt.Sprintf("feat:sys:toggle:%s:join", gid)),
@@ -292,6 +305,11 @@ func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 
 func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	warnLabel := selectedLabel("惩罚：警告", view.Penalty == "warn")
+	muteLabel := selectedLabel("惩罚：禁言", view.Penalty == "mute")
+	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
+	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
+	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -304,15 +322,15 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("检测间隔：%d秒", view.WindowSec), fmt.Sprintf("feat:mod:floodwindow:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：警告", fmt.Sprintf("feat:mod:floodpenalty:%s:warn", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：禁言", fmt.Sprintf("feat:mod:floodpenalty:%s:mute", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:warn", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:mute", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出", fmt.Sprintf("feat:mod:floodpenalty:%s:kick", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出+封禁", fmt.Sprintf("feat:mod:floodpenalty:%s:kick_ban", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:kick", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:kick_ban", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：撤回+不处罚", fmt.Sprintf("feat:mod:floodpenalty:%s:delete_only", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:delete_only", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:floodalertdel:%s", gid)),
@@ -323,6 +341,11 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 
 func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	warnLabel := selectedLabel("惩罚：警告", view.Penalty == "warn")
+	muteLabel := selectedLabel("惩罚：禁言", view.Penalty == "mute")
+	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
+	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
+	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -331,15 +354,15 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			fmt.Sprintf("feat:mod:spamoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：警告", fmt.Sprintf("feat:mod:spampenalty:%s:warn", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：禁言", fmt.Sprintf("feat:mod:spampenalty:%s:mute", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf("feat:mod:spampenalty:%s:warn", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf("feat:mod:spampenalty:%s:mute", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出", fmt.Sprintf("feat:mod:spampenalty:%s:kick", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：踢出+封禁", fmt.Sprintf("feat:mod:spampenalty:%s:kick_ban", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf("feat:mod:spampenalty:%s:kick", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf("feat:mod:spampenalty:%s:kick_ban", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚：撤回+不处罚", fmt.Sprintf("feat:mod:spampenalty:%s:delete_only", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:mod:spampenalty:%s:delete_only", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽图片 "+onOffWithEmoji(view.BlockPhoto), fmt.Sprintf("feat:mod:spamopt:%s:photo", gid)),
@@ -575,11 +598,13 @@ func blacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func settingsKeyboard() tgbotapi.InlineKeyboardMarkup {
+func settingsKeyboard(lang string) tgbotapi.InlineKeyboardMarkup {
+	zhLabel := selectedLabel("中文", lang == "zh")
+	enLabel := selectedLabel("English", lang == "en")
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("中文", "feat:lang:set:0:zh"),
-			tgbotapi.NewInlineKeyboardButtonData("English", "feat:lang:set:0:en"),
+			tgbotapi.NewInlineKeyboardButtonData(zhLabel, "feat:lang:set:0:zh"),
+			tgbotapi.NewInlineKeyboardButtonData(enLabel, "feat:lang:set:0:en"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("返回群组", cbMenuGroups),

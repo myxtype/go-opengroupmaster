@@ -530,5 +530,5 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 func (h *Handler) sendSettingsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64) {
 	lang, _ := h.service.GetUserLanguage(tgUserID)
 	text := "设置\n当前语言: " + lang + "\n可切换为中文/英文（逐步覆盖）"
-	h.render(bot, target, text, settingsKeyboard())
+	h.render(bot, target, text, settingsKeyboard(lang))
 }
