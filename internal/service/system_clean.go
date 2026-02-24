@@ -45,6 +45,7 @@ func (s *Service) HandleSystemMessageCleanup(bot *tgbotapi.BotAPI, msg *tgbotapi
 	_ = s.repo.CreateLog(group.ID, action, 0, 0)
 	return nil
 }
+
 func (s *Service) SystemCleanViewByTGGroupID(tgGroupID int64) (*SystemCleanView, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {

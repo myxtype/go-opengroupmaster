@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
-	if msg == nil || msg.From == nil {
+	if msg == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
 
@@ -18,15 +18,18 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 		if err == nil {
 			_ = h.service.SyncGroupAdmins(bot, group)
 		}
+		// 处理系统消息清理
 		_ = h.service.HandleSystemMessageCleanup(bot, msg)
+		// 处理新成员加入
 		if len(msg.NewChatMembers) > 0 {
 			_ = h.service.OnNewMembers(bot, msg)
 		}
-
+		// 处理群组命令
 		if msg.IsCommand() {
 			h.handleGroupCommand(bot, msg)
 			return
 		}
+		// 处理消息检查
 		_ = h.service.CheckMessageAndRespond(bot, msg)
 		return
 	}

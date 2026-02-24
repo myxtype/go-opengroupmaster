@@ -130,6 +130,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		}
 	}
 
+	// 夜间模式逻辑
 	nightState, err := s.getNightModeState(group.ID)
 	if err != nil {
 		return false, err
@@ -152,6 +153,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		}
 	}
 
+	// 反垃圾逻辑
 	spamState, err := s.getAntiSpamState(group.ID)
 	if err != nil {
 		return false, err
