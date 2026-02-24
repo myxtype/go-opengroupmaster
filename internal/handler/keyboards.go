@@ -450,6 +450,9 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽链接 "+onOffWithEmoji(view.BlockLink), fmt.Sprintf("feat:mod:spamopt:%s:link", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("智能识别 "+onOffWithEmoji(view.SmartDetectEnabled), fmt.Sprintf("feat:mod:spamopt:%s:smart", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽频道马甲 "+onOffWithEmoji(view.BlockChannelAlias), fmt.Sprintf("feat:mod:spamopt:%s:senderchat", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽频道转发 "+onOffWithEmoji(view.BlockForwardFromChan), fmt.Sprintf("feat:mod:spamopt:%s:fwdchan", gid)),
 		),

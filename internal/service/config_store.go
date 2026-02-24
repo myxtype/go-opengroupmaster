@@ -122,6 +122,9 @@ func defaultAntiSpamConfig() antiSpamConfig {
 	return antiSpamConfig{
 		BlockPhoto:              false,
 		BlockLink:               true,
+		SmartDetectEnabled:      false,
+		SmartDeleteScore:        60,
+		SmartPunishScore:        80,
 		BlockChannelAlias:       false,
 		BlockForwardFromChannel: false,
 		BlockForwardFromUser:    false,
@@ -151,6 +154,15 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	}
 	if cfg.WarnDeleteSec < 0 {
 		cfg.WarnDeleteSec = 0
+	}
+	if cfg.SmartDeleteScore <= 0 || cfg.SmartDeleteScore > 100 {
+		cfg.SmartDeleteScore = 60
+	}
+	if cfg.SmartPunishScore <= 0 || cfg.SmartPunishScore > 100 {
+		cfg.SmartPunishScore = 80
+	}
+	if cfg.SmartPunishScore < cfg.SmartDeleteScore {
+		cfg.SmartPunishScore = cfg.SmartDeleteScore
 	}
 	switch cfg.Penalty {
 	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
