@@ -148,3 +148,10 @@ func verifyTimeoutActionLabel(v string) string {
 	}
 	return "禁言"
 }
+
+func nightModeActionLabel(mode string) string {
+	if mode == "global_mute" {
+		return "全局禁言（删除所有消息）"
+	}
+	return "删除媒体（视频/图片等）"
+}

@@ -127,6 +127,28 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		}
 	}
 
+	nightState, err := s.getNightModeState(group.ID)
+	if err != nil {
+		return false, err
+	}
+	if nightState.Enabled {
+		cfg := normalizeNightModeConfig(nightState.Config)
+		if isNightWindowNow(cfg.TimezoneOffsetMinutes, time.Now()) {
+			switch cfg.Mode {
+			case nightModeGlobalMute:
+				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+				_ = s.repo.CreateLog(group.ID, "night_mode_global_mute_delete", 0, 0)
+				return true, nil
+			default:
+				if isNightMediaMessage(msg) {
+					_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+					_ = s.repo.CreateLog(group.ID, "night_mode_delete_media", 0, 0)
+					return true, nil
+				}
+			}
+		}
+	}
+
 	spamState, err := s.getAntiSpamState(group.ID)
 	if err != nil {
 		return false, err

@@ -207,6 +207,12 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "请输入按钮")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit_button", TGGroupID: tgGroupID})
 			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/WeGroupRobot\n官网 - link.com && 电报 - t.me/WeGroupRobot\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
+		case "preview":
+			if err := h.service.SendWelcomePreviewByTGGroupID(bot, tgGroupID, target.ChatID, userID); err != nil {
+				h.answerCallback(bot, cb.ID, "预览失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "已发送预览")
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -818,6 +824,49 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.answerCallback(bot, cb.ID, "加载新成员限制")
 		h.sendNewbieLimitPanel(bot, target, userID, tgGroupID)
 		return
+	case "night", "nightview":
+		h.answerCallback(bot, cb.ID, "加载夜间模式")
+		h.sendNightModePanel(bot, target, userID, tgGroupID)
+		return
+	case "nighton":
+		if _, err := h.service.SetNightModeEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "夜间模式已开启")
+		h.sendNightModePanel(bot, target, userID, tgGroupID)
+		return
+	case "nightoff":
+		if _, err := h.service.SetNightModeEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "夜间模式已关闭")
+		h.sendNightModePanel(bot, target, userID, tgGroupID)
+		return
+	case "nighttz":
+		view, err := h.service.NightModeViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入时区")
+		h.setPending(userID, pendingInput{Kind: "night_tz", TGGroupID: tgGroupID})
+		h.render(bot, target, fmt.Sprintf("当前时区:%s\n请输入时区（示例：+8、-5、+8:30、UTC+8）", view.TimezoneText), pendingCancelKeyboard(tgGroupID))
+		return
+	case "nightmode":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mode, err := h.service.SetNightModeModeByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "处理方式已设为 "+nightModeActionLabel(mode))
+		h.sendNightModePanel(bot, target, userID, tgGroupID)
+		return
 	case "newbieon":
 		if _, err := h.service.SetNewbieLimitEnabledByTGGroupID(tgGroupID, true); err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
@@ -936,6 +985,8 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendWelcomePanel(bot, target, userID, pending.TGGroupID)
 	case "spam_msg_len", "spam_name_len", "spam_exception_add", "spam_exception_remove":
 		h.sendAntiSpamPanel(bot, target, userID, pending.TGGroupID)
+	case "night_tz":
+		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
 	case "invite_create":
 		h.sendGroupPanel(bot, target, userID, pending.TGGroupID)
 	default:

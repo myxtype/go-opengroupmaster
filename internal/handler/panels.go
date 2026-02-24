@@ -325,6 +325,31 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitKeyboard(tgGroupID, view))
 }
 
+func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.NightModeViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载夜间模式失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "关闭❌"
+	if view.Enabled {
+		status = "启用✅"
+	}
+	lines := []string{
+		"🌙 夜间模式",
+		"夜间时段内按配置自动处理群成员消息",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("时区:%s", view.TimezoneText),
+		fmt.Sprintf("夜间时段:%s", view.NightWindow),
+		fmt.Sprintf("处理方式:%s", nightModeActionLabel(view.Mode)),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), nightModeKeyboard(tgGroupID, view))
+}
+
 func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

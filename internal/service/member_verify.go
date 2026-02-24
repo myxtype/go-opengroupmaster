@@ -382,6 +382,26 @@ func formatWelcomeMentions(users []tgbotapi.User) string {
 }
 
 func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, users []tgbotapi.User, cfg welcomeConfig) error {
+	sentMessageID, err := s.sendWelcomeMessage(bot, chatID, users, cfg)
+	if err != nil {
+		return err
+	}
+	_ = s.repo.CreateLog(groupID, "welcome_sent_"+cfg.Mode, 0, 0)
+	if cfg.DeleteMinutes > 0 && sentMessageID > 0 {
+		go func(chatID int64, messageID int, minutes int) {
+			time.Sleep(time.Duration(minutes) * time.Minute)
+			_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
+		}(chatID, sentMessageID, cfg.DeleteMinutes)
+	}
+	return nil
+}
+
+func (s *Service) sendWelcomePreview(bot *tgbotapi.BotAPI, chatID int64, users []tgbotapi.User, cfg welcomeConfig) error {
+	_, err := s.sendWelcomeMessage(bot, chatID, users, cfg)
+	return err
+}
+
+func (s *Service) sendWelcomeMessage(bot *tgbotapi.BotAPI, chatID int64, users []tgbotapi.User, cfg welcomeConfig) (int, error) {
 	mentions := formatWelcomeMentions(users)
 	text := cfg.Text
 	if strings.Contains(text, "{user}") {
@@ -419,7 +439,7 @@ func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, 
 		}
 		msg, err := bot.Send(photo)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		sentMessageID = msg.MessageID
 	} else {
@@ -429,17 +449,9 @@ func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, 
 		}
 		msg, err := bot.Send(message)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		sentMessageID = msg.MessageID
 	}
-
-	_ = s.repo.CreateLog(groupID, "welcome_sent_"+cfg.Mode, 0, 0)
-	if cfg.DeleteMinutes > 0 && sentMessageID > 0 {
-		go func(chatID int64, messageID int, minutes int) {
-			time.Sleep(time.Duration(minutes) * time.Minute)
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(chatID, messageID))
-		}(chatID, sentMessageID, cfg.DeleteMinutes)
-	}
-	return nil
+	return sentMessageID, nil
 }

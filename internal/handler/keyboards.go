@@ -103,6 +103,9 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🔒 新成员限制设置", fmt.Sprintf("feat:mod:newbieview:%s", id)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🌙 夜间模式", fmt.Sprintf("feat:mod:nightview:%s", id)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🧭 权限分级", fmt.Sprintf("feat:rbac:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("⛔ 黑名单", fmt.Sprintf("feat:black:view:%s", id)),
 		),
@@ -401,6 +404,34 @@ func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotap
 	)
 }
 
+func nightModeKeyboard(tgGroupID int64, view *service.NightModeView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	deleteMediaLabel := "删除媒体"
+	globalMuteLabel := "全局禁言"
+	if view.Mode == "global_mute" {
+		globalMuteLabel = "✅全局禁言"
+	} else {
+		deleteMediaLabel = "✅删除媒体"
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:nighton:%s", gid),
+			fmt.Sprintf("feat:mod:nightoff:%s", gid),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("时区："+view.TimezoneText, fmt.Sprintf("feat:mod:nighttz:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("处理方式：", fmt.Sprintf("feat:mod:noop:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(deleteMediaLabel, fmt.Sprintf("feat:mod:nightmode:%s:delete_media", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(globalMuteLabel, fmt.Sprintf("feat:mod:nightmode:%s:global_mute", gid)),
+		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:nightview:%s", gid)),
+	)
+}
+
 func chainKeyboard(tgGroupID int64, active bool) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := [][]tgbotapi.InlineKeyboardButton{
@@ -489,6 +520,7 @@ func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes i
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("修改按钮", fmt.Sprintf("feat:welcome:button:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("预览", fmt.Sprintf("feat:welcome:preview:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:welcome:view:%s", gid)),
 	)

@@ -12,6 +12,7 @@ import (
 const featureWelcome = "welcome"
 const featureAntiSpam = "anti_spam"
 const featureAntiFlood = "anti_flood"
+const featureNightMode = "night_mode"
 const featureJoinVerify = "join_verify"
 const featureNewbieLimit = "newbie_limit"
 const featureSystemClean = "system_clean"
@@ -107,6 +108,16 @@ type antiSpamState struct {
 	Config  antiSpamConfig
 }
 
+type nightModeConfig struct {
+	TimezoneOffsetMinutes int    `json:"timezone_offset_minutes"`
+	Mode                  string `json:"mode"`
+}
+
+type nightModeState struct {
+	Enabled bool
+	Config  nightModeConfig
+}
+
 type featureConfigCacheEntry struct {
 	Exists bool
 	Config string
@@ -158,6 +169,8 @@ type Service struct {
 	antiSpamCache   map[uint]antiSpamState
 	antiFloodMu     sync.RWMutex
 	antiFloodCache  map[uint]antiFloodState
+	nightModeMu     sync.RWMutex
+	nightModeCache  map[uint]nightModeState
 	flood           map[string][]floodEvent
 	joinAt          map[string]time.Time
 	verify          map[string]verifyPending
@@ -258,6 +271,13 @@ type AntiSpamView struct {
 	WarnDeleteSec         int
 }
 
+type NightModeView struct {
+	Enabled      bool
+	TimezoneText string
+	Mode         string
+	NightWindow  string
+}
+
 type LotteryPanelView struct {
 	ActiveID           uint
 	ActiveTitle        string
@@ -280,6 +300,7 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		configCache:    make(map[string]featureConfigCacheEntry),
 		antiSpamCache:  make(map[uint]antiSpamState),
 		antiFloodCache: make(map[uint]antiFloodState),
+		nightModeCache: make(map[uint]nightModeState),
 		flood:          make(map[string][]floodEvent),
 		joinAt:         make(map[string]time.Time),
 		verify:         make(map[string]verifyPending),

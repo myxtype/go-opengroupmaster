@@ -95,6 +95,10 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	nightState, err := s.getNightModeState(group.ID)
+	if err != nil {
+		return "", err
+	}
 	verifyCfg, _ := s.getJoinVerifyConfig(group.ID)
 	newbieMinutes, _ := s.getNewbieLimitMinutes(group.ID)
 
@@ -103,6 +107,9 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	antiFloodText := onOff(antiFloodEnabled)
 	verifyText := onOff(verifyEnabled)
 	newbieText := onOff(newbieEnabled)
+	nightCfg := normalizeNightModeConfig(nightState.Config)
+	nightText := onOff(nightState.Enabled)
+	nightDesc := fmt.Sprintf("%s，%s", formatUTCOffset(nightCfg.TimezoneOffsetMinutes), nightModeLabelForSummary(nightCfg.Mode))
 	lines := []string{
 		fmt.Sprintf("🏠 %s", group.Title),
 		fmt.Sprintf("🆔 群ID: %d", group.TGGroupID),
@@ -113,12 +120,20 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 		"",
 		"【风控】",
 		fmt.Sprintf("反垃圾: %s   反刷屏: %s", antiSpamText, antiFloodText),
+		fmt.Sprintf("夜间模式: %s（%s）", nightText, nightDesc),
 		fmt.Sprintf("进群验证: %s（%s）", verifyText, verifyTypeLabelForSummary(verifyCfg.Type)),
 		fmt.Sprintf("新成员限制: %s（%d 分钟）", newbieText, newbieMinutes),
 		"",
 		"点击下方按钮进入对应二级面板",
 	}
 	return strings.Join(lines, "\n"), nil
+}
+
+func nightModeLabelForSummary(mode string) string {
+	if mode == nightModeGlobalMute {
+		return "全局禁言"
+	}
+	return "删除媒体"
 }
 
 func verifyTypeLabelForSummary(v string) string {
@@ -319,6 +334,27 @@ func (s *Service) SetWelcomeButtonsByTGGroupID(tgGroupID int64, raw string) erro
 		return err
 	}
 	return s.repo.CreateLog(group.ID, "set_welcome_buttons_multi", 0, 0)
+}
+
+func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, previewChatID, tgUserID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWelcomeConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	previewUser := tgbotapi.User{
+		ID:        tgUserID,
+		FirstName: "预览用户",
+	}
+	if member, mErr := bot.GetChatMember(tgbotapi.GetChatMemberConfig{
+		ChatConfigWithUser: tgbotapi.ChatConfigWithUser{ChatID: tgGroupID, UserID: tgUserID},
+	}); mErr == nil && member.User != nil {
+		previewUser = *member.User
+	}
+	return s.sendWelcomePreview(bot, previewChatID, []tgbotapi.User{previewUser}, cfg)
 }
 
 func (s *Service) ToggleFeatureByTGGroupID(tgGroupID int64, featureKey string) (bool, error) {

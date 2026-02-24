@@ -331,6 +331,87 @@ func (s *Service) saveAntiFloodState(groupID uint, state antiFloodState) error {
 	return nil
 }
 
+func defaultNightModeConfig() nightModeConfig {
+	return nightModeConfig{
+		TimezoneOffsetMinutes: 8 * 60,
+		Mode:                  "delete_media",
+	}
+}
+
+func normalizeNightModeConfig(cfg nightModeConfig) nightModeConfig {
+	if cfg.TimezoneOffsetMinutes < -12*60 {
+		cfg.TimezoneOffsetMinutes = -12 * 60
+	}
+	if cfg.TimezoneOffsetMinutes > 14*60 {
+		cfg.TimezoneOffsetMinutes = 14 * 60
+	}
+	switch cfg.Mode {
+	case "delete_media", "global_mute":
+	default:
+		cfg.Mode = "delete_media"
+	}
+	return cfg
+}
+
+func (s *Service) getNightModeState(groupID uint) (nightModeState, error) {
+	s.nightModeMu.RLock()
+	state, ok := s.nightModeCache[groupID]
+	s.nightModeMu.RUnlock()
+	if ok {
+		return state, nil
+	}
+
+	cfg := defaultNightModeConfig()
+	setting, err := s.repo.GetGroupSetting(groupID, featureNightMode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			state = nightModeState{Enabled: false, Config: cfg}
+			if saveErr := s.saveNightModeState(groupID, state); saveErr != nil {
+				return state, saveErr
+			}
+			return state, nil
+		}
+		return nightModeState{}, err
+	}
+
+	rawCfg := cfg
+	if setting.Config != "" {
+		_ = json.Unmarshal([]byte(setting.Config), &rawCfg)
+	}
+	cfg = normalizeNightModeConfig(rawCfg)
+	state = nightModeState{
+		Enabled: setting.Enabled,
+		Config:  cfg,
+	}
+
+	s.nightModeMu.Lock()
+	s.nightModeCache[groupID] = state
+	s.nightModeMu.Unlock()
+
+	if setting.Config == "" || !reflect.DeepEqual(rawCfg, cfg) {
+		_ = s.saveNightModeState(groupID, state)
+	}
+	return state, nil
+}
+
+func (s *Service) saveNightModeState(groupID uint, state nightModeState) error {
+	state.Config = normalizeNightModeConfig(state.Config)
+	if err := s.repo.UpsertFeatureEnabled(groupID, featureNightMode, state.Enabled); err != nil {
+		return err
+	}
+	b, err := json.Marshal(state.Config)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpsertFeatureConfig(groupID, featureNightMode, string(b)); err != nil {
+		return err
+	}
+	s.nightModeMu.Lock()
+	s.nightModeCache[groupID] = state
+	s.nightModeMu.Unlock()
+	return nil
+}
+
 func (s *Service) getJoinVerifyConfig(groupID uint) (joinVerifyConfig, error) {
 	cfg := joinVerifyConfig{Type: "button", TimeoutMinutes: 5, TimeoutAction: "mute"}
 	entry, err := s.readFeatureConfigEntry(groupID, featureJoinVerify)

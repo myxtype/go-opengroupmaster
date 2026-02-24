@@ -414,6 +414,14 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "night_tz":
+		tz, err := h.service.SetNightModeTimezoneByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时区格式错误，请输入如 +8、-5、+8:30、UTC+8"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "夜间模式时区已设置为 "+tz))
+		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {
