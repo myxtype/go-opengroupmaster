@@ -378,6 +378,20 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 
 func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	buttonLabel := "方式：按钮"
+	mathLabel := "方式：数学题"
+	captchaLabel := "方式：验证码"
+	zhcharLabel := "方式：中文字符验证码"
+	switch view.Type {
+	case "button":
+		buttonLabel = "✅" + buttonLabel
+	case "math":
+		mathLabel = "✅" + mathLabel
+	case "captcha":
+		captchaLabel = "✅" + captchaLabel
+	case "zhchar":
+		zhcharLabel = "✅" + zhcharLabel
+	}
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -390,12 +404,12 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("超时处理："+verifyTimeoutActionLabel(view.TimeoutAction), fmt.Sprintf("feat:mod:verifytimeout:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("方式：按钮", fmt.Sprintf("feat:mod:verifymethod:%s:button", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("方式：数学题", fmt.Sprintf("feat:mod:verifymethod:%s:math", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(buttonLabel, fmt.Sprintf("feat:mod:verifymethod:%s:button", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(mathLabel, fmt.Sprintf("feat:mod:verifymethod:%s:math", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("方式：验证码", fmt.Sprintf("feat:mod:verifymethod:%s:captcha", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("方式：中文字符验证码", fmt.Sprintf("feat:mod:verifymethod:%s:zhchar", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(captchaLabel, fmt.Sprintf("feat:mod:verifymethod:%s:captcha", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(zhcharLabel, fmt.Sprintf("feat:mod:verifymethod:%s:zhchar", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:verifyview:%s", gid)),
 	)
