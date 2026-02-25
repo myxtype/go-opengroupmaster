@@ -372,6 +372,12 @@ func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+5)
 	for _, item := range items {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("✏️ 编辑 #%d", item.ID),
+				fmt.Sprintf("feat:sched:edit:%s:%d:%d", gid, item.ID, page),
+			),
+		))
 		toggleLabel := fmt.Sprintf("启用 #%d", item.ID)
 		if item.Enabled {
 			toggleLabel = fmt.Sprintf("停用 #%d", item.ID)
@@ -384,6 +390,16 @@ func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page
 			tgbotapi.NewInlineKeyboardButtonData(
 				fmt.Sprintf("🗑 删除 #%d", item.ID),
 				fmt.Sprintf("feat:sched:del:%s:%d:%d", gid, item.ID, page),
+			),
+		))
+		pinText := "置顶 ❌"
+		if item.PinMessage {
+			pinText = "置顶 ✅"
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("%s #%d", pinText, item.ID),
+				fmt.Sprintf("feat:sched:pin:%s:%d:%d", gid, item.ID, page),
 			),
 		))
 	}
@@ -402,6 +418,49 @@ func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page
 		tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 	))
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func scheduledPinSelectKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("置顶", fmt.Sprintf("feat:sched:pinset:%s:on", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("不置顶", fmt.Sprintf("feat:sched:pinset:%s:off", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		),
+	)
+}
+
+func scheduledEditKeyboard(tgGroupID int64, id uint, page int, enabled bool, pin bool) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	statusText := "启用"
+	if enabled {
+		statusText = "关闭"
+	}
+	pinText := "置顶 ❌"
+	if pin {
+		pinText = "置顶 ✅"
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("状态："+statusText, fmt.Sprintf("feat:sched:edittoggle:%s:%d:%d", gid, id, page)),
+			tgbotapi.NewInlineKeyboardButtonData(pinText, fmt.Sprintf("feat:sched:editpin:%s:%d:%d", gid, id, page)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("修改文本", fmt.Sprintf("feat:sched:edittext:%s:%d:%d", gid, id, page)),
+			tgbotapi.NewInlineKeyboardButtonData("修改媒体", fmt.Sprintf("feat:sched:editmedia:%s:%d:%d", gid, id, page)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("修改按钮", fmt.Sprintf("feat:sched:editbuttons:%s:%d:%d", gid, id, page)),
+			tgbotapi.NewInlineKeyboardButtonData("修改 Cron", fmt.Sprintf("feat:sched:editcron:%s:%d:%d", gid, id, page)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回定时列表", fmt.Sprintf("feat:sched:list:%s:%d", gid, page)),
+		),
+	)
 }
 
 func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbotapi.InlineKeyboardMarkup {

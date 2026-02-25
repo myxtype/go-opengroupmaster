@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"supervisor/internal/model"
 
 	"github.com/robfig/cron/v3"
 )
@@ -115,10 +116,14 @@ func (s *Service) UpdateBannedWordByTGGroupID(tgGroupID int64, id uint, word str
 }
 
 func (s *Service) CreateScheduledMessageByTGGroupID(tgGroupID int64, content, cronExpr string) error {
-	return s.CreateScheduledMessageByTGGroupIDWithButtons(tgGroupID, content, cronExpr, "")
+	return s.CreateScheduledMessageByTGGroupIDAdvanced(tgGroupID, content, cronExpr, "", "", "", false)
 }
 
 func (s *Service) CreateScheduledMessageByTGGroupIDWithButtons(tgGroupID int64, content, cronExpr, rawButtons string) error {
+	return s.CreateScheduledMessageByTGGroupIDAdvanced(tgGroupID, content, cronExpr, rawButtons, "", "", false)
+}
+
+func (s *Service) CreateScheduledMessageByTGGroupIDAdvanced(tgGroupID int64, content, cronExpr, rawButtons, mediaType, mediaFileID string, pinMessage bool) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
@@ -135,8 +140,16 @@ func (s *Service) CreateScheduledMessageByTGGroupIDWithButtons(tgGroupID int64, 
 	if err != nil {
 		return err
 	}
+	mediaType, mediaFileID, err = normalizeScheduledMedia(mediaType, mediaFileID)
+	if err != nil {
+		return err
+	}
+	content = strings.TrimSpace(content)
+	if content == "" && mediaType == "" {
+		return errors.New("empty scheduled message")
+	}
 
-	item, err := s.repo.CreateScheduledMessage(group.ID, content, cronExpr, buttonRows)
+	item, err := s.repo.CreateScheduledMessage(group.ID, content, cronExpr, buttonRows, mediaType, mediaFileID, pinMessage)
 	if err != nil {
 		return err
 	}
@@ -175,7 +188,132 @@ func (s *Service) ToggleScheduledMessageByTGGroupID(tgGroupID int64, id uint) (b
 	if err != nil {
 		return false, err
 	}
-	return s.repo.ToggleScheduledMessage(group.ID, id)
+	enabled, err := s.repo.ToggleScheduledMessage(group.ID, id)
+	if err != nil {
+		return false, err
+	}
+	if err := s.reloadScheduledJob(group.ID, id); err != nil {
+		return false, err
+	}
+	return enabled, nil
+}
+
+func (s *Service) ToggleScheduledPinByTGGroupID(tgGroupID int64, id uint) (bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	pin, err := s.repo.ToggleScheduledPinMessage(group.ID, id)
+	if err != nil {
+		return false, err
+	}
+	if err := s.reloadScheduledJob(group.ID, id); err != nil {
+		return false, err
+	}
+	return pin, nil
+}
+
+func (s *Service) GetScheduledMessageByTGGroupID(tgGroupID int64, id uint) (*model.ScheduledMessage, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetScheduledMessage(group.ID, id)
+}
+
+func (s *Service) UpdateScheduledTextByTGGroupID(tgGroupID int64, id uint, text string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	item, err := s.repo.GetScheduledMessage(group.ID, id)
+	if err != nil {
+		return err
+	}
+	text = strings.TrimSpace(text)
+	if text == "" && strings.TrimSpace(item.MediaType) == "" {
+		return errors.New("empty scheduled message")
+	}
+	item.Content = text
+	if err := s.repo.SaveScheduledMessage(item); err != nil {
+		return err
+	}
+	return s.reloadScheduledJob(group.ID, id)
+}
+
+func (s *Service) UpdateScheduledCronByTGGroupID(tgGroupID int64, id uint, cronExpr string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cronExpr = strings.TrimSpace(cronExpr)
+	if err := s.ValidateCronExpr(cronExpr); err != nil {
+		return err
+	}
+	item, err := s.repo.GetScheduledMessage(group.ID, id)
+	if err != nil {
+		return err
+	}
+	item.CronExpr = cronExpr
+	if err := s.repo.SaveScheduledMessage(item); err != nil {
+		return err
+	}
+	return s.reloadScheduledJob(group.ID, id)
+}
+
+func (s *Service) UpdateScheduledButtonsByTGGroupID(tgGroupID int64, id uint, rawButtons string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
+	if err != nil {
+		return err
+	}
+	item, err := s.repo.GetScheduledMessage(group.ID, id)
+	if err != nil {
+		return err
+	}
+	item.ButtonRows = buttonRows
+	if err := s.repo.SaveScheduledMessage(item); err != nil {
+		return err
+	}
+	return s.reloadScheduledJob(group.ID, id)
+}
+
+func (s *Service) UpdateScheduledMediaByTGGroupID(tgGroupID int64, id uint, mediaType, mediaFileID string) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	item, err := s.repo.GetScheduledMessage(group.ID, id)
+	if err != nil {
+		return err
+	}
+	mediaType, mediaFileID, err = normalizeScheduledMedia(mediaType, mediaFileID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(item.Content) == "" && mediaType == "" {
+		return errors.New("empty scheduled message")
+	}
+	item.MediaType = mediaType
+	item.MediaFileID = mediaFileID
+	if err := s.repo.SaveScheduledMessage(item); err != nil {
+		return err
+	}
+	return s.reloadScheduledJob(group.ID, id)
+}
+
+func (s *Service) reloadScheduledJob(groupID, id uint) error {
+	if s.scheduleRuntime == nil {
+		return nil
+	}
+	item, err := s.repo.GetScheduledMessage(groupID, id)
+	if err != nil {
+		return err
+	}
+	return s.scheduleRuntime.AddJob(*item)
 }
 func (s *Service) ParseScheduledInput(raw string) (cronExpr, content string, err error) {
 	parts := strings.SplitN(raw, "=>", 2)
@@ -193,4 +331,21 @@ func (s *Service) ParseScheduledInput(raw string) (cronExpr, content string, err
 func (s *Service) ValidateCronExpr(cronExpr string) error {
 	_, err := cron.ParseStandard(strings.TrimSpace(cronExpr))
 	return err
+}
+
+func normalizeScheduledMedia(mediaType, mediaFileID string) (string, string, error) {
+	mediaType = strings.TrimSpace(strings.ToLower(mediaType))
+	mediaFileID = strings.TrimSpace(mediaFileID)
+	if mediaType == "" && mediaFileID == "" {
+		return "", "", nil
+	}
+	switch mediaType {
+	case "photo", "video", "document", "animation":
+	default:
+		return "", "", errors.New("unsupported media type")
+	}
+	if mediaFileID == "" {
+		return "", "", errors.New("media file id is required")
+	}
+	return mediaType, mediaFileID, nil
 }

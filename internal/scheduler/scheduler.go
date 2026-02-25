@@ -45,15 +45,15 @@ func (s *Scheduler) Start() error {
 }
 
 func (s *Scheduler) AddJob(job model.ScheduledMessage) error {
-	if !job.Enabled {
-		return nil
-	}
 	s.mu.Lock()
 	if old, ok := s.entryID[job.ID]; ok {
 		s.cron.Remove(old)
 		delete(s.entryID, job.ID)
 	}
 	s.mu.Unlock()
+	if !job.Enabled {
+		return nil
+	}
 
 	j := job
 	entry, err := s.cron.AddFunc(j.CronExpr, func() {
@@ -61,11 +61,50 @@ func (s *Scheduler) AddJob(job model.ScheduledMessage) error {
 		if err != nil || group == nil {
 			return
 		}
-		msg := tgbotapi.NewMessage(group.TGGroupID, j.Content)
-		if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
-			msg.ReplyMarkup = markup
+		var sent tgbotapi.Message
+		switch j.MediaType {
+		case "photo":
+			out := tgbotapi.NewPhoto(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
+			out.Caption = j.Content
+			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+				out.ReplyMarkup = markup
+			}
+			sent, _ = s.bot.Send(out)
+		case "video":
+			out := tgbotapi.NewVideo(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
+			out.Caption = j.Content
+			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+				out.ReplyMarkup = markup
+			}
+			sent, _ = s.bot.Send(out)
+		case "document":
+			out := tgbotapi.NewDocument(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
+			out.Caption = j.Content
+			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+				out.ReplyMarkup = markup
+			}
+			sent, _ = s.bot.Send(out)
+		case "animation":
+			out := tgbotapi.NewAnimation(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
+			out.Caption = j.Content
+			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+				out.ReplyMarkup = markup
+			}
+			sent, _ = s.bot.Send(out)
+		default:
+			out := tgbotapi.NewMessage(group.TGGroupID, j.Content)
+			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
+				out.ReplyMarkup = markup
+			}
+			sent, _ = s.bot.Send(out)
 		}
-		_, _ = s.bot.Send(msg)
+		if j.PinMessage && sent.MessageID > 0 {
+			_, _ = s.bot.Request(tgbotapi.PinChatMessageConfig{
+				ChatID:              group.TGGroupID,
+				MessageID:           sent.MessageID,
+				DisableNotification: true,
+			})
+		}
 	})
 	if err != nil {
 		return err

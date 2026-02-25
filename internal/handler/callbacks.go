@@ -114,7 +114,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			return
 		}
 	}
-	keepPending := feature == "chain" && (action == "limmode" || action == "setdur")
+	keepPending := (feature == "chain" && (action == "limmode" || action == "setdur")) || (feature == "sched" && action == "pinset")
 	if feature != "pending" && action != "add" && action != "edit" && !keepPending {
 		h.clearPending(userID)
 	}
@@ -936,7 +936,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送定时消息")
 		h.setPending(userID, pendingInput{Kind: "sched_add_cron", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持换行），第3步可选设置链接按钮", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持文本或媒体），第3步可选设置链接按钮，第4步设置是否置顶", pendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -991,6 +991,197 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "已停用")
 		}
 		h.sendScheduledList(bot, target, userID, tgGroupID, page)
+	case "edit":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		h.answerCallback(bot, cb.ID, "编辑定时任务")
+		h.sendScheduledEditPanel(bot, target, userID, tgGroupID, uint(id), page)
+	case "edittoggle":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		enabled, err := h.service.ToggleScheduledMessageByTGGroupID(tgGroupID, uint(id))
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "切换失败")
+			return
+		}
+		if enabled {
+			h.answerCallback(bot, cb.ID, "已启用")
+		} else {
+			h.answerCallback(bot, cb.ID, "已关闭")
+		}
+		h.sendScheduledEditPanel(bot, target, userID, tgGroupID, uint(id), page)
+	case "editpin":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		pin, err := h.service.ToggleScheduledPinByTGGroupID(tgGroupID, uint(id))
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		if pin {
+			h.answerCallback(bot, cb.ID, "已设为置顶")
+		} else {
+			h.answerCallback(bot, cb.ID, "已设为不置顶")
+		}
+		h.sendScheduledEditPanel(bot, target, userID, tgGroupID, uint(id), page)
+	case "edittext":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		h.answerCallback(bot, cb.ID, "请输入新的文本内容")
+		h.setPending(userID, pendingInput{Kind: "sched_edit_text", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
+		h.render(bot, target, "请输入新的定时消息文本。\n注意：若当前没有媒体，文本不能为空。", pendingCancelKeyboard(tgGroupID))
+	case "editmedia":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		h.answerCallback(bot, cb.ID, "请发送媒体")
+		h.setPending(userID, pendingInput{Kind: "sched_edit_media", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
+		h.render(bot, target, "请发送图片/视频/文件/动图作为定时媒体（可带文字说明）。\n发送“关闭”可清空媒体。", pendingCancelKeyboard(tgGroupID))
+	case "editbuttons":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		h.answerCallback(bot, cb.ID, "请输入按钮配置")
+		h.setPending(userID, pendingInput{Kind: "sched_edit_buttons", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
+		h.render(bot, target, "请输入链接按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n发送“关闭”可清空按钮。", pendingCancelKeyboard(tgGroupID))
+	case "editcron":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		h.answerCallback(bot, cb.ID, "请输入新的 cron")
+		h.setPending(userID, pendingInput{Kind: "sched_edit_cron", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
+		h.render(bot, target, "请输入新的 cron 表达式（5段）：分钟 小时 日 月 星期\n示例：0 9 * * *", pendingCancelKeyboard(tgGroupID))
+	case "pin":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		id, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		pin, err := h.service.ToggleScheduledPinByTGGroupID(tgGroupID, uint(id))
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		if pin {
+			h.answerCallback(bot, cb.ID, "已设为置顶")
+		} else {
+			h.answerCallback(bot, cb.ID, "已设为不置顶")
+		}
+		h.sendScheduledList(bot, target, userID, tgGroupID, page)
+	case "pinset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		pending, ok := h.getPending(userID)
+		if !ok || pending.Kind != "sched_add_pin" || pending.TGGroupID != tgGroupID {
+			h.answerCallback(bot, cb.ID, "创建流程已过期，请重新开始")
+			h.sendScheduledList(bot, target, userID, tgGroupID, 1)
+			return
+		}
+		pin := strings.TrimSpace(parts[4]) == "on"
+		if err := h.service.CreateScheduledMessageByTGGroupIDAdvanced(
+			pending.TGGroupID,
+			pending.Content,
+			pending.CronExpr,
+			pending.RawButtons,
+			pending.MediaType,
+			pending.MediaFileID,
+			pin,
+		); err != nil {
+			h.answerCallback(bot, cb.ID, "创建失败")
+			h.render(bot, target, "创建定时消息失败："+err.Error(), pendingCancelKeyboard(tgGroupID))
+			return
+		}
+		h.clearPending(userID)
+		if pin {
+			h.answerCallback(bot, cb.ID, "创建成功（已设为置顶）")
+		} else {
+			h.answerCallback(bot, cb.ID, "创建成功（不置顶）")
+		}
+		h.sendScheduledList(bot, target, userID, tgGroupID, 1)
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
@@ -1386,12 +1577,18 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendBannedWordList(bot, target, userID, pending.TGGroupID, page)
 	case "lottery_create":
 		h.sendLotteryPanel(bot, target, userID, pending.TGGroupID)
-	case "sched_add_cron", "sched_add_content", "sched_add_buttons":
+	case "sched_add_cron", "sched_add_content", "sched_add_buttons", "sched_add_pin":
 		page := pending.Page
 		if page < 1 {
 			page = 1
 		}
 		h.sendScheduledList(bot, target, userID, pending.TGGroupID, page)
+	case "sched_edit_text", "sched_edit_media", "sched_edit_buttons", "sched_edit_cron":
+		page := pending.Page
+		if page < 1 {
+			page = 1
+		}
+		h.sendScheduledEditPanel(bot, target, userID, pending.TGGroupID, pending.RuleID, page)
 	case "chain_create_mode", "chain_create_count", "chain_create_duration", "chain_create_intro":
 		h.sendChainPanel(bot, target, userID, pending.TGGroupID)
 	case "poll_create":

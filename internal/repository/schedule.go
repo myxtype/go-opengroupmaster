@@ -8,13 +8,16 @@ func (r *Repository) ListEnabledScheduledMessages() ([]model.ScheduledMessage, e
 	return out, err
 }
 
-func (r *Repository) CreateScheduledMessage(groupID uint, content, cronExpr, buttonRows string) (*model.ScheduledMessage, error) {
+func (r *Repository) CreateScheduledMessage(groupID uint, content, cronExpr, buttonRows, mediaType, mediaFileID string, pinMessage bool) (*model.ScheduledMessage, error) {
 	item := &model.ScheduledMessage{
-		GroupID:    groupID,
-		Content:    content,
-		CronExpr:   cronExpr,
-		Enabled:    true,
-		ButtonRows: buttonRows,
+		GroupID:     groupID,
+		Content:     content,
+		CronExpr:    cronExpr,
+		Enabled:     true,
+		ButtonRows:  buttonRows,
+		MediaType:   mediaType,
+		MediaFileID: mediaFileID,
+		PinMessage:  pinMessage,
 	}
 	if err := r.db.Create(item).Error; err != nil {
 		return nil, err
@@ -55,4 +58,28 @@ func (r *Repository) ToggleScheduledMessage(groupID, id uint) (bool, error) {
 	}
 	item.Enabled = !item.Enabled
 	return item.Enabled, r.db.Save(&item).Error
+}
+
+func (r *Repository) ToggleScheduledPinMessage(groupID, id uint) (bool, error) {
+	var item model.ScheduledMessage
+	if err := r.db.Where("group_id = ? and id = ?", groupID, id).First(&item).Error; err != nil {
+		return false, err
+	}
+	item.PinMessage = !item.PinMessage
+	return item.PinMessage, r.db.Save(&item).Error
+}
+
+func (r *Repository) GetScheduledMessage(groupID, id uint) (*model.ScheduledMessage, error) {
+	var item model.ScheduledMessage
+	if err := r.db.Where("group_id = ? and id = ?", groupID, id).First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) SaveScheduledMessage(item *model.ScheduledMessage) error {
+	if item == nil {
+		return nil
+	}
+	return r.db.Save(item).Error
 }

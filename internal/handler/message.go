@@ -527,37 +527,142 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			Page:      pending.Page,
 			CronExpr:  cronExpr,
 		})
-		h.render(bot, target, "第2步：请输入要发送的消息内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第2步：请输入要发送的消息内容。\n支持：\n- 纯文本（支持换行）\n- 图片/视频/文件/动图（可带文字说明）", pendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "sched_add_content":
-		content := msg.Text
-		if strings.TrimSpace(content) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "消息内容不能为空"))
-			return
-		}
 		if strings.TrimSpace(pending.CronExpr) == "" {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少 cron 表达式，请重新创建定时消息"))
 			return
 		}
+		content := strings.TrimSpace(msg.Text)
+		mediaType := ""
+		mediaFileID := ""
+		switch {
+		case len(msg.Photo) > 0:
+			mediaType = "photo"
+			mediaFileID = msg.Photo[len(msg.Photo)-1].FileID
+			content = strings.TrimSpace(msg.Caption)
+		case msg.Video != nil:
+			mediaType = "video"
+			mediaFileID = msg.Video.FileID
+			content = strings.TrimSpace(msg.Caption)
+		case msg.Document != nil:
+			mediaType = "document"
+			mediaFileID = msg.Document.FileID
+			content = strings.TrimSpace(msg.Caption)
+		case msg.Animation != nil:
+			mediaType = "animation"
+			mediaFileID = msg.Animation.FileID
+			content = strings.TrimSpace(msg.Caption)
+		}
+		if content == "" && mediaType == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "消息内容不能为空；可发送文本，或发送图片/视频/文件/动图（可选文字说明）"))
+			return
+		}
 		h.setPending(msg.From.ID, pendingInput{
-			Kind:      "sched_add_buttons",
-			TGGroupID: pending.TGGroupID,
-			Page:      pending.Page,
-			CronExpr:  pending.CronExpr,
-			Content:   content,
+			Kind:        "sched_add_buttons",
+			TGGroupID:   pending.TGGroupID,
+			Page:        pending.Page,
+			CronExpr:    pending.CronExpr,
+			Content:     content,
+			MediaType:   mediaType,
+			MediaFileID: mediaFileID,
 		})
 		h.render(bot, target, "第3步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "sched_add_buttons":
-		if strings.TrimSpace(pending.CronExpr) == "" || strings.TrimSpace(pending.Content) == "" {
+		if strings.TrimSpace(pending.CronExpr) == "" || (strings.TrimSpace(pending.Content) == "" && strings.TrimSpace(pending.MediaType) == "") {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少定时消息内容，请重新创建"))
 			return
 		}
-		if err := h.service.CreateScheduledMessageByTGGroupIDWithButtons(pending.TGGroupID, pending.Content, pending.CronExpr, msg.Text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建定时消息失败："+err.Error()))
+		rawButtons := strings.TrimSpace(msg.Text)
+		if rawButtons == "" {
+			rawButtons = "跳过"
+		}
+		pending.Kind = "sched_add_pin"
+		pending.RawButtons = rawButtons
+		h.setPending(msg.From.ID, pending)
+		h.render(bot, target, "第4步：请选择发送后是否自动置顶", scheduledPinSelectKeyboard(pending.TGGroupID))
+		return
+	case "sched_edit_text":
+		if pending.RuleID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
 			return
 		}
-		h.sendScheduledList(bot, target, msg.From.ID, pending.TGGroupID, 1)
+		if err := h.service.UpdateScheduledTextByTGGroupID(pending.TGGroupID, pending.RuleID, msg.Text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改文本失败："+err.Error()))
+			return
+		}
+		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
+	case "sched_edit_cron":
+		if pending.RuleID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			return
+		}
+		if err := h.service.UpdateScheduledCronByTGGroupID(pending.TGGroupID, pending.RuleID, msg.Text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改 Cron 失败："+err.Error()))
+			return
+		}
+		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
+	case "sched_edit_buttons":
+		if pending.RuleID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			return
+		}
+		rawButtons := strings.TrimSpace(msg.Text)
+		if rawButtons == "" {
+			rawButtons = "关闭"
+		}
+		if err := h.service.UpdateScheduledButtonsByTGGroupID(pending.TGGroupID, pending.RuleID, rawButtons); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改按钮失败："+err.Error()))
+			return
+		}
+		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
+	case "sched_edit_media":
+		if pending.RuleID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			return
+		}
+		if strings.TrimSpace(text) == "关闭" {
+			if err := h.service.UpdateScheduledMediaByTGGroupID(pending.TGGroupID, pending.RuleID, "", ""); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空媒体失败："+err.Error()))
+				return
+			}
+			h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
+			break
+		}
+		mediaType := ""
+		mediaFileID := ""
+		caption := ""
+		switch {
+		case len(msg.Photo) > 0:
+			mediaType = "photo"
+			mediaFileID = msg.Photo[len(msg.Photo)-1].FileID
+			caption = msg.Caption
+		case msg.Video != nil:
+			mediaType = "video"
+			mediaFileID = msg.Video.FileID
+			caption = msg.Caption
+		case msg.Document != nil:
+			mediaType = "document"
+			mediaFileID = msg.Document.FileID
+			caption = msg.Caption
+		case msg.Animation != nil:
+			mediaType = "animation"
+			mediaFileID = msg.Animation.FileID
+			caption = msg.Caption
+		default:
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送图片/视频/文件/动图，或发送“关闭”清空媒体"))
+			return
+		}
+		if err := h.service.UpdateScheduledMediaByTGGroupID(pending.TGGroupID, pending.RuleID, mediaType, mediaFileID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改媒体失败："+err.Error()))
+			return
+		}
+		if strings.TrimSpace(caption) != "" {
+			_ = h.service.UpdateScheduledTextByTGGroupID(pending.TGGroupID, pending.RuleID, caption)
+		}
+		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
 	case "invite_set_expire":
 		if text == "0" {
 			if _, err := h.service.SetInviteExpireDateByTGGroupID(pending.TGGroupID, 0); err != nil {

@@ -160,9 +160,45 @@ func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, t
 			status = "启用"
 		}
 		btnCount := buttonRowsCount(item.ButtonRows)
-		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（链接按钮:%d）", item.ID, status, item.CronExpr, item.Content, btnCount))
+		pin := "不置顶"
+		if item.PinMessage {
+			pin = "置顶"
+		}
+		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（类型:%s，链接按钮:%d，%s）", item.ID, status, item.CronExpr, scheduledContentPreview(item.Content, 24), scheduledMediaTypeLabel(item.MediaType), btnCount, pin))
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), scheduledListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
+}
+
+func (h *Handler) sendScheduledEditPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, id uint, page int) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	item, err := h.service.GetScheduledMessageByTGGroupID(tgGroupID, id)
+	if err != nil || item == nil {
+		h.render(bot, target, "加载定时任务失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "关闭"
+	if item.Enabled {
+		status = "启用"
+	}
+	pin := "否"
+	if item.PinMessage {
+		pin = "是"
+	}
+	lines := []string{
+		fmt.Sprintf("定时任务编辑 #%d", item.ID),
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("Cron:%s", item.CronExpr),
+		fmt.Sprintf("文本:%s", scheduledContentPreview(item.Content, 60)),
+		fmt.Sprintf("媒体:%s", scheduledMediaTypeLabel(item.MediaType)),
+		fmt.Sprintf("链接按钮:%d", buttonRowsCount(item.ButtonRows)),
+		fmt.Sprintf("发送后置顶:%s", pin),
+	}
+	if page < 1 {
+		page = 1
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), scheduledEditKeyboard(tgGroupID, item.ID, page, item.Enabled, item.PinMessage))
 }
 
 func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

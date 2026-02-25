@@ -52,12 +52,15 @@ type AutoReply struct {
 
 // ScheduledMessage 表示按计划在群组发送的定时消息。
 type ScheduledMessage struct {
-	ID         uint   `gorm:"primaryKey"`
-	GroupID    uint   `gorm:"index;not null"`
-	Content    string `gorm:"type:text;not null"`
-	CronExpr   string `gorm:"not null"`
-	Enabled    bool   `gorm:"default:true"`
-	ButtonRows string `gorm:"type:text"`
+	ID          uint   `gorm:"primaryKey"`
+	GroupID     uint   `gorm:"index;not null"`
+	Content     string `gorm:"type:text;not null"`
+	CronExpr    string `gorm:"not null"`
+	Enabled     bool   `gorm:"default:true"`
+	ButtonRows  string `gorm:"type:text"`
+	MediaType   string `gorm:"default:''"` // photo/video/document/animation，空表示纯文本
+	MediaFileID string `gorm:"type:text"`
+	PinMessage  bool   `gorm:"default:false"`
 }
 
 // AutoDeleteTask 表示待执行的消息自动删除任务（持久化队列）。

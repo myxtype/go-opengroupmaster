@@ -268,6 +268,36 @@ func autoReplyMatchTypeLabel(v string) string {
 	return "精准触发"
 }
 
+func scheduledMediaTypeLabel(v string) string {
+	switch strings.TrimSpace(strings.ToLower(v)) {
+	case "photo":
+		return "图片"
+	case "video":
+		return "视频"
+	case "document":
+		return "文件"
+	case "animation":
+		return "动图"
+	default:
+		return "文本"
+	}
+}
+
+func scheduledContentPreview(content string, maxLen int) string {
+	txt := strings.TrimSpace(strings.ReplaceAll(content, "\n", " "))
+	if txt == "" {
+		return "（无文字）"
+	}
+	if maxLen <= 0 {
+		maxLen = 30
+	}
+	runes := []rune(txt)
+	if len(runes) <= maxLen {
+		return txt
+	}
+	return string(runes[:maxLen]) + "..."
+}
+
 func buttonRowsCount(raw string) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
