@@ -36,6 +36,7 @@ type verifyPending struct {
 	TGGroupID     int64
 	TGUserID      int64
 	Deadline      time.Time
+	RestrictUntil time.Time
 	Mode          string
 	Answer        string
 	MessageID     int
@@ -196,7 +197,6 @@ type Service struct {
 	nightModeMu     sync.RWMutex
 	nightModeCache  map[uint]nightModeState
 	flood           map[string][]floodEvent
-	joinAt          map[string]time.Time
 }
 
 type AutoReplyPage struct {
@@ -394,7 +394,6 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		antiFloodCache: make(map[uint]antiFloodState),
 		nightModeCache: make(map[uint]nightModeState),
 		flood:          make(map[string][]floodEvent),
-		joinAt:         make(map[string]time.Time),
 		adminSyncAt:    make(map[int64]time.Time),
 		adminSyncEvery: 3 * time.Minute,
 	}

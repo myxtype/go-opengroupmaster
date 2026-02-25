@@ -490,7 +490,7 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 	}
 	lines := []string{
 		"🔒 新成员限制",
-		"启用后，新成员在限制时长内不能发送链接或媒体",
+		"启用后，新成员在限制时长内不能发送任何消息",
 		"",
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("限制时长:%d分钟", view.Minutes),

@@ -51,14 +51,6 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		return nil
 	}
 
-	limited, err := s.applyNewbieLimit(bot, msg, group)
-	if err != nil {
-		return err
-	}
-	if limited {
-		return nil
-	}
-
 	if msg.Text != "" {
 		_ = s.notifyKeywordMonitor(bot, group, msg)
 
@@ -355,35 +347,6 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	}
 	return false, nil
 }
-func (s *Service) applyNewbieLimit(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
-	enabled, err := s.IsFeatureEnabled(group.ID, featureNewbieLimit, false)
-	if err != nil || !enabled {
-		return false, err
-	}
-	if msg.From == nil {
-		return false, nil
-	}
-	joinAt, ok := s.getJoinAt(group.TGGroupID, msg.From.ID)
-	if !ok {
-		return false, nil
-	}
-	minutes, _ := s.getNewbieLimitMinutes(group.ID)
-	if time.Since(joinAt) > time.Duration(minutes)*time.Minute {
-		s.clearJoinAt(group.TGGroupID, msg.From.ID)
-		return false, nil
-	}
-	if !containsLink(msg.Text) && msg.Photo == nil && msg.Video == nil && msg.Document == nil {
-		return false, nil
-	}
-	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-	noticeText, entities := composeTextWithUserMention("", msg.From, " 新成员限制中，暂不可发链接或媒体")
-	notice := tgbotapi.NewMessage(msg.Chat.ID, noticeText)
-	notice.Entities = entities
-	_, _ = bot.Send(notice)
-	_ = s.repo.CreateLog(group.ID, "newbie_limit_delete", 0, 0)
-	return true, nil
-}
-
 func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFloodConfig) (bool, string) {
 	now := time.Now().Unix()
 	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)

@@ -1,6 +1,11 @@
 package service
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
 
 func (s *Service) NewbieLimitViewByTGGroupID(tgGroupID int64) (*NewbieLimitView, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
@@ -31,4 +36,59 @@ func (s *Service) SetNewbieLimitEnabledByTGGroupID(tgGroupID int64, enabled bool
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_newbie_limit_enabled_%t", enabled), 0, 0)
 	return enabled, nil
+}
+
+func (s *Service) newbieLimitRestrictionDeadline(groupID uint, joinedAt time.Time) (time.Time, bool, error) {
+	enabled, err := s.IsFeatureEnabled(groupID, featureNewbieLimit, false)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if !enabled {
+		return time.Time{}, false, nil
+	}
+	minutes, err := s.getNewbieLimitMinutes(groupID)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if minutes <= 0 {
+		return time.Time{}, false, nil
+	}
+	if joinedAt.IsZero() {
+		joinedAt = time.Now()
+	}
+	deadline := joinedAt.Add(time.Duration(minutes) * time.Minute)
+	if !deadline.After(time.Now()) {
+		return deadline, false, nil
+	}
+	return deadline, true, nil
+}
+
+func (s *Service) restrictMemberNoSpeak(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, until time.Time) error {
+	if bot == nil || until.IsZero() {
+		return nil
+	}
+	_, err := bot.Request(tgbotapi.RestrictChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+		UntilDate:        until.Unix(),
+		Permissions:      &tgbotapi.ChatPermissions{},
+	})
+	return err
+}
+
+func (s *Service) restoreMemberSpeak(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64) error {
+	if bot == nil {
+		return nil
+	}
+	perms := &tgbotapi.ChatPermissions{
+		CanSendMessages:       true,
+		CanSendMediaMessages:  true,
+		CanSendPolls:          true,
+		CanSendOtherMessages:  true,
+		CanAddWebPagePreviews: true,
+	}
+	_, err := bot.Request(tgbotapi.RestrictChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+		Permissions:      perms,
+	})
+	return err
 }

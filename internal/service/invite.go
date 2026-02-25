@@ -298,6 +298,9 @@ func (s *Service) TrackInviteByChatMemberUpdate(update *tgbotapi.ChatMemberUpdat
 	_, _ = s.repo.UpsertUserFromTG(user)
 
 	joinAt := time.Unix(int64(update.Date), 0)
+	if update.Date <= 0 {
+		joinAt = time.Now()
+	}
 	firstJoin, err := s.repo.MarkGroupMemberFirstJoin(group.ID, user.ID, joinAt)
 	if err != nil {
 		return err

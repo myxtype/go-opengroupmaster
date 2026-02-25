@@ -24,10 +24,18 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	if err != nil {
 		return nil
 	}
+	joinAt := time.Unix(int64(msg.Date), 0)
+	if msg.Date <= 0 {
+		joinAt = time.Now()
+	}
 	for _, m := range msg.NewChatMembers {
-		s.markJoin(group.TGGroupID, m.ID)
 		member := m
 		_, _ = s.repo.UpsertUserFromTG(&member)
+	}
+
+	newbieDeadline, newbieRestrict, newbieErr := s.newbieLimitRestrictionDeadline(group.ID, joinAt)
+	if newbieErr != nil {
+		s.logger.Printf("compute newbie limit deadline failed group=%d: %v", group.ID, newbieErr)
 	}
 
 	verifyEnabled, err := s.IsFeatureEnabled(group.ID, featureJoinVerify, false)
@@ -44,10 +52,14 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			}
 			now := time.Now()
 			deadline := now.Add(timeout)
+			restrictUntil := deadline
+			if newbieRestrict && newbieDeadline.After(restrictUntil) {
+				restrictUntil = newbieDeadline
+			}
 			target := m
 			restrict := tgbotapi.RestrictChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
-				UntilDate:        deadline.Unix(),
+				UntilDate:        restrictUntil.Unix(),
 				Permissions:      &tgbotapi.ChatPermissions{},
 			}
 			_, _ = bot.Request(restrict)
@@ -56,6 +68,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				TGGroupID:     group.TGGroupID,
 				TGUserID:      m.ID,
 				Deadline:      deadline,
+				RestrictUntil: restrictUntil,
 				Mode:          cfg.Type,
 				TimeoutAction: cfg.TimeoutAction,
 			}
@@ -163,6 +176,18 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			s.wakeJoinVerifyWorker()
 		}
 	}
+	if (err != nil || !verifyEnabled) && newbieRestrict {
+		for _, m := range msg.NewChatMembers {
+			if m.IsBot {
+				continue
+			}
+			if err := s.restrictMemberNoSpeak(bot, msg.Chat.ID, m.ID, newbieDeadline); err != nil {
+				s.logger.Printf("restrict newbie member failed group=%d user=%d: %v", msg.Chat.ID, m.ID, err)
+				continue
+			}
+			_ = s.repo.CreateLog(group.ID, "newbie_limit_restrict", 0, 0)
+		}
+	}
 
 	welcomeEnabled, err := s.IsFeatureEnabled(group.ID, featureWelcome, true)
 	if err != nil || !welcomeEnabled {
@@ -213,25 +238,21 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 		return errors.New("verification expired")
 	}
 
-	perms := &tgbotapi.ChatPermissions{
-		CanSendMessages:       true,
-		CanSendMediaMessages:  true,
-		CanSendPolls:          true,
-		CanSendOtherMessages:  true,
-		CanAddWebPagePreviews: true,
-	}
-	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-		Permissions:      perms,
-	})
-	if err != nil {
-		return err
+	if pending.RestrictUntil.After(time.Now()) {
+		if err := s.restrictMemberNoSpeak(bot, tgGroupID, tgUserID, pending.RestrictUntil); err != nil {
+			return err
+		}
+	} else {
+		if err := s.restoreMemberSpeak(bot, tgGroupID, tgUserID); err != nil {
+			return err
+		}
 	}
 	if pending.MessageID > 0 {
 		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
 	}
 
-	if group, gErr := s.repo.FindGroupByTGID(tgGroupID); gErr == nil {
+	group, gErr := s.repo.FindGroupByTGID(tgGroupID)
+	if gErr == nil {
 		_ = s.repo.CreateLog(group.ID, "join_verify_pass", 0, 0)
 		welcomeEnabled, wErr := s.IsFeatureEnabled(group.ID, featureWelcome, true)
 		if wErr == nil && welcomeEnabled {
@@ -249,28 +270,6 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	return nil
 }
 
-func (s *Service) markJoin(tgGroupID, tgUserID int64) {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.joinAt[key] = time.Now()
-}
-
-func (s *Service) getJoinAt(tgGroupID, tgUserID int64) (time.Time, bool) {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := s.joinAt[key]
-	return t, ok
-}
-
-func (s *Service) clearJoinAt(tgGroupID, tgUserID int64) {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.joinAt, key)
-}
-
 func (s *Service) addVerifyPending(p verifyPending) error {
 	return s.repo.UpsertJoinVerifyPending(&model.JoinVerifyPending{
 		TGGroupID:     p.TGGroupID,
@@ -280,6 +279,7 @@ func (s *Service) addVerifyPending(p verifyPending) error {
 		MessageID:     p.MessageID,
 		TimeoutAction: p.TimeoutAction,
 		Deadline:      p.Deadline,
+		RestrictUntil: p.RestrictUntil,
 	})
 }
 
@@ -296,6 +296,7 @@ func (s *Service) getVerifyPending(tgGroupID, tgUserID int64) (verifyPending, bo
 		TGGroupID:     row.TGGroupID,
 		TGUserID:      row.TGUserID,
 		Deadline:      row.Deadline,
+		RestrictUntil: row.RestrictUntil,
 		Mode:          row.Mode,
 		Answer:        row.Answer,
 		MessageID:     row.MessageID,

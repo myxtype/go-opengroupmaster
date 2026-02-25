@@ -25,6 +25,7 @@ func (r *Repository) UpsertJoinVerifyPending(pending *model.JoinVerifyPending) e
 			"message_id",
 			"timeout_action",
 			"deadline",
+			"restrict_until",
 			"updated_at",
 		}),
 	}).Create(pending).Error
