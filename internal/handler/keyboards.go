@@ -708,10 +708,10 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 
 func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	buttonLabel := "方式：按钮"
-	mathLabel := "方式：数学题"
-	captchaLabel := "方式：验证码"
-	zhcharLabel := "方式：中文字符验证码"
+	buttonLabel := "按钮"
+	mathLabel := "数学题"
+	captchaLabel := "验证码"
+	zhcharLabel := "中文字符验证码"
 	switch view.Type {
 	case "button":
 		buttonLabel = "✅" + buttonLabel
@@ -732,6 +732,9 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("验证时间：%d分钟", view.TimeoutMinutes), fmt.Sprintf("feat:mod:verifytime:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("超时处理："+verifyTimeoutActionLabel(view.TimeoutAction), fmt.Sprintf("feat:mod:verifytimeout:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬇️验证方式⬇️", fmt.Sprintf("feat:mod:noop:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(buttonLabel, fmt.Sprintf("feat:mod:verifymethod:%s:button", gid)),

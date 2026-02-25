@@ -37,6 +37,8 @@ func main() {
 	svc.SetAdminSyncInterval(time.Duration(cfg.AdminSyncIntervalSecs) * time.Second)
 	svc.StartAutoDeleteWorker(botAPI)
 	defer svc.StopAutoDeleteWorker()
+	svc.StartJoinVerifyWorker(botAPI)
+	defer svc.StopJoinVerifyWorker()
 	h := handler.New(svc, l)
 
 	sch := scheduler.New(svc, botAPI, l)

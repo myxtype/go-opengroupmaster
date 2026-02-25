@@ -32,6 +32,9 @@ const (
 )
 
 type verifyPending struct {
+	ID            uint
+	TGGroupID     int64
+	TGUserID      int64
 	Deadline      time.Time
 	Mode          string
 	Answer        string
@@ -176,6 +179,10 @@ type Service struct {
 	autoDeleteWake  chan struct{}
 	autoDeleteStop  chan struct{}
 	autoDeleteDone  chan struct{}
+	joinVerifyMu    sync.Mutex
+	joinVerifyWake  chan struct{}
+	joinVerifyStop  chan struct{}
+	joinVerifyDone  chan struct{}
 	mu              sync.Mutex
 	adminSyncMu     sync.Mutex
 	adminSyncAt     map[int64]time.Time
@@ -190,7 +197,6 @@ type Service struct {
 	nightModeCache  map[uint]nightModeState
 	flood           map[string][]floodEvent
 	joinAt          map[string]time.Time
-	verify          map[string]verifyPending
 }
 
 type AutoReplyPage struct {
@@ -389,7 +395,6 @@ func New(repo *repository.Repository, logger *log.Logger) *Service {
 		nightModeCache: make(map[uint]nightModeState),
 		flood:          make(map[string][]floodEvent),
 		joinAt:         make(map[string]time.Time),
-		verify:         make(map[string]verifyPending),
 		adminSyncAt:    make(map[int64]time.Time),
 		adminSyncEvery: 3 * time.Minute,
 	}

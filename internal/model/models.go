@@ -73,6 +73,20 @@ type AutoDeleteTask struct {
 	CreatedAt time.Time
 }
 
+// JoinVerifyPending 表示待完成的进群验证任务（持久化，支持重启恢复）。
+type JoinVerifyPending struct {
+	ID            uint      `gorm:"primaryKey"`
+	TGGroupID     int64     `gorm:"uniqueIndex:idx_join_verify_pending_user,priority:1;index:idx_join_verify_pending_deadline,priority:2;not null"`
+	TGUserID      int64     `gorm:"uniqueIndex:idx_join_verify_pending_user,priority:2;index:idx_join_verify_pending_deadline,priority:3;not null"`
+	Mode          string    `gorm:"size:32;not null"`
+	Answer        string    `gorm:"type:text"`
+	MessageID     int       `gorm:"not null;default:0"`
+	TimeoutAction string    `gorm:"size:16;not null;default:mute"`
+	Deadline      time.Time `gorm:"index:idx_join_verify_pending_deadline,priority:1;not null"`
+	CreatedAt     time.Time `gorm:"autoCreateTime"`
+	UpdatedAt     time.Time `gorm:"autoUpdateTime"`
+}
+
 // BannedWord 表示群组的违禁词条目。
 type BannedWord struct {
 	ID      uint   `gorm:"primaryKey"`

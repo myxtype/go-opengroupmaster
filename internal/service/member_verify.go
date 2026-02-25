@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"supervisor/internal/model"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mojocn/base64Captcha"
+	"gorm.io/gorm"
 )
 
 func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
@@ -39,38 +42,42 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			if m.IsBot {
 				continue
 			}
+			now := time.Now()
+			deadline := now.Add(timeout)
 			target := m
 			restrict := tgbotapi.RestrictChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
-				UntilDate:        time.Now().Add(timeout).Unix(),
+				UntilDate:        deadline.Unix(),
 				Permissions:      &tgbotapi.ChatPermissions{},
 			}
 			_, _ = bot.Request(restrict)
 
 			pending := verifyPending{
-				Deadline:      time.Now().Add(timeout),
+				TGGroupID:     group.TGGroupID,
+				TGUserID:      m.ID,
+				Deadline:      deadline,
 				Mode:          cfg.Type,
 				TimeoutAction: cfg.TimeoutAction,
 			}
 			verifyText, verifyEntities := composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction)))
 			keyboard := tgbotapi.NewInlineKeyboardMarkup()
-				switch cfg.Type {
-				case "math":
-					a := rand.Intn(9) + 1
-					b := rand.Intn(9) + 1
-					answer := a + b
-					pending.Answer = strconv.Itoa(answer)
+			switch cfg.Type {
+			case "math":
+				a := rand.Intn(9) + 1
+				b := rand.Intn(9) + 1
+				answer := a + b
+				pending.Answer = strconv.Itoa(answer)
 				verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, timeoutMins))
 				options := buildMathOptions(answer)
 				row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
-					for _, opt := range options {
-						row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
-					}
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
-				case "captcha":
-					captchaCode, imgBytes, imgErr := buildCaptchaImage()
-					if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
-						pending.Answer = captchaCode
+				for _, opt := range options {
+					row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
+				}
+				keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
+			case "captcha":
+				captchaCode, imgBytes, imgErr := buildCaptchaImage()
+				if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
+					pending.Answer = captchaCode
 					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", timeoutMins))
 					options := buildCaptchaOptions(captchaCode)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -97,13 +104,13 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
-						)
-						verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-					}
-				case "zhchar":
-					captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
-					if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
-						pending.Answer = captchaChar
+					)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
+				}
+			case "zhchar":
+				captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
+				if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
+					pending.Answer = captchaChar
 					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", timeoutMins))
 					options := buildChineseCaptchaOptions(captchaChar)
 					keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -130,15 +137,15 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 						tgbotapi.NewInlineKeyboardRow(
 							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
 						),
-						)
-						verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-					}
-				default:
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
-						),
 					)
+					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
+				}
+			default:
+				keyboard = tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
+					),
+				)
 			}
 			if pending.MessageID == 0 {
 				verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
@@ -148,9 +155,12 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 					pending.MessageID = sent.MessageID
 				}
 			}
-			s.addVerifyPending(group.TGGroupID, m.ID, pending)
+			if err := s.addVerifyPending(pending); err != nil {
+				s.logger.Printf("upsert join verify pending failed group=%d user=%d: %v", group.TGGroupID, m.ID, err)
+				continue
+			}
 			_ = s.repo.CreateLog(group.ID, "join_verify_pending", 0, 0)
-			go s.verifyTimeoutHandle(bot, group.TGGroupID, m.ID, timeout)
+			s.wakeJoinVerifyWorker()
 		}
 	}
 
@@ -180,9 +190,11 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	if actorID != tgUserID {
 		return errors.New("only target user can verify")
 	}
-	pending, ok := s.getVerifyPending(tgGroupID, tgUserID)
+	pending, ok, err := s.getVerifyPending(tgGroupID, tgUserID)
+	if err != nil {
+		return err
+	}
 	if !ok || time.Now().After(pending.Deadline) {
-		s.popVerifyPending(tgGroupID, tgUserID)
 		return errors.New("verification expired")
 	}
 	if pending.Mode != mode {
@@ -193,7 +205,11 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 			return errors.New("wrong answer")
 		}
 	}
-	if !s.popVerifyPending(tgGroupID, tgUserID) {
+	popped, err := s.popVerifyPendingByID(pending.ID)
+	if err != nil {
+		return err
+	}
+	if !popped {
 		return errors.New("verification expired")
 	}
 
@@ -204,7 +220,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 		CanSendOtherMessages:  true,
 		CanAddWebPagePreviews: true,
 	}
-	_, err := bot.Request(tgbotapi.RestrictChatMemberConfig{
+	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
 		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
 		Permissions:      perms,
 	})
@@ -255,41 +271,45 @@ func (s *Service) clearJoinAt(tgGroupID, tgUserID int64) {
 	delete(s.joinAt, key)
 }
 
-func (s *Service) addVerifyPending(tgGroupID, tgUserID int64, p verifyPending) {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.verify[key] = p
+func (s *Service) addVerifyPending(p verifyPending) error {
+	return s.repo.UpsertJoinVerifyPending(&model.JoinVerifyPending{
+		TGGroupID:     p.TGGroupID,
+		TGUserID:      p.TGUserID,
+		Mode:          p.Mode,
+		Answer:        p.Answer,
+		MessageID:     p.MessageID,
+		TimeoutAction: p.TimeoutAction,
+		Deadline:      p.Deadline,
+	})
 }
 
-func (s *Service) getVerifyPending(tgGroupID, tgUserID int64) (verifyPending, bool) {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.verify[key]
-	return p, ok
+func (s *Service) getVerifyPending(tgGroupID, tgUserID int64) (verifyPending, bool, error) {
+	row, err := s.repo.GetJoinVerifyPending(tgGroupID, tgUserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return verifyPending{}, false, nil
+		}
+		return verifyPending{}, false, err
+	}
+	return verifyPending{
+		ID:            row.ID,
+		TGGroupID:     row.TGGroupID,
+		TGUserID:      row.TGUserID,
+		Deadline:      row.Deadline,
+		Mode:          row.Mode,
+		Answer:        row.Answer,
+		MessageID:     row.MessageID,
+		TimeoutAction: row.TimeoutAction,
+	}, true, nil
 }
 
-func (s *Service) popVerifyPending(tgGroupID, tgUserID int64) bool {
-	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.verify[key]
-	if ok {
-		delete(s.verify, key)
-	}
-	return ok
+func (s *Service) popVerifyPendingByID(id uint) (bool, error) {
+	return s.repo.DeleteJoinVerifyPendingByID(id)
 }
 
-func (s *Service) verifyTimeoutHandle(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, after time.Duration) {
-	time.Sleep(after)
-	pending, ok := s.getVerifyPending(tgGroupID, tgUserID)
-	if !ok {
-		return
-	}
-	if !s.popVerifyPending(tgGroupID, tgUserID) {
-		return
-	}
+func (s *Service) applyVerifyTimeout(bot *tgbotapi.BotAPI, pending verifyPending) {
+	tgGroupID := pending.TGGroupID
+	tgUserID := pending.TGUserID
 	if pending.TimeoutAction == "kick" {
 		_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
 			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
