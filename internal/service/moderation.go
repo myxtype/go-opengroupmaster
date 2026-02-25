@@ -82,13 +82,18 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 				return err
 			}
 			if matched {
+				deleteAfter := time.Duration(0)
 				if mins, cfgErr := s.LotteryDeleteKeywordMinutesByGroupID(group.ID); cfgErr == nil && mins > 0 {
-					s.ScheduleMessageDelete(msg.Chat.ID, msg.MessageID, time.Duration(mins)*time.Minute)
+					deleteAfter = time.Duration(mins) * time.Minute
+					s.ScheduleMessageDelete(msg.Chat.ID, msg.MessageID, deleteAfter)
 				}
 				if joined {
 					reply := tgbotapi.NewMessage(msg.Chat.ID, "参与抽奖成功")
 					reply.ReplyToMessageID = msg.MessageID
-					_, _ = bot.Send(reply)
+					replyMsg, sendErr := bot.Send(reply)
+					if sendErr == nil && deleteAfter > 0 {
+						s.ScheduleMessageDelete(msg.Chat.ID, replyMsg.MessageID, deleteAfter)
+					}
 				}
 				return nil
 			}

@@ -126,9 +126,9 @@ func boolIcon(v bool) string {
 
 func lotteryDeleteDesc(minutes int) string {
 	if minutes <= 0 {
-		return "关闭自动删除口令消息"
+		return "关闭自动删除口令和参与成功提示消息"
 	}
-	return fmt.Sprintf("%d分钟后自动删除群成员参加抽奖发送的口令消息", minutes)
+	return fmt.Sprintf("%d分钟后自动删除群成员参加抽奖发送的口令及参与成功提示消息", minutes)
 }
 
 func lotteryStatusLabel(status string) string {

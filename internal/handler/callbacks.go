@@ -745,9 +745,9 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 			return
 		}
 		if mins > 0 {
-			h.answerCallback(bot, cb.ID, fmt.Sprintf("口令消息将于 %d 分钟后删除", mins))
+			h.answerCallback(bot, cb.ID, fmt.Sprintf("口令和参与成功提示消息将于 %d 分钟后删除", mins))
 		} else {
-			h.answerCallback(bot, cb.ID, "已关闭自动删除口令消息")
+			h.answerCallback(bot, cb.ID, "已关闭自动删除口令和参与成功提示消息")
 		}
 		h.sendLotteryDeleteMinutesPanel(bot, target, cb.From.ID, tgGroupID)
 	default:
