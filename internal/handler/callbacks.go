@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	svc "supervisor/internal/service"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -68,6 +70,10 @@ func (h *Handler) handleVerifyCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		answer = parts[4]
 	}
 	if err := h.service.PassVerification(bot, tgGroupID, tgUserID, cb.From.ID, mode, answer); err != nil {
+		if errors.Is(err, svc.ErrVerifyWrongAnswer) {
+			h.answerCallback(bot, cb.ID, "答案错误，验证码已更新，请重试")
+			return
+		}
 		h.answerCallback(bot, cb.ID, "验证失败或已过期")
 		return
 	}

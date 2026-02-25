@@ -16,6 +16,183 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrVerifyWrongAnswer = errors.New("wrong answer")
+var chineseCaptchaPool = []string{"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安", "全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾"}
+
+type verifyChallengeOptions struct {
+	mode          string
+	tgGroupID     int64
+	tgUserID      int64
+	target        *tgbotapi.User
+	timeoutMins   int
+	timeoutAction string
+	retry         bool
+	allowFallback bool
+}
+
+type verifyChallengePayload struct {
+	mode       string
+	answer     string
+	text       string
+	entities   []tgbotapi.MessageEntity
+	markup     tgbotapi.InlineKeyboardMarkup
+	photoName  string
+	photoBytes []byte
+}
+
+func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, error) {
+	if opts.timeoutMins <= 0 {
+		opts.timeoutMins = 1
+	}
+	target := opts.target
+	if target == nil {
+		target = &tgbotapi.User{ID: opts.tgUserID, FirstName: "该用户"}
+	}
+	buildButton := func(suffix string) verifyChallengePayload {
+		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
+		return verifyChallengePayload{
+			mode:     "button",
+			text:     text,
+			entities: entities,
+			markup: tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", opts.tgGroupID, opts.tgUserID)),
+				),
+			),
+		}
+	}
+
+	switch opts.mode {
+	case "math":
+		a := rand.Intn(9) + 1
+		b := rand.Intn(9) + 1
+		answer := a + b
+		suffix := fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, opts.timeoutMins)
+		if opts.retry {
+			suffix = fmt.Sprintf(" 回答错误，请重新完成算术验证：%d + %d = ?（剩余 %d 分钟）", a, b, opts.timeoutMins)
+		}
+		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
+		options := buildMathOptions(answer)
+		row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
+		for _, opt := range options {
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", opts.tgGroupID, opts.tgUserID, opt)))
+		}
+		return verifyChallengePayload{
+			mode:     "math",
+			answer:   strconv.Itoa(answer),
+			text:     text,
+			entities: entities,
+			markup:   tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...)),
+		}, nil
+	case "captcha":
+		code, imgBytes, err := buildCaptchaImage()
+		if err != nil || strings.TrimSpace(code) == "" || len(imgBytes) == 0 {
+			if opts.allowFallback {
+				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
+				if opts.retry {
+					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
+				}
+				return buildButton(suffix), nil
+			}
+			return verifyChallengePayload{}, errors.New("build captcha failed")
+		}
+		suffix := fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", opts.timeoutMins)
+		if opts.retry {
+			suffix = fmt.Sprintf(" 回答错误，请重新点击与图片验证码一致的数字（剩余 %d 分钟）", opts.timeoutMins)
+		}
+		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
+		options := buildCaptchaOptions(code)
+		return verifyChallengePayload{
+			mode:     "captcha",
+			answer:   code,
+			text:     text,
+			entities: entities,
+			markup: tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+				),
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				),
+			),
+			photoName:  "verify_captcha.png",
+			photoBytes: imgBytes,
+		}, nil
+	case "zhchar":
+		ch, imgBytes, err := buildChineseCaptchaImage()
+		if err != nil || strings.TrimSpace(ch) == "" || len(imgBytes) == 0 {
+			if opts.allowFallback {
+				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
+				if opts.retry {
+					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
+				}
+				return buildButton(suffix), nil
+			}
+			return verifyChallengePayload{}, errors.New("build zhchar captcha failed")
+		}
+		suffix := fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", opts.timeoutMins)
+		if opts.retry {
+			suffix = fmt.Sprintf(" 回答错误，请重新点击与图片验证码一致的中文字符（剩余 %d 分钟）", opts.timeoutMins)
+		}
+		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
+		options := buildChineseCaptchaOptions(ch)
+		return verifyChallengePayload{
+			mode:     "zhchar",
+			answer:   ch,
+			text:     text,
+			entities: entities,
+			markup: tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+				),
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				),
+			),
+			photoName:  "verify_zhchar.png",
+			photoBytes: imgBytes,
+		}, nil
+	default:
+		if opts.retry {
+			return buildButton(fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)), nil
+		}
+		return buildButton(fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", opts.timeoutMins, verifyTimeoutActionText(opts.timeoutAction))), nil
+	}
+}
+
+func sendVerifyChallenge(bot *tgbotapi.BotAPI, chatID int64, payload verifyChallengePayload) (int, error) {
+	if bot == nil {
+		return 0, errors.New("bot is nil")
+	}
+	if len(payload.photoBytes) > 0 {
+		name := strings.TrimSpace(payload.photoName)
+		if name == "" {
+			name = "verify_captcha.png"
+		}
+		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileBytes{Name: name, Bytes: payload.photoBytes})
+		photo.Caption = payload.text
+		photo.CaptionEntities = payload.entities
+		photo.ReplyMarkup = payload.markup
+		sent, err := bot.Send(photo)
+		if err != nil {
+			return 0, err
+		}
+		return sent.MessageID, nil
+	}
+	msg := tgbotapi.NewMessage(chatID, payload.text)
+	msg.Entities = payload.entities
+	msg.ReplyMarkup = payload.markup
+	sent, err := bot.Send(msg)
+	if err != nil {
+		return 0, err
+	}
+	return sent.MessageID, nil
+}
+
 func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
 	if len(msg.NewChatMembers) == 0 {
 		return nil
@@ -29,15 +206,16 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 		joinAt = time.Now()
 	}
 	for _, m := range msg.NewChatMembers {
-		member := m
-		_, _ = s.repo.UpsertUserFromTG(&member)
+		_, _ = s.repo.UpsertUserFromTG(&m)
 	}
 
+	// 新成员限制
 	newbieDeadline, newbieRestrict, newbieErr := s.newbieLimitRestrictionDeadline(group.ID, joinAt)
 	if newbieErr != nil {
 		s.logger.Printf("compute newbie limit deadline failed group=%d: %v", group.ID, newbieErr)
 	}
 
+	// 进群验证
 	verifyEnabled, err := s.IsFeatureEnabled(group.ID, featureJoinVerify, false)
 	if err == nil && verifyEnabled {
 		cfg, _ := s.getJoinVerifyConfig(group.ID)
@@ -72,102 +250,27 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				Mode:          cfg.Type,
 				TimeoutAction: cfg.TimeoutAction,
 			}
-			verifyText, verifyEntities := composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", timeoutMins, verifyTimeoutActionText(cfg.TimeoutAction)))
-			keyboard := tgbotapi.NewInlineKeyboardMarkup()
-			switch cfg.Type {
-			case "math":
-				a := rand.Intn(9) + 1
-				b := rand.Intn(9) + 1
-				answer := a + b
-				pending.Answer = strconv.Itoa(answer)
-				verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, timeoutMins))
-				options := buildMathOptions(answer)
-				row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
-				for _, opt := range options {
-					row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", group.TGGroupID, m.ID, opt)))
-				}
-				keyboard = tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...))
-			case "captcha":
-				captchaCode, imgBytes, imgErr := buildCaptchaImage()
-				if imgErr == nil && strings.TrimSpace(captchaCode) != "" && len(imgBytes) > 0 {
-					pending.Answer = captchaCode
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", timeoutMins))
-					options := buildCaptchaOptions(captchaCode)
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[0])),
-							tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[1])),
-						),
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[2])),
-							tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:captcha:%d:%d:%s", group.TGGroupID, m.ID, options[3])),
-						),
-					)
-					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_captcha.png", Bytes: imgBytes})
-					photo.Caption = verifyText
-					photo.CaptionEntities = verifyEntities
-					photo.ReplyMarkup = keyboard
-					if sent, sendErr := bot.Send(photo); sendErr == nil {
-						pending.MessageID = sent.MessageID
-					}
-				} else {
-					// Fallback: captcha generation failed, degrade to button verification.
-					pending.Mode = "button"
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
-						),
-					)
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-				}
-			case "zhchar":
-				captchaChar, imgBytes, imgErr := buildChineseCaptchaImage()
-				if imgErr == nil && strings.TrimSpace(captchaChar) != "" && len(imgBytes) > 0 {
-					pending.Answer = captchaChar
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", timeoutMins))
-					options := buildChineseCaptchaOptions(captchaChar)
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[0])),
-							tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[1])),
-						),
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[2])),
-							tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhchar:%d:%d:%s", group.TGGroupID, m.ID, options[3])),
-						),
-					)
-					photo := tgbotapi.NewPhoto(msg.Chat.ID, tgbotapi.FileBytes{Name: "verify_chinese_captcha.png", Bytes: imgBytes})
-					photo.Caption = verifyText
-					photo.CaptionEntities = verifyEntities
-					photo.ReplyMarkup = keyboard
-					if sent, sendErr := bot.Send(photo); sendErr == nil {
-						pending.MessageID = sent.MessageID
-					}
-				} else {
-					// Fallback: Chinese captcha generation failed, degrade to button verification.
-					pending.Mode = "button"
-					keyboard = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
-						),
-					)
-					verifyText, verifyEntities = composeTextWithUserMention("新成员 ", &target, fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", timeoutMins))
-				}
-			default:
-				keyboard = tgbotapi.NewInlineKeyboardMarkup(
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", group.TGGroupID, m.ID)),
-					),
-				)
+			challenge, cErr := buildVerifyChallenge(verifyChallengeOptions{
+				mode:          cfg.Type,
+				tgGroupID:     group.TGGroupID,
+				tgUserID:      m.ID,
+				target:        &target,
+				timeoutMins:   timeoutMins,
+				timeoutAction: cfg.TimeoutAction,
+				allowFallback: true,
+			})
+			if cErr != nil {
+				s.logger.Printf("build verify challenge failed group=%d user=%d mode=%s: %v", group.TGGroupID, m.ID, cfg.Type, cErr)
+				continue
 			}
-			if pending.MessageID == 0 {
-				verifyMsg := tgbotapi.NewMessage(msg.Chat.ID, verifyText)
-				verifyMsg.Entities = verifyEntities
-				verifyMsg.ReplyMarkup = keyboard
-				if sent, sendErr := bot.Send(verifyMsg); sendErr == nil {
-					pending.MessageID = sent.MessageID
-				}
+			pending.Mode = challenge.mode
+			pending.Answer = challenge.answer
+			msgID, sendErr := sendVerifyChallenge(bot, msg.Chat.ID, challenge)
+			if sendErr != nil {
+				s.logger.Printf("send verify challenge failed group=%d user=%d mode=%s: %v", group.TGGroupID, m.ID, pending.Mode, sendErr)
+				continue
 			}
+			pending.MessageID = msgID
 			if err := s.addVerifyPending(pending); err != nil {
 				s.logger.Printf("upsert join verify pending failed group=%d user=%d: %v", group.TGGroupID, m.ID, err)
 				continue
@@ -176,6 +279,8 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			s.wakeJoinVerifyWorker()
 		}
 	}
+
+	// 新成员限制
 	if (err != nil || !verifyEnabled) && newbieRestrict {
 		for _, m := range msg.NewChatMembers {
 			if m.IsBot {
@@ -211,6 +316,8 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	}
 	return nil
 }
+
+// PassVerification 验证用户
 func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, actorID int64, mode string, answer string) error {
 	if actorID != tgUserID {
 		return errors.New("only target user can verify")
@@ -227,7 +334,10 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	}
 	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
-			return errors.New("wrong answer")
+			if err := s.refreshVerifyChallenge(bot, pending); err != nil {
+				s.logger.Printf("refresh verify challenge failed group=%d user=%d mode=%s: %v", tgGroupID, tgUserID, pending.Mode, err)
+			}
+			return ErrVerifyWrongAnswer
 		}
 	}
 	popped, err := s.popVerifyPendingByID(pending.ID)
@@ -268,6 +378,42 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 		}
 	}
 	return nil
+}
+
+func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, pending verifyPending) error {
+	if bot == nil {
+		return errors.New("bot is nil")
+	}
+	remainMins := int(time.Until(pending.Deadline).Minutes())
+	if remainMins <= 0 {
+		remainMins = 1
+	}
+	challenge, err := buildVerifyChallenge(verifyChallengeOptions{
+		mode:          pending.Mode,
+		tgGroupID:     pending.TGGroupID,
+		tgUserID:      pending.TGUserID,
+		target:        &tgbotapi.User{ID: pending.TGUserID, FirstName: "该用户"},
+		timeoutMins:   remainMins,
+		timeoutAction: pending.TimeoutAction,
+		retry:         true,
+		allowFallback: true,
+	})
+	if err != nil {
+		return err
+	}
+	newPending := pending
+	newPending.Mode = challenge.mode
+	newPending.Answer = challenge.answer
+	msgID, sendErr := sendVerifyChallenge(bot, pending.TGGroupID, challenge)
+	if sendErr != nil {
+		return sendErr
+	}
+	newPending.MessageID = msgID
+
+	if pending.MessageID > 0 {
+		_, _ = bot.Request(tgbotapi.NewDeleteMessage(pending.TGGroupID, pending.MessageID))
+	}
+	return s.addVerifyPending(newPending)
 }
 
 func (s *Service) addVerifyPending(p verifyPending) error {
@@ -375,10 +521,9 @@ func buildCaptchaOptions(answer string) []string {
 }
 
 func buildChineseCaptchaOptions(answer string) []string {
-	pool := chineseCaptchaPool()
 	opts := map[string]struct{}{answer: {}}
 	for len(opts) < 4 {
-		opts[pool[rand.Intn(len(pool))]] = struct{}{}
+		opts[chineseCaptchaPool[rand.Intn(len(chineseCaptchaPool))]] = struct{}{}
 	}
 	out := make([]string, 0, len(opts))
 	for k := range opts {
@@ -389,7 +534,7 @@ func buildChineseCaptchaOptions(answer string) []string {
 }
 
 func buildChineseCaptchaImage() (string, []byte, error) {
-	source := strings.Join(chineseCaptchaPool(), ",")
+	source := strings.Join(chineseCaptchaPool, ",")
 	driver := base64Captcha.NewDriverChinese(
 		80,
 		240,
@@ -415,10 +560,6 @@ func buildChineseCaptchaImage() (string, []byte, error) {
 		return "", nil, err
 	}
 	return strings.TrimSpace(answer), imgBytes, nil
-}
-
-func chineseCaptchaPool() []string {
-	return []string{"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安", "全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾"}
 }
 
 func randomDigits(n int) string {
