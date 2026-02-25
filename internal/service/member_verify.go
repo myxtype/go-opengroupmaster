@@ -26,7 +26,6 @@ type verifyChallengeOptions struct {
 	target        *tgbotapi.User
 	timeoutMins   int
 	timeoutAction string
-	retry         bool
 	allowFallback bool
 }
 
@@ -70,9 +69,6 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 		b := rand.Intn(9) + 1
 		answer := a + b
 		suffix := fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, opts.timeoutMins)
-		if opts.retry {
-			suffix = fmt.Sprintf(" 回答错误，请重新完成算术验证：%d + %d = ?（剩余 %d 分钟）", a, b, opts.timeoutMins)
-		}
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
 		options := buildMathOptions(answer)
 		row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
@@ -90,18 +86,11 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 		code, imgBytes, err := buildCaptchaImage()
 		if err != nil || strings.TrimSpace(code) == "" || len(imgBytes) == 0 {
 			if opts.allowFallback {
-				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
-				if opts.retry {
-					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
-				}
-				return buildButton(suffix), nil
+				return buildButton(fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)), nil
 			}
 			return verifyChallengePayload{}, errors.New("build captcha failed")
 		}
 		suffix := fmt.Sprintf(" 请点击与图片验证码一致的数字（%d 分钟内）", opts.timeoutMins)
-		if opts.retry {
-			suffix = fmt.Sprintf(" 回答错误，请重新点击与图片验证码一致的数字（剩余 %d 分钟）", opts.timeoutMins)
-		}
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
 		options := buildCaptchaOptions(code)
 		return verifyChallengePayload{
@@ -126,18 +115,11 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 		ch, imgBytes, err := buildChineseCaptchaImage()
 		if err != nil || strings.TrimSpace(ch) == "" || len(imgBytes) == 0 {
 			if opts.allowFallback {
-				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
-				if opts.retry {
-					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
-				}
-				return buildButton(suffix), nil
+				return buildButton(fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)), nil
 			}
 			return verifyChallengePayload{}, errors.New("build zhchar captcha failed")
 		}
 		suffix := fmt.Sprintf(" 请点击与图片验证码一致的中文字符（%d 分钟内）", opts.timeoutMins)
-		if opts.retry {
-			suffix = fmt.Sprintf(" 回答错误，请重新点击与图片验证码一致的中文字符（剩余 %d 分钟）", opts.timeoutMins)
-		}
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
 		options := buildChineseCaptchaOptions(ch)
 		return verifyChallengePayload{
@@ -162,18 +144,11 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 		code, audioBytes, err := buildAudioCaptcha("zh")
 		if err != nil || strings.TrimSpace(code) == "" || len(audioBytes) == 0 {
 			if opts.allowFallback {
-				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
-				if opts.retry {
-					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
-				}
-				return buildButton(suffix), nil
+				return buildButton(fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)), nil
 			}
 			return verifyChallengePayload{}, errors.New("build zhvoice captcha failed")
 		}
 		suffix := fmt.Sprintf(" 请收听语音验证码并点击对应数字（%d 分钟内）", opts.timeoutMins)
-		if opts.retry {
-			suffix = fmt.Sprintf(" 回答错误，请重新收听语音验证码并点击对应数字（剩余 %d 分钟）", opts.timeoutMins)
-		}
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
 		options := buildCaptchaOptions(code)
 		return verifyChallengePayload{
@@ -195,9 +170,6 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			audioBytes: audioBytes,
 		}, nil
 	default:
-		if opts.retry {
-			return buildButton(fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)), nil
-		}
 		return buildButton(fmt.Sprintf(" 请在 %d 分钟内完成验证，否则将%s。", opts.timeoutMins, verifyTimeoutActionText(opts.timeoutAction))), nil
 	}
 }
@@ -367,8 +339,8 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 }
 
 // PassVerification 验证用户
-func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, actorID int64, mode string, answer string) error {
-	if actorID != tgUserID {
+func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, tgGroupID, tgUserID int64, mode string, answer string) error {
+	if cb.From.ID != tgUserID {
 		return errors.New("only target user can verify")
 	}
 	pending, ok, err := s.getVerifyPending(tgGroupID, tgUserID)
@@ -383,7 +355,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	}
 	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" || pending.Mode == "zhvoice" {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
-			if err := s.refreshVerifyChallenge(bot, pending); err != nil {
+			if err := s.refreshVerifyChallenge(bot, cb, pending); err != nil {
 				s.logger.Printf("refresh verify challenge failed group=%d user=%d mode=%s: %v", tgGroupID, tgUserID, pending.Mode, err)
 			}
 			return ErrVerifyWrongAnswer
@@ -436,7 +408,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	return nil
 }
 
-func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, pending verifyPending) error {
+func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, pending verifyPending) error {
 	if bot == nil {
 		return errors.New("bot is nil")
 	}
@@ -448,10 +420,9 @@ func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, pending verifyPen
 		mode:          pending.Mode,
 		tgGroupID:     pending.TGGroupID,
 		tgUserID:      pending.TGUserID,
-		target:        &tgbotapi.User{ID: pending.TGUserID, FirstName: "该用户"},
+		target:        cb.From,
 		timeoutMins:   remainMins,
 		timeoutAction: pending.TimeoutAction,
-		retry:         true,
 		allowFallback: true,
 	})
 	if err != nil {

@@ -45,3 +45,9 @@ func (h *Handler) clearPending(userID int64) {
 func (h *Handler) answerCallback(bot *tgbotapi.BotAPI, callbackID, text string) {
 	_, _ = bot.Request(tgbotapi.NewCallback(callbackID, text))
 }
+
+func (h *Handler) answerCallbackAlert(bot *tgbotapi.BotAPI, callbackID, text string) {
+	cfg := tgbotapi.NewCallback(callbackID, text)
+	cfg.ShowAlert = true
+	_, _ = bot.Request(cfg)
+}

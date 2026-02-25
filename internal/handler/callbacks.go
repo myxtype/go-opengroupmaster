@@ -69,9 +69,10 @@ func (h *Handler) handleVerifyCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 	if len(parts) >= 5 {
 		answer = parts[4]
 	}
-	if err := h.service.PassVerification(bot, tgGroupID, tgUserID, cb.From.ID, mode, answer); err != nil {
+	// 入群验证挑战
+	if err := h.service.PassVerification(bot, cb, tgGroupID, tgUserID, mode, answer); err != nil {
 		if errors.Is(err, svc.ErrVerifyWrongAnswer) {
-			h.answerCallback(bot, cb.ID, "答案错误，验证码已更新，请重试")
+			h.answerCallbackAlert(bot, cb.ID, "答案错误，请重试")
 			return
 		}
 		h.answerCallback(bot, cb.ID, "验证失败或已过期")
