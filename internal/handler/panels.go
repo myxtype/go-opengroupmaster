@@ -514,22 +514,33 @@ func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 		h.render(bot, target, "加载接龙失败", groupPanelKeyboard(tgGroupID))
 		return
 	}
+	activeItems, err := h.service.ListActiveChainSummariesByTGGroupID(tgGroupID, 8)
+	if err != nil {
+		h.render(bot, target, "加载接龙失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
 	lines := []string{"接龙管理"}
-	if !view.Active {
-		lines = append(lines, "状态：未开始")
+	lines = append(lines, fmt.Sprintf("进行中接龙：%d", len(activeItems)))
+	if len(activeItems) == 0 {
+		lines = append(lines, "状态：当前无进行中接龙")
 	} else {
-		lines = append(lines, "状态：进行中")
-		lines = append(lines, "标题："+view.Title)
-		if len(view.Entries) == 0 {
-			lines = append(lines, "暂无条目")
-		} else {
-			lines = append(lines, "条目：")
-			for i, e := range view.Entries {
-				lines = append(lines, fmt.Sprintf("%d. %s", i+1, e))
-			}
+		lines = append(lines, "进行中列表：")
+		for _, item := range activeItems {
+			lines = append(lines, fmt.Sprintf("#%d %s", item.ID, item.Intro))
+			lines = append(lines, "人数限制："+chainLimitText(item.MaxParticipants))
+			lines = append(lines, "截止时间："+chainDeadlineText(item.DeadlineUnix))
+			lines = append(lines, fmt.Sprintf("已参与：%d", item.Participants))
+			lines = append(lines, "")
 		}
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), chainKeyboard(tgGroupID, view.Active))
+	if view.ID > 0 {
+		lines = append(lines, "最近一次接龙：")
+		lines = append(lines, fmt.Sprintf("#%d %s", view.ID, view.Intro))
+		lines = append(lines, "状态："+onOffWithEmoji(view.Active))
+	}
+	lines = append(lines, "")
+	lines = append(lines, "创建后机器人会自动发送群公告，成员点击按钮进入私聊提交内容")
+	h.render(bot, target, strings.Join(lines, "\n"), chainKeyboard(tgGroupID, activeItems))
 }
 
 func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

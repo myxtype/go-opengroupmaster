@@ -764,20 +764,84 @@ func nightModeKeyboard(tgGroupID int64, view *service.NightModeView) tgbotapi.In
 	)
 }
 
-func chainKeyboard(tgGroupID int64, active bool) tgbotapi.InlineKeyboardMarkup {
+func chainKeyboard(tgGroupID int64, items []service.ChainSummary) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	rows := [][]tgbotapi.InlineKeyboardButton{
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+3)
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("新建接龙", fmt.Sprintf("feat:chain:start:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("添加条目", fmt.Sprintf("feat:chain:add:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("创建接龙", fmt.Sprintf("feat:chain:start:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("关闭接龙", fmt.Sprintf("feat:chain:close:%s", gid)),
-		),
-		panelRefreshBackRow(gid, fmt.Sprintf("feat:chain:view:%s", gid)),
+	)
+	for _, item := range items {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("导出 #%d", item.ID),
+				fmt.Sprintf("feat:chain:export:%s:%d", gid, item.ID),
+			),
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("关闭 #%d", item.ID),
+				fmt.Sprintf("feat:chain:close:%s:%d", gid, item.ID),
+			),
+		))
 	}
-	_ = active
+	rows = append(rows, panelRefreshBackRow(gid, fmt.Sprintf("feat:chain:view:%s", gid)))
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func chainLimitModeKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("不限制", fmt.Sprintf("feat:chain:limmode:%s:none", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("限制人数", fmt.Sprintf("feat:chain:limmode:%s:people", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("限制时间", fmt.Sprintf("feat:chain:limmode:%s:time", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("人数+时间", fmt.Sprintf("feat:chain:limmode:%s:both", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		),
+	)
+}
+
+func chainDurationKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("30分钟", fmt.Sprintf("feat:chain:setdur:%s:1800", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("1小时", fmt.Sprintf("feat:chain:setdur:%s:3600", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("2小时", fmt.Sprintf("feat:chain:setdur:%s:7200", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("6小时", fmt.Sprintf("feat:chain:setdur:%s:21600", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("12小时", fmt.Sprintf("feat:chain:setdur:%s:43200", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("1天", fmt.Sprintf("feat:chain:setdur:%s:86400", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("3天", fmt.Sprintf("feat:chain:setdur:%s:259200", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("7天", fmt.Sprintf("feat:chain:setdur:%s:604800", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("无截止", fmt.Sprintf("feat:chain:setdur:%s:0", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		),
+	)
+}
+
+func chainPublicJoinKeyboard(joinURL string, active bool) tgbotapi.InlineKeyboardMarkup {
+	if !active || strings.TrimSpace(joinURL) == "" {
+		return tgbotapi.NewInlineKeyboardMarkup()
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("点击参加接龙", joinURL),
+		),
+	)
 }
 
 func monitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {

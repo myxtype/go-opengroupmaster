@@ -102,6 +102,30 @@ type LotteryParticipant struct {
 	UserID    uint `gorm:"index;not null"`
 }
 
+// Chain 表示群组中的一次接龙活动。
+type Chain struct {
+	ID                    uint      `gorm:"primaryKey"`
+	GroupID               uint      `gorm:"index:idx_chain_group_created,priority:1;index:idx_chain_group_status,priority:1;not null"`
+	Intro                 string    `gorm:"type:text;not null"`
+	MaxParticipants       int       `gorm:"default:0"`
+	DeadlineUnix          int64     `gorm:"default:0"`
+	AnnouncementMessageID int       `gorm:"default:0"`
+	Status                string    `gorm:"index:idx_chain_group_status,priority:2;not null;default:active"`
+	CreatedAt             time.Time `gorm:"index:idx_chain_group_created,priority:2;autoCreateTime"`
+	UpdatedAt             time.Time
+}
+
+// ChainEntry 表示接龙中的用户参与记录（同一接龙每个 TG 用户仅保留一条，可覆盖更新）。
+type ChainEntry struct {
+	ID          uint      `gorm:"primaryKey"`
+	ChainID     uint      `gorm:"uniqueIndex:idx_chain_entry_user,priority:1;index:idx_chain_entry_chain,priority:1;not null"`
+	TGUserID    int64     `gorm:"uniqueIndex:idx_chain_entry_user,priority:2;index:idx_chain_entry_chain,priority:2;not null"`
+	DisplayName string    `gorm:"not null"`
+	Content     string    `gorm:"type:text;not null"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+}
+
 // Log 表示群组操作审计日志。
 type Log struct {
 	ID         uint      `gorm:"primaryKey"`

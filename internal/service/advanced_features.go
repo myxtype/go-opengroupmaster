@@ -176,65 +176,6 @@ func (s *Service) CreateInviteLinkByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID in
 	return chatInvite.InviteLink, nil
 }
 
-func (s *Service) StartChainByTGGroupID(tgGroupID int64, title string) error {
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return err
-	}
-	cfg := chainConfig{Active: true, Title: title, Entries: []string{}}
-	if err := s.saveChainConfig(group.ID, cfg); err != nil {
-		return err
-	}
-	return s.repo.CreateLog(group.ID, "chain_start", 0, 0)
-}
-
-func (s *Service) AddChainEntryByTGGroupID(tgGroupID int64, text string) error {
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return err
-	}
-	cfg, err := s.getChainConfig(group.ID)
-	if err != nil {
-		return err
-	}
-	if !cfg.Active {
-		return errors.New("chain not active")
-	}
-	cfg.Entries = append(cfg.Entries, text)
-	if err := s.saveChainConfig(group.ID, cfg); err != nil {
-		return err
-	}
-	return s.repo.CreateLog(group.ID, "chain_add_entry", 0, 0)
-}
-
-func (s *Service) CloseChainByTGGroupID(tgGroupID int64) error {
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return err
-	}
-	cfg, err := s.getChainConfig(group.ID)
-	if err != nil {
-		return err
-	}
-	cfg.Active = false
-	if err := s.saveChainConfig(group.ID, cfg); err != nil {
-		return err
-	}
-	return s.repo.CreateLog(group.ID, "chain_close", 0, 0)
-}
-
-func (s *Service) ChainViewByTGGroupID(tgGroupID int64) (*ChainView, error) {
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return nil, err
-	}
-	cfg, err := s.getChainConfig(group.ID)
-	if err != nil {
-		return nil, err
-	}
-	return &ChainView{Active: cfg.Active, Title: cfg.Title, Entries: cfg.Entries}, nil
-}
-
 func (s *Service) CreatePollByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, question string, options []string) (int, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {

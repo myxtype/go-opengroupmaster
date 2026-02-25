@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -113,7 +114,8 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			return
 		}
 	}
-	if feature != "pending" && action != "add" && action != "edit" {
+	keepPending := feature == "chain" && (action == "limmode" || action == "setdur")
+	if feature != "pending" && action != "add" && action != "edit" && !keepPending {
 		h.clearPending(userID)
 	}
 
@@ -391,19 +393,101 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "加载接龙")
 			h.sendChainPanel(bot, target, userID, tgGroupID)
 		case "start":
-			h.answerCallback(bot, cb.ID, "请输入接龙标题")
-			h.setPending(userID, pendingInput{Kind: "chain_start", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入接龙标题", pendingCancelKeyboard(tgGroupID))
-		case "add":
-			h.answerCallback(bot, cb.ID, "请输入接龙内容")
-			h.setPending(userID, pendingInput{Kind: "chain_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入接龙内容（如：1. 张三）", pendingCancelKeyboard(tgGroupID))
+			h.answerCallback(bot, cb.ID, "请选择限制方式")
+			h.setPending(userID, pendingInput{Kind: "chain_create_mode", TGGroupID: tgGroupID})
+			h.render(bot, target, "第1步：请选择接龙限制方式", chainLimitModeKeyboard(tgGroupID))
+		case "limmode":
+			if len(parts) < 5 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			mode := strings.TrimSpace(parts[4])
+			switch mode {
+			case "none":
+				h.answerCallback(bot, cb.ID, "已设置为不限制")
+				h.setPending(userID, pendingInput{Kind: "chain_create_intro", TGGroupID: tgGroupID, ChainMode: mode, Count: 0, Deadline: 0})
+				h.render(bot, target, "第2步：请输入接龙规则或介绍", pendingCancelKeyboard(tgGroupID))
+			case "people":
+				h.answerCallback(bot, cb.ID, "请输入限制人数")
+				h.setPending(userID, pendingInput{Kind: "chain_create_count", TGGroupID: tgGroupID, ChainMode: mode})
+				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", pendingCancelKeyboard(tgGroupID))
+			case "time":
+				h.answerCallback(bot, cb.ID, "请选择截止时间")
+				h.setPending(userID, pendingInput{Kind: "chain_create_duration", TGGroupID: tgGroupID, ChainMode: mode})
+				h.render(bot, target, "第2步：请选择多久后截止", chainDurationKeyboard(tgGroupID))
+			case "both":
+				h.answerCallback(bot, cb.ID, "请输入限制人数")
+				h.setPending(userID, pendingInput{Kind: "chain_create_count", TGGroupID: tgGroupID, ChainMode: mode})
+				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", pendingCancelKeyboard(tgGroupID))
+			default:
+				h.answerCallback(bot, cb.ID, "未知限制方式")
+			}
+		case "setdur":
+			if len(parts) < 5 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			pending, ok := h.getPending(userID)
+			if !ok || pending.TGGroupID != tgGroupID || pending.Kind != "chain_create_duration" {
+				h.answerCallback(bot, cb.ID, "创建流程已过期，请重新开始")
+				h.sendChainPanel(bot, target, userID, tgGroupID)
+				return
+			}
+			sec, err := strconv.ParseInt(parts[4], 10, 64)
+			if err != nil || sec < 0 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			deadline := int64(0)
+			if sec > 0 {
+				deadline = time.Now().Unix() + sec
+			}
+			pending.Kind = "chain_create_intro"
+			pending.Deadline = deadline
+			h.setPending(userID, pending)
+			if deadline > 0 {
+				h.answerCallback(bot, cb.ID, "截止时间已设置")
+				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间："+chainDeadlineText(deadline), pendingCancelKeyboard(tgGroupID))
+			} else {
+				h.answerCallback(bot, cb.ID, "已设置为无截止时间")
+				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间：不限时", pendingCancelKeyboard(tgGroupID))
+			}
+		case "export":
+			if len(parts) < 5 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			chainID64, err := strconv.ParseUint(parts[4], 10, 64)
+			if err != nil || chainID64 == 0 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			name, content, err := h.service.ExportChainCSVByTGGroupIDAndChainID(tgGroupID, uint(chainID64))
+			if err != nil {
+				h.answerCallback(bot, cb.ID, "导出失败")
+				return
+			}
+			doc := tgbotapi.NewDocument(target.ChatID, tgbotapi.FileBytes{Name: name, Bytes: content})
+			doc.Caption = "接龙数据 CSV 导出"
+			_, _ = bot.Send(doc)
+			h.answerCallback(bot, cb.ID, "已导出")
+			h.sendChainPanel(bot, target, userID, tgGroupID)
 		case "close":
-			if err := h.service.CloseChainByTGGroupID(tgGroupID); err != nil {
+			if len(parts) < 5 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			chainID64, err := strconv.ParseUint(parts[4], 10, 64)
+			if err != nil || chainID64 == 0 {
+				h.answerCallback(bot, cb.ID, "参数错误")
+				return
+			}
+			if err := h.service.CloseChainByTGGroupIDAndChainID(tgGroupID, uint(chainID64)); err != nil {
 				h.answerCallback(bot, cb.ID, "关闭失败")
 				return
 			}
 			h.answerCallback(bot, cb.ID, "接龙已关闭")
+			h.syncChainAnnouncementByID(bot, uint(chainID64))
 			h.sendChainPanel(bot, target, userID, tgGroupID)
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
@@ -1308,7 +1392,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 			page = 1
 		}
 		h.sendScheduledList(bot, target, userID, pending.TGGroupID, page)
-	case "chain_start", "chain_add":
+	case "chain_create_mode", "chain_create_count", "chain_create_duration", "chain_create_intro":
 		h.sendChainPanel(bot, target, userID, pending.TGGroupID)
 	case "poll_create":
 		h.sendPollPanel(bot, target, userID, pending.TGGroupID)

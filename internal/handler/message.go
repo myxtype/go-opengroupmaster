@@ -52,6 +52,27 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 	target := renderTarget{ChatID: msg.Chat.ID}
 	switch msg.Command() {
 	case "start":
+		args := strings.TrimSpace(msg.CommandArguments())
+		if strings.HasPrefix(args, "chain_") {
+			chainID64, err := strconv.ParseUint(strings.TrimPrefix(args, "chain_"), 10, 64)
+			if err != nil || chainID64 == 0 {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙参数错误，请回到群里重新点击按钮"))
+				return
+			}
+			view, err := h.service.ChainViewByChainID(uint(chainID64))
+			if err != nil || !view.Active {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已结束或不存在，请回到群里查看最新消息"))
+				return
+			}
+			h.setPending(msg.From.ID, pendingInput{Kind: "chain_submit_entry", TGGroupID: view.TGGroupID, ChainID: view.ID})
+			existing, ok, _ := h.service.UserChainEntryByChainID(view.ID, msg.From.ID)
+			if ok && strings.TrimSpace(existing) != "" {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "👉 请输入您的接龙内容\n\n当前已提交内容：\n"+existing+"\n\n发送新内容即可覆盖修改。"))
+			} else {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "👉 请输入您的接龙内容"))
+			}
+			return
+		}
 		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard(bot.Self.UserName))
 	case "help":
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, privateHelpText()))
@@ -242,7 +263,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	}
 	target := renderTarget{ChatID: msg.Chat.ID}
-	if !h.ensureAdmin(bot, target, msg.From.ID, pending.TGGroupID) {
+	if pending.Kind != "chain_submit_entry" && !h.ensureAdmin(bot, target, msg.From.ID, pending.TGGroupID) {
 		h.clearPending(msg.From.ID)
 		return
 	}
@@ -578,26 +599,62 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
-	case "chain_start":
+	case "chain_create_count":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		pending.Count = v
+		if pending.ChainMode == "both" {
+			pending.Kind = "chain_create_duration"
+			h.setPending(msg.From.ID, pending)
+			h.render(bot, target, "第3步：请选择多久后截止", chainDurationKeyboard(pending.TGGroupID))
+		} else {
+			pending.Kind = "chain_create_intro"
+			h.setPending(msg.From.ID, pending)
+			h.render(bot, target, "第3步：请输入接龙规则或介绍", pendingCancelKeyboard(pending.TGGroupID))
+		}
+		return
+	case "chain_create_intro":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入接龙标题"))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入接龙规则或介绍"))
 			return
 		}
-		if err := h.service.StartChainByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建接龙失败"))
+		chainID, err := h.service.StartChainByTGGroupID(pending.TGGroupID, text, pending.Count, pending.Deadline)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建接龙失败："+err.Error()))
 			return
 		}
+		h.syncChainAnnouncementByID(bot, chainID)
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙创建成功，已自动发布到群里"))
 		h.sendChainPanel(bot, target, msg.From.ID, pending.TGGroupID)
-	case "chain_add":
+	case "chain_submit_entry":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙内容不能为空"))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙内容不能为空，请重新输入"))
 			return
 		}
-		if err := h.service.AddChainEntryByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙添加失败"))
+		if pending.ChainID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙参数缺失，请回到群里重新点击参与按钮"))
 			return
 		}
-		h.sendChainPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		if err := h.service.SubmitChainEntryByChainID(pending.ChainID, msg.From.ID, displayNameFromUser(msg.From), text); err != nil {
+			switch {
+			case errors.Is(err, svc.ErrChainNotActive):
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已结束"))
+			case errors.Is(err, svc.ErrChainDeadlineReached):
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已截止"))
+			case errors.Is(err, svc.ErrChainParticipantLimitReached):
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙人数已满"))
+			default:
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "提交失败："+err.Error()))
+			}
+			return
+		}
+		h.syncChainAnnouncementByID(bot, pending.ChainID)
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙成功！"))
+		h.setPending(msg.From.ID, pending)
+		return
 	case "poll_create":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {

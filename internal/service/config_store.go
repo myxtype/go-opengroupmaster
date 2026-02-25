@@ -728,26 +728,6 @@ func (s *Service) saveKeywordMonitorConfig(groupID uint, cfg keywordMonitorConfi
 	return s.saveFeatureConfigEntry(groupID, featureKeywordMonitor, string(b))
 }
 
-func (s *Service) getChainConfig(groupID uint) (chainConfig, error) {
-	cfg := chainConfig{Active: false, Title: "", Entries: []string{}}
-	entry, err := s.readFeatureConfigEntry(groupID, featureChain)
-	if err != nil {
-		return cfg, err
-	}
-	if entry.Exists && entry.Config != "" {
-		_ = json.Unmarshal([]byte(entry.Config), &cfg)
-	}
-	return cfg, nil
-}
-
-func (s *Service) saveChainConfig(groupID uint, cfg chainConfig) error {
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return s.saveFeatureConfigEntry(groupID, featureChain, string(b))
-}
-
 func (s *Service) getPollMeta(groupID uint) (pollMeta, error) {
 	cfg := pollMeta{}
 	entry, err := s.readFeatureConfigEntry(groupID, featurePollMeta)

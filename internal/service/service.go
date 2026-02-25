@@ -17,7 +17,6 @@ const featureJoinVerify = "join_verify"
 const featureNewbieLimit = "newbie_limit"
 const featureSystemClean = "system_clean"
 const featureKeywordMonitor = "keyword_monitor"
-const featureChain = "chain"
 const featurePollMeta = "poll_meta"
 const featureRBAC = "rbac"
 const featureLottery = "lottery"
@@ -133,12 +132,6 @@ type systemCleanConfig struct {
 
 type keywordMonitorConfig struct {
 	Keywords []string `json:"keywords"`
-}
-
-type chainConfig struct {
-	Active  bool     `json:"active"`
-	Title   string   `json:"title"`
-	Entries []string `json:"entries"`
 }
 
 type pollMeta struct {
@@ -260,9 +253,29 @@ type SystemCleanView struct {
 }
 
 type ChainView struct {
-	Active  bool
-	Title   string
-	Entries []string
+	ID                    uint
+	TGGroupID             int64
+	Active                bool
+	Intro                 string
+	MaxParticipants       int
+	DeadlineUnix          int64
+	AnnouncementMessageID int
+	Entries               []ChainEntryView
+}
+
+type ChainSummary struct {
+	ID              uint
+	Intro           string
+	MaxParticipants int
+	DeadlineUnix    int64
+	Participants    int64
+}
+
+type ChainEntryView struct {
+	TGUserID    int64
+	DisplayName string
+	Content     string
+	UpdatedAt   int64
 }
 
 type JoinVerifyView struct {

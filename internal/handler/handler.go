@@ -35,6 +35,10 @@ type pendingInput struct {
 	Keyword   string
 	MatchType string
 	Content   string
+	ChainMode string
+	ChainID   uint
+	Count     int
+	Deadline  int64
 }
 
 type Handler struct {

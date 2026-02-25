@@ -117,6 +117,36 @@ func inviteLimitText(v int) string {
 	return strconv.Itoa(v)
 }
 
+func chainLimitText(v int) string {
+	if v <= 0 {
+		return "不限人数"
+	}
+	return fmt.Sprintf("%d 人", v)
+}
+
+func chainDeadlineText(deadlineUnix int64) string {
+	if deadlineUnix <= 0 {
+		return "不限时"
+	}
+	t := time.Unix(deadlineUnix, 0).In(time.Local)
+	return fmt.Sprintf("%s %s", t.Format("2006-01-02 15:04:05"), utcOffsetLabel(t))
+}
+
+func utcOffsetLabel(t time.Time) string {
+	_, offset := t.Zone()
+	sign := "+"
+	if offset < 0 {
+		sign = "-"
+		offset = -offset
+	}
+	hour := offset / 3600
+	minute := (offset % 3600) / 60
+	if minute == 0 {
+		return fmt.Sprintf("UTC%s%d", sign, hour)
+	}
+	return fmt.Sprintf("UTC%s%d:%02d", sign, hour, minute)
+}
+
 func boolIcon(v bool) string {
 	if v {
 		return "✅"
