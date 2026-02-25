@@ -22,6 +22,7 @@ const featurePollMeta = "poll_meta"
 const featureRBAC = "rbac"
 const featureLottery = "lottery"
 const featureInvite = "invite"
+const featureBannedWords = "banned_words"
 
 const (
 	antiFloodPenaltyWarn       = "warn"
@@ -158,6 +159,17 @@ type inviteConfig struct {
 	GenerateLimit int   `json:"generate_limit"`
 }
 
+type bannedWordConfig struct {
+	Penalty               string `json:"penalty"`
+	WarnThreshold         int    `json:"warn_threshold"`
+	WarnAction            string `json:"warn_action"`
+	WarnActionMuteMinutes int    `json:"warn_action_mute_minutes"`
+	WarnActionBanMinutes  int    `json:"warn_action_ban_minutes"`
+	MuteMinutes           int    `json:"mute_minutes"`
+	BanMinutes            int    `json:"ban_minutes"`
+	WarnDeleteMinutes     int    `json:"warn_delete_minutes"`
+}
+
 type rbacConfig struct {
 	Roles      map[string]string   `json:"roles"`
 	FeatureACL map[string][]string `json:"feature_acl"`
@@ -200,6 +212,18 @@ type BannedWordPage struct {
 	Page     int
 	PageSize int
 	Total    int64
+}
+
+type BannedWordView struct {
+	Enabled               bool
+	Penalty               string
+	WarnThreshold         int
+	WarnAction            string
+	WarnActionMuteMinutes int
+	WarnActionBanMinutes  int
+	MuteMinutes           int
+	BanMinutes            int
+	WarnDeleteMinutes     int
 }
 
 type ScheduledMessagePage struct {

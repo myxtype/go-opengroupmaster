@@ -588,8 +588,97 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 
 func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
+	case "noop":
+		h.answerCallback(bot, cb.ID, "")
 	case "view":
 		h.answerCallback(bot, cb.ID, "加载违禁词")
+		h.sendBannedWordList(bot, target, userID, tgGroupID, 1)
+	case "on":
+		if _, err := h.service.SetBannedWordEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "违禁词已开启")
+		h.sendBannedWordList(bot, target, userID, tgGroupID, 1)
+	case "off":
+		if _, err := h.service.SetBannedWordEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "违禁词已关闭")
+		h.sendBannedWordList(bot, target, userID, tgGroupID, 1)
+	case "penalty":
+		h.answerCallback(bot, cb.ID, "加载惩罚设置")
+		h.sendBannedWordPenaltyPanel(bot, target, userID, tgGroupID)
+	case "warn", "mute":
+		h.answerCallback(bot, cb.ID, "请在惩罚面板设置")
+		h.sendBannedWordPenaltyPanel(bot, target, userID, tgGroupID)
+	case "penaltyset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if _, err := h.service.SetBannedWordPenaltyByTGGroupID(tgGroupID, parts[4]); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "惩罚已更新")
+		h.sendBannedWordPenaltyPanel(bot, target, userID, tgGroupID)
+	case "warncount":
+		h.answerCallback(bot, cb.ID, "请输入警告次数")
+		h.setPending(userID, pendingInput{Kind: "bw_warn_threshold", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入达到处罚前的警告次数（正整数，例如 3）", pendingCancelKeyboard(tgGroupID))
+	case "warnaction":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if _, err := h.service.SetBannedWordWarnActionByTGGroupID(tgGroupID, parts[4]); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "阈值后动作已更新")
+		h.sendBannedWordPenaltyPanel(bot, target, userID, tgGroupID)
+	case "warnmuteinput":
+		h.answerCallback(bot, cb.ID, "请输入阈值禁言时长")
+		h.setPending(userID, pendingInput{Kind: "bw_warn_action_mute_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入警告达到阈值后禁言时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+	case "warnbaninput":
+		h.answerCallback(bot, cb.ID, "请输入阈值封禁时长")
+		h.setPending(userID, pendingInput{Kind: "bw_warn_action_ban_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入警告达到阈值后封禁时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+	case "muteinput":
+		h.answerCallback(bot, cb.ID, "请输入禁言时长")
+		h.setPending(userID, pendingInput{Kind: "bw_mute_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入禁言时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+	case "baninput":
+		h.answerCallback(bot, cb.ID, "请输入封禁时长")
+		h.setPending(userID, pendingInput{Kind: "bw_ban_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入封禁时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+	case "delwarninput":
+		h.answerCallback(bot, cb.ID, "请输入删除提醒时长")
+		h.setPending(userID, pendingInput{Kind: "bw_warn_delete_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", pendingCancelKeyboard(tgGroupID))
+	case "delwarn":
+		h.answerCallback(bot, cb.ID, "请输入删除提醒时长")
+		h.setPending(userID, pendingInput{Kind: "bw_warn_delete_minutes", TGGroupID: tgGroupID})
+		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", pendingCancelKeyboard(tgGroupID))
+	case "delwarnset":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		v, err := strconv.Atoi(parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		mins, err := h.service.SetBannedWordWarnDeleteMinutesByTGGroupID(tgGroupID, v)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "删除提醒："+bannedWordDeleteText(mins))
 		h.sendBannedWordList(bot, target, userID, tgGroupID, 1)
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送违禁词")

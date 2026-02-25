@@ -398,6 +398,72 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
+	case "bw_warn_threshold":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordWarnThresholdByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置警告次数失败"))
+			return
+		}
+		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "bw_warn_action_mute_minutes":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordWarnActionMuteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置阈值后禁言时长失败"))
+			return
+		}
+		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "bw_warn_action_ban_minutes":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordWarnActionBanMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置阈值后封禁时长失败"))
+			return
+		}
+		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "bw_mute_minutes":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordMuteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置禁言时长失败"))
+			return
+		}
+		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "bw_ban_minutes":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordBanMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置封禁时长失败"))
+			return
+		}
+		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "bw_warn_delete_minutes":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			return
+		}
+		if _, err := h.service.SetBannedWordWarnDeleteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置删除提醒失败"))
+			return
+		}
+		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "lottery_create":
 		title := "默认抽奖"
 		winners := 1

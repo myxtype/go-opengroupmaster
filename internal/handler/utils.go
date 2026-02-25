@@ -131,6 +131,41 @@ func lotteryDeleteDesc(minutes int) string {
 	return fmt.Sprintf("%d分钟后自动删除群成员参加抽奖发送的口令及参与成功提示消息", minutes)
 }
 
+func bannedWordDeleteText(minutes int) string {
+	if minutes <= 0 {
+		return "关闭"
+	}
+	return fmt.Sprintf("%d分钟", minutes)
+}
+
+func bannedWordWarnActionLabel(action string, muteMinutes int, banMinutes int) string {
+	switch strings.TrimSpace(strings.ToLower(action)) {
+	case "mute":
+		return fmt.Sprintf("禁言 %d 分钟", muteMinutes)
+	case "kick":
+		return "踢出"
+	case "kick_ban":
+		return fmt.Sprintf("踢出+封禁 %d 分钟", banMinutes)
+	default:
+		return "禁言 60 分钟"
+	}
+}
+
+func bannedWordPenaltyText(penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) string {
+	switch strings.TrimSpace(strings.ToLower(penalty)) {
+	case "warn":
+		return fmt.Sprintf("警告 %d 次后%s", warnThreshold, bannedWordWarnActionLabel(warnAction, warnActionMuteMinutes, warnActionBanMinutes))
+	case "mute":
+		return fmt.Sprintf("禁言 %d 分钟", muteMinutes)
+	case "kick":
+		return "踢出"
+	case "kick_ban":
+		return fmt.Sprintf("踢出+封禁 %d 分钟", banMinutes)
+	default:
+		return "仅撤回消息+不惩罚"
+	}
+}
+
 func lotteryStatusLabel(status string) string {
 	switch strings.TrimSpace(strings.ToLower(status)) {
 	case "active":

@@ -78,6 +78,11 @@ func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, 
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
+	view, err := h.service.BannedWordViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载违禁词设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
 	data, err := h.service.ListBannedWordsByTGGroupID(tgGroupID, page, rulesPageSize)
 	if err != nil {
 		h.render(bot, target, "加载违禁词失败", groupPanelKeyboard(tgGroupID))
@@ -90,14 +95,43 @@ func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, 
 	if data.Page > totalPages {
 		data.Page = totalPages
 	}
-	lines := []string{fmt.Sprintf("违禁词列表（第 %d/%d 页，总 %d 条）", data.Page, totalPages, data.Total)}
+	lines := []string{
+		fmt.Sprintf("违禁词列表（第 %d/%d 页，总 %d 条）", data.Page, totalPages, data.Total),
+		fmt.Sprintf("状态:%s", onOffWithEmoji(view.Enabled)),
+		fmt.Sprintf("惩罚:%s", bannedWordPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
+		fmt.Sprintf("删除提醒:%s", bannedWordDeleteText(view.WarnDeleteMinutes)),
+	}
 	if len(data.Items) == 0 {
 		lines = append(lines, "暂无词条")
 	}
 	for _, item := range data.Items {
 		lines = append(lines, fmt.Sprintf("#%d %s", item.ID, item.Word))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), bannedWordListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
+	h.render(bot, target, strings.Join(lines, "\n"), bannedWordListKeyboard(tgGroupID, view, data.Items, data.Page, totalPages))
+}
+
+func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.BannedWordViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载违禁词设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"🚫 违禁词 - 惩罚设置",
+		"",
+		fmt.Sprintf("当前惩罚:%s", bannedWordPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
+		"",
+		"说明:",
+		"1) 警告：可设置警告次数，达到后执行禁言/踢出/踢出+封禁",
+		"2) 禁言：可设置禁言时长",
+		"3) 踢出：直接踢出",
+		"4) 踢出+封禁：可设置封禁时长",
+		"5) 仅撤回消息+不惩罚",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), bannedWordPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {

@@ -62,18 +62,116 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 	if msg.Text != "" {
 		_ = s.notifyKeywordMonitor(bot, group, msg)
 
-		banned, err := s.repo.ContainsBannedWord(group.ID, msg.Text)
+		bwEnabled, bwCfg, err := s.bannedWordStateByGroupID(group.ID)
 		if err != nil {
 			return err
 		}
-		if banned {
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			warnText, entities := composeTextWithUserMention("", msg.From, " 消息触发违禁词，已删除")
-			warn := tgbotapi.NewMessage(msg.Chat.ID, warnText)
-			warn.Entities = entities
-			_, _ = bot.Send(warn)
-			_ = s.repo.CreateLog(group.ID, "banned_word_delete", 0, 0)
-			return nil
+		if bwEnabled {
+			banned, err := s.repo.ContainsBannedWord(group.ID, msg.Text)
+			if err != nil {
+				return err
+			}
+			if banned {
+				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+				alertText := "消息触发违禁词，已撤回"
+				var alertEntities []tgbotapi.MessageEntity
+				logTargetID := uint(0)
+				if msg.From != nil {
+					alertText, alertEntities = composeTextWithUserMention("", msg.From, " 消息触发违禁词，已撤回")
+					u, upsertErr := s.repo.UpsertUserFromTG(msg.From)
+					if upsertErr == nil {
+						logTargetID = u.ID
+						switch bwCfg.Penalty {
+						case antiFloodPenaltyWarn:
+							warns, countErr := s.repo.CountBannedWordWarnsSinceLastAction(group.ID, u.ID)
+							if countErr == nil {
+								nextWarn := int(warns) + 1
+								if nextWarn >= bwCfg.WarnThreshold {
+									applied := false
+									switch bwCfg.WarnAction {
+									case antiFloodPenaltyMute:
+										_, _ = bot.Request(tgbotapi.RestrictChatMemberConfig{
+											ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+											UntilDate:        time.Now().Add(time.Duration(bwCfg.WarnActionMuteMinutes) * time.Minute).Unix(),
+											Permissions:      &tgbotapi.ChatPermissions{},
+										})
+										alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，警告达到 %d 次，已禁言 %d 分钟", bwCfg.WarnThreshold, bwCfg.WarnActionMuteMinutes))
+										applied = true
+									case antiFloodPenaltyKick:
+										_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+											ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+											UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+										})
+										_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+											ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+											OnlyIfBanned:     true,
+										})
+										alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，警告达到 %d 次，已踢出", bwCfg.WarnThreshold))
+										applied = true
+									case antiFloodPenaltyKickBan:
+										_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+											ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+											RevokeMessages:   true,
+											UntilDate:        time.Now().Add(time.Duration(bwCfg.WarnActionBanMinutes) * time.Minute).Unix(),
+										})
+										alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，警告达到 %d 次，已踢出并封禁 %d 分钟", bwCfg.WarnThreshold, bwCfg.WarnActionBanMinutes))
+										applied = true
+									default:
+										alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，警告（%d/%d）", nextWarn, bwCfg.WarnThreshold))
+										_ = s.repo.CreateLog(group.ID, "banned_word_warn", 0, u.ID)
+									}
+									if applied {
+										_ = s.repo.CreateLog(group.ID, "banned_word_warn_action_applied", 0, u.ID)
+									}
+								} else {
+									alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，警告（%d/%d）", nextWarn, bwCfg.WarnThreshold))
+									_ = s.repo.CreateLog(group.ID, "banned_word_warn", 0, u.ID)
+								}
+							}
+						case antiFloodPenaltyMute:
+							_, _ = bot.Request(tgbotapi.RestrictChatMemberConfig{
+								ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+								UntilDate:        time.Now().Add(time.Duration(bwCfg.MuteMinutes) * time.Minute).Unix(),
+								Permissions:      &tgbotapi.ChatPermissions{},
+							})
+							alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，已禁言 %d 分钟", bwCfg.MuteMinutes))
+							_ = s.repo.CreateLog(group.ID, "banned_word_penalty_mute", 0, u.ID)
+						case antiFloodPenaltyKick:
+							_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+								ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+								UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+							})
+							_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+								ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+								OnlyIfBanned:     true,
+							})
+							alertText, alertEntities = composeTextWithUserMention("", msg.From, " 消息触发违禁词，已踢出")
+							_ = s.repo.CreateLog(group.ID, "banned_word_penalty_kick", 0, u.ID)
+						case antiFloodPenaltyKickBan:
+							_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+								ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+								RevokeMessages:   true,
+								UntilDate:        time.Now().Add(time.Duration(bwCfg.BanMinutes) * time.Minute).Unix(),
+							})
+							alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，已踢出并封禁 %d 分钟", bwCfg.BanMinutes))
+							_ = s.repo.CreateLog(group.ID, "banned_word_penalty_kick_ban", 0, u.ID)
+						default:
+							alertText, alertEntities = composeTextWithUserMention("", msg.From, " 消息触发违禁词，已撤回（不处罚）")
+							_ = s.repo.CreateLog(group.ID, "banned_word_penalty_delete_only", 0, u.ID)
+						}
+					}
+				} else {
+					_ = s.repo.CreateLog(group.ID, "banned_word_penalty_delete_only", 0, 0)
+				}
+				alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+				alert.Entities = alertEntities
+				alertMsg, sendErr := bot.Send(alert)
+				if sendErr == nil && bwCfg.WarnDeleteMinutes > 0 {
+					s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(bwCfg.WarnDeleteMinutes)*time.Minute)
+				}
+				_ = s.repo.CreateLog(group.ID, "banned_word_delete", 0, logTargetID)
+				return nil
+			}
 		}
 
 		if msg.From != nil {

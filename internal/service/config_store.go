@@ -553,6 +553,103 @@ func (s *Service) saveLotteryConfig(groupID uint, cfg lotteryConfig) error {
 	return s.saveFeatureConfigEntry(groupID, featureLottery, string(b))
 }
 
+func defaultBannedWordConfig() bannedWordConfig {
+	return bannedWordConfig{
+		Penalty:               antiFloodPenaltyWarn,
+		WarnThreshold:         3,
+		WarnAction:            antiFloodPenaltyMute,
+		WarnActionMuteMinutes: 60,
+		WarnActionBanMinutes:  60,
+		MuteMinutes:           60,
+		BanMinutes:            60,
+		WarnDeleteMinutes:     10,
+	}
+}
+
+func normalizeBannedWordConfig(cfg bannedWordConfig) bannedWordConfig {
+	switch cfg.Penalty {
+	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
+	default:
+		cfg.Penalty = antiFloodPenaltyWarn
+	}
+	if cfg.WarnThreshold <= 0 {
+		cfg.WarnThreshold = 3
+	}
+	if cfg.WarnThreshold > 99 {
+		cfg.WarnThreshold = 99
+	}
+	switch cfg.WarnAction {
+	case antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan:
+	default:
+		cfg.WarnAction = antiFloodPenaltyMute
+	}
+	if cfg.WarnActionMuteMinutes <= 0 {
+		cfg.WarnActionMuteMinutes = 60
+	}
+	if cfg.WarnActionMuteMinutes > 10080 {
+		cfg.WarnActionMuteMinutes = 10080
+	}
+	if cfg.WarnActionBanMinutes <= 0 {
+		cfg.WarnActionBanMinutes = 60
+	}
+	if cfg.WarnActionBanMinutes > 10080 {
+		cfg.WarnActionBanMinutes = 10080
+	}
+	if cfg.MuteMinutes <= 0 {
+		cfg.MuteMinutes = 60
+	}
+	if cfg.MuteMinutes > 10080 {
+		cfg.MuteMinutes = 10080
+	}
+	if cfg.BanMinutes <= 0 {
+		cfg.BanMinutes = 60
+	}
+	if cfg.BanMinutes > 10080 {
+		cfg.BanMinutes = 10080
+	}
+	if cfg.WarnDeleteMinutes < 0 {
+		cfg.WarnDeleteMinutes = 10
+	}
+	if cfg.WarnDeleteMinutes > 1440 {
+		cfg.WarnDeleteMinutes = 10
+	}
+	return cfg
+}
+
+func (s *Service) getBannedWordConfig(groupID uint) (bannedWordConfig, error) {
+	cfg := defaultBannedWordConfig()
+	entry, err := s.readFeatureConfigEntry(groupID, featureBannedWords)
+	if err != nil {
+		return cfg, err
+	}
+	if !entry.Exists {
+		if saveErr := s.saveBannedWordConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = normalizeBannedWordConfig(rawCfg)
+	if entry.Config == "" || rawCfg != cfg {
+		if saveErr := s.saveBannedWordConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveBannedWordConfig(groupID uint, cfg bannedWordConfig) error {
+	cfg = normalizeBannedWordConfig(cfg)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.saveFeatureConfigEntry(groupID, featureBannedWords, string(b))
+}
+
 func defaultInviteConfig() inviteConfig {
 	return inviteConfig{
 		ExpireDate:    0,
