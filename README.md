@@ -37,7 +37,7 @@ go run ./cmd
 项目已提供构建脚本：
 
 ```bash
-# 默认构建当前机器可执行文件到 bin/go-tg-supervisor
+# 默认构建当前机器可执行文件到 bin/groupmasterbot
 ./scripts/build.sh
 
 # 指定目标平台

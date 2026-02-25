@@ -301,6 +301,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		return false, nil
 	}
 
+	// 反刷屏逻辑
 	state, err := s.getAntiFloodState(group.ID)
 	if err != nil {
 		return false, err
@@ -347,6 +348,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	}
 	return false, nil
 }
+
 func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFloodConfig) (bool, string) {
 	now := time.Now().Unix()
 	key := fmt.Sprintf("%d:%d", tgGroupID, tgUserID)
