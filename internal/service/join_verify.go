@@ -110,7 +110,7 @@ func (s *Service) SetJoinVerifyTypeByTGGroupID(tgGroupID int64, verifyType strin
 		return "", err
 	}
 	switch verifyType {
-	case "button", "math", "captcha", "zhchar":
+	case "button", "math", "captcha", "zhchar", "zhvoice":
 		cfg.Type = verifyType
 	default:
 		cfg.Type = "button"
@@ -138,6 +138,8 @@ func (s *Service) CycleJoinVerifyTypeByTGGroupID(tgGroupID int64) (string, error
 		cfg.Type = "captcha"
 	case "captcha":
 		cfg.Type = "zhchar"
+	case "zhchar":
+		cfg.Type = "zhvoice"
 	default:
 		cfg.Type = "button"
 	}

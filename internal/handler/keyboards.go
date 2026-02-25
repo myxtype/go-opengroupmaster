@@ -712,6 +712,7 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 	mathLabel := "数学题"
 	captchaLabel := "验证码"
 	zhcharLabel := "中文字符验证码"
+	zhvoiceLabel := "中文语音验证码"
 	switch view.Type {
 	case "button":
 		buttonLabel = "✅" + buttonLabel
@@ -721,6 +722,8 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		captchaLabel = "✅" + captchaLabel
 	case "zhchar":
 		zhcharLabel = "✅" + zhcharLabel
+	case "zhvoice":
+		zhvoiceLabel = "✅" + zhvoiceLabel
 	}
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
@@ -743,6 +746,9 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(captchaLabel, fmt.Sprintf("feat:mod:verifymethod:%s:captcha", gid)),
 			tgbotapi.NewInlineKeyboardButtonData(zhcharLabel, fmt.Sprintf("feat:mod:verifymethod:%s:zhchar", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(zhvoiceLabel, fmt.Sprintf("feat:mod:verifymethod:%s:zhvoice", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:verifyview:%s", gid)),
 	)

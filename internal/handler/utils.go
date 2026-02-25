@@ -242,6 +242,8 @@ func verifyTypeLabel(v string) string {
 		return "验证码"
 	case "zhchar":
 		return "中文字符验证码"
+	case "zhvoice":
+		return "中文语音验证码"
 	default:
 		return "按钮"
 	}

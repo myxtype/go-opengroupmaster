@@ -156,6 +156,8 @@ func verifyTypeLabelForSummary(v string) string {
 		return "验证码"
 	case "zhchar":
 		return "中文字符验证码"
+	case "zhvoice":
+		return "中文语音验证码"
 	default:
 		return "按钮"
 	}
@@ -430,6 +432,8 @@ func (s *Service) ToggleJoinVerifyTypeByTGGroupID(tgGroupID int64) (string, erro
 		cfg.Type = "captcha"
 	case "captcha":
 		cfg.Type = "zhchar"
+	case "zhchar":
+		cfg.Type = "zhvoice"
 	default:
 		cfg.Type = "button"
 	}

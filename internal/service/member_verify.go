@@ -38,6 +38,8 @@ type verifyChallengePayload struct {
 	markup     tgbotapi.InlineKeyboardMarkup
 	photoName  string
 	photoBytes []byte
+	audioName  string
+	audioBytes []byte
 }
 
 func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, error) {
@@ -156,6 +158,42 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			photoName:  "verify_zhchar.png",
 			photoBytes: imgBytes,
 		}, nil
+	case "zhvoice":
+		code, audioBytes, err := buildAudioCaptcha("zh")
+		if err != nil || strings.TrimSpace(code) == "" || len(audioBytes) == 0 {
+			if opts.allowFallback {
+				suffix := fmt.Sprintf(" 请点击按钮完成验证（%d 分钟内）", opts.timeoutMins)
+				if opts.retry {
+					suffix = fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)
+				}
+				return buildButton(suffix), nil
+			}
+			return verifyChallengePayload{}, errors.New("build zhvoice captcha failed")
+		}
+		suffix := fmt.Sprintf(" 请收听语音验证码并点击对应数字（%d 分钟内）", opts.timeoutMins)
+		if opts.retry {
+			suffix = fmt.Sprintf(" 回答错误，请重新收听语音验证码并点击对应数字（剩余 %d 分钟）", opts.timeoutMins)
+		}
+		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
+		options := buildCaptchaOptions(code)
+		return verifyChallengePayload{
+			mode:     "zhvoice",
+			answer:   code,
+			text:     text,
+			entities: entities,
+			markup: tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+				),
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				),
+			),
+			audioName:  "verify_zhvoice.wav",
+			audioBytes: audioBytes,
+		}, nil
 	default:
 		if opts.retry {
 			return buildButton(fmt.Sprintf(" 回答错误，请点击按钮完成验证（剩余 %d 分钟）", opts.timeoutMins)), nil
@@ -178,6 +216,21 @@ func sendVerifyChallenge(bot *tgbotapi.BotAPI, chatID int64, payload verifyChall
 		photo.CaptionEntities = payload.entities
 		photo.ReplyMarkup = payload.markup
 		sent, err := bot.Send(photo)
+		if err != nil {
+			return 0, err
+		}
+		return sent.MessageID, nil
+	}
+	if len(payload.audioBytes) > 0 {
+		name := strings.TrimSpace(payload.audioName)
+		if name == "" {
+			name = "verify_audio.wav"
+		}
+		doc := tgbotapi.NewDocument(chatID, tgbotapi.FileBytes{Name: name, Bytes: payload.audioBytes})
+		doc.Caption = payload.text
+		doc.CaptionEntities = payload.entities
+		doc.ReplyMarkup = payload.markup
+		sent, err := bot.Send(doc)
 		if err != nil {
 			return 0, err
 		}
@@ -332,7 +385,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 	if pending.Mode != mode {
 		return errors.New("wrong verify mode")
 	}
-	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" {
+	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" || pending.Mode == "zhvoice" {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
 			if err := s.refreshVerifyChallenge(bot, pending); err != nil {
 				s.logger.Printf("refresh verify challenge failed group=%d user=%d mode=%s: %v", tgGroupID, tgUserID, pending.Mode, err)
@@ -596,6 +649,24 @@ func buildCaptchaImage() (string, []byte, error) {
 		return "", nil, err
 	}
 	return strings.TrimSpace(answer), imgBytes, nil
+}
+
+func buildAudioCaptcha(language string) (string, []byte, error) {
+	driver := base64Captcha.NewDriverAudio(4, language)
+	captcha := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
+	_, b64s, answer, err := captcha.Generate()
+	if err != nil {
+		return "", nil, err
+	}
+	encoded := b64s
+	if i := strings.Index(encoded, ","); i >= 0 && i+1 < len(encoded) {
+		encoded = encoded[i+1:]
+	}
+	audioBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", nil, err
+	}
+	return strings.TrimSpace(answer), audioBytes, nil
 }
 
 func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, users []tgbotapi.User, cfg welcomeConfig) error {
