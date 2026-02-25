@@ -103,7 +103,6 @@ func (s *Service) processDueJoinVerify(bot *tgbotapi.BotAPI) {
 				TGGroupID:     row.TGGroupID,
 				TGUserID:      row.TGUserID,
 				Deadline:      row.Deadline,
-				RestrictUntil: row.RestrictUntil,
 				Mode:          row.Mode,
 				Answer:        row.Answer,
 				MessageID:     row.MessageID,

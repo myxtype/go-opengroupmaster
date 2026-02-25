@@ -283,14 +283,10 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			}
 			now := time.Now()
 			deadline := now.Add(timeout)
-			restrictUntil := deadline
-			if newbieRestrict && newbieDeadline.After(restrictUntil) {
-				restrictUntil = newbieDeadline
-			}
 			target := m
 			restrict := tgbotapi.RestrictChatMemberConfig{
 				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
-				UntilDate:        restrictUntil.Unix(),
+				UntilDate:        deadline.Unix(),
 				Permissions:      &tgbotapi.ChatPermissions{},
 			}
 			_, _ = bot.Request(restrict)
@@ -299,7 +295,6 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				TGGroupID:     group.TGGroupID,
 				TGUserID:      m.ID,
 				Deadline:      deadline,
-				RestrictUntil: restrictUntil,
 				Mode:          cfg.Type,
 				TimeoutAction: cfg.TimeoutAction,
 			}
@@ -355,6 +350,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	if err != nil {
 		return err
 	}
+	// 在入群模式下，欢迎消息发送给新成员
 	if cfg.Mode == "join" {
 		users := make([]tgbotapi.User, 0, len(msg.NewChatMembers))
 		for _, m := range msg.NewChatMembers {
@@ -401,20 +397,27 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, tgGroupID, tgUserID, ac
 		return errors.New("verification expired")
 	}
 
-	if pending.RestrictUntil.After(time.Now()) {
-		if err := s.restrictMemberNoSpeak(bot, tgGroupID, tgUserID, pending.RestrictUntil); err != nil {
+	now := time.Now()
+	group, gErr := s.repo.FindGroupByTGID(tgGroupID)
+	keepRestricted := false
+	restrictUntil := now
+	if gErr == nil {
+		if newbieUntil, ok, nErr := s.newbieRestrictionUntil(group.ID, now, now); nErr == nil && ok {
+			keepRestricted = true
+			restrictUntil = newbieUntil
+		}
+	}
+	if keepRestricted {
+		if err := s.restrictMemberNoSpeak(bot, tgGroupID, tgUserID, restrictUntil); err != nil {
 			return err
 		}
-	} else {
-		if err := s.restoreMemberSpeak(bot, tgGroupID, tgUserID); err != nil {
-			return err
-		}
+	} else if err := s.restoreMemberSpeak(bot, tgGroupID, tgUserID); err != nil {
+		return err
 	}
 	if pending.MessageID > 0 {
 		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
 	}
 
-	group, gErr := s.repo.FindGroupByTGID(tgGroupID)
 	if gErr == nil {
 		_ = s.repo.CreateLog(group.ID, "join_verify_pass", 0, 0)
 		welcomeEnabled, wErr := s.IsFeatureEnabled(group.ID, featureWelcome, true)
@@ -478,7 +481,6 @@ func (s *Service) addVerifyPending(p verifyPending) error {
 		MessageID:     p.MessageID,
 		TimeoutAction: p.TimeoutAction,
 		Deadline:      p.Deadline,
-		RestrictUntil: p.RestrictUntil,
 	})
 }
 
@@ -495,12 +497,36 @@ func (s *Service) getVerifyPending(tgGroupID, tgUserID int64) (verifyPending, bo
 		TGGroupID:     row.TGGroupID,
 		TGUserID:      row.TGUserID,
 		Deadline:      row.Deadline,
-		RestrictUntil: row.RestrictUntil,
 		Mode:          row.Mode,
 		Answer:        row.Answer,
 		MessageID:     row.MessageID,
 		TimeoutAction: row.TimeoutAction,
 	}, true, nil
+}
+
+func (s *Service) newbieRestrictionUntil(groupID uint, joinedAt, now time.Time) (time.Time, bool, error) {
+	enabled, err := s.IsFeatureEnabled(groupID, featureNewbieLimit, false)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if !enabled {
+		return time.Time{}, false, nil
+	}
+	minutes, err := s.getNewbieLimitMinutes(groupID)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if minutes <= 0 {
+		return time.Time{}, false, nil
+	}
+	if joinedAt.IsZero() {
+		joinedAt = now
+	}
+	until := joinedAt.Add(time.Duration(minutes) * time.Minute)
+	if !until.After(now) {
+		return until, false, nil
+	}
+	return until, true, nil
 }
 
 func (s *Service) popVerifyPendingByID(id uint) (bool, error) {

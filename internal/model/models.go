@@ -83,7 +83,6 @@ type JoinVerifyPending struct {
 	MessageID     int       `gorm:"not null;default:0"`
 	TimeoutAction string    `gorm:"size:16;not null;default:mute"`
 	Deadline      time.Time `gorm:"index:idx_join_verify_pending_deadline,priority:1;not null"`
-	RestrictUntil time.Time
 	CreatedAt     time.Time `gorm:"autoCreateTime"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime"`
 }

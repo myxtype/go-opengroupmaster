@@ -36,7 +36,6 @@ type verifyPending struct {
 	TGGroupID     int64
 	TGUserID      int64
 	Deadline      time.Time
-	RestrictUntil time.Time
 	Mode          string
 	Answer        string
 	MessageID     int
@@ -61,7 +60,7 @@ type newbieLimitConfig struct {
 
 type welcomeConfig struct {
 	Text          string            `json:"text"`
-	Mode          string            `json:"mode"`
+	Mode          string            `json:"mode"` // join, verify
 	DeleteMinutes int               `json:"delete_minutes"`
 	MediaFileID   string            `json:"media_file_id"`
 	ButtonRows    [][]welcomeButton `json:"button_rows,omitempty"`
