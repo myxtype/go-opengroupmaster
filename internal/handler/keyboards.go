@@ -728,6 +728,9 @@ func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKey
 			tgbotapi.NewInlineKeyboardButtonData("立即开奖", fmt.Sprintf("feat:lottery:draw:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("创建的抽奖记录", fmt.Sprintf("feat:lottery:records:%s:1", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("发布置顶 "+boolIcon(publishPin), fmt.Sprintf("feat:lottery:toggle:%s:publish_pin", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("结果置顶 "+boolIcon(resultPin), fmt.Sprintf("feat:lottery:toggle:%s:result_pin", gid)),
 		),
@@ -736,6 +739,37 @@ func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKey
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:lottery:view:%s", gid)),
 	)
+}
+
+func lotteryRecordsKeyboard(tgGroupID int64, items []service.LotteryRecordItem, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+3)
+	for _, item := range items {
+		if item.Lottery.Status != "active" {
+			continue
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("取消 #%d", item.Lottery.ID),
+				fmt.Sprintf("feat:lottery:cancel:%s:%d:%d", gid, item.Lottery.ID, page),
+			),
+		))
+	}
+	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
+	if page > 1 {
+		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:lottery:records:%s:%d", gid, page-1)))
+	}
+	if page < totalPages {
+		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:lottery:records:%s:%d", gid, page+1)))
+	}
+	if len(nav) > 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(nav...))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔄 刷新记录", fmt.Sprintf("feat:lottery:records:%s:%d", gid, page)),
+		tgbotapi.NewInlineKeyboardButtonData("◀ 返回抽奖面板", fmt.Sprintf("feat:lottery:view:%s", gid)),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 func lotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {

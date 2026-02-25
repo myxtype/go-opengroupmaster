@@ -547,6 +547,7 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		"创建格式：抽奖标题|中奖人数|参与关键词",
 		"示例：周末福利|3|参加",
 		"成员在群内发送“参与关键词”即可参与",
+		fmt.Sprintf("创建的抽奖次数:%d    已开奖:%d    未开奖:%d    取消:%d", view.CreatedTotal, view.DrawnTotal, view.PendingTotal, view.CanceledTotal),
 		"",
 		"⚙ 抽奖设置",
 		fmt.Sprintf("%s 发布置顶:", boolIcon(view.PublishPin)),
@@ -568,10 +569,42 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		lines = append(lines, "进行中：无")
 	}
 	if view.LatestID > 0 {
-		lines = append(lines, "", fmt.Sprintf("最近一期：#%d %s [%s]", view.LatestID, view.LatestTitle, view.LatestStatus), fmt.Sprintf("关键词：%s", view.LatestJoinKeyword))
+		lines = append(lines, "", fmt.Sprintf("最近一期：#%d %s [%s]", view.LatestID, view.LatestTitle, lotteryStatusLabel(view.LatestStatus)), fmt.Sprintf("关键词：%s", view.LatestJoinKeyword))
 	}
 
 	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
+}
+
+func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	data, err := h.service.ListLotteryRecordsByTGGroupID(tgGroupID, page, rulesPageSize)
+	if err != nil {
+		h.render(bot, target, "加载抽奖记录失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	totalPages := maxPages(data.Total, rulesPageSize)
+	if data.Page < 1 {
+		data.Page = 1
+	}
+	if data.Page > totalPages {
+		data.Page = totalPages
+	}
+	lines := []string{fmt.Sprintf("创建的抽奖记录（第 %d/%d 页，总 %d 条）", data.Page, totalPages, data.Total)}
+	if len(data.Items) == 0 {
+		lines = append(lines, "暂无抽奖记录")
+	}
+	for _, item := range data.Items {
+		keyword := strings.TrimSpace(item.Lottery.JoinKeyword)
+		if keyword == "" {
+			keyword = "参加"
+		}
+		lines = append(lines, fmt.Sprintf("#%d %s", item.Lottery.ID, item.Lottery.Title))
+		lines = append(lines, fmt.Sprintf("状态:%s  中奖人数:%d  参与人数:%d", lotteryStatusLabel(item.Lottery.Status), item.Lottery.WinnersCount, item.Participants))
+		lines = append(lines, fmt.Sprintf("口令:%s", keyword))
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), lotteryRecordsKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
 func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

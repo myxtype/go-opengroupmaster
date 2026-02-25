@@ -676,6 +676,40 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, tgGroupID, resultMsg.MessageID, "result")
 		}
 		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
+	case "records":
+		page := 1
+		if len(parts) >= 5 {
+			if p, err := strconv.Atoi(parts[4]); err == nil {
+				page = p
+			}
+		}
+		h.answerCallback(bot, cb.ID, "加载抽奖记录")
+		h.sendLotteryRecordsPanel(bot, target, cb.From.ID, tgGroupID, page)
+	case "cancel":
+		if len(parts) < 6 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		lotteryID, err := strconv.ParseUint(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		page, _ := strconv.Atoi(parts[5])
+		if page < 1 {
+			page = 1
+		}
+		ok, err := h.service.CancelLotteryByTGGroupID(tgGroupID, uint(lotteryID))
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "取消失败")
+			return
+		}
+		if !ok {
+			h.answerCallback(bot, cb.ID, "仅可取消未开奖活动")
+		} else {
+			h.answerCallback(bot, cb.ID, "已取消抽奖活动")
+		}
+		h.sendLotteryRecordsPanel(bot, target, cb.From.ID, tgGroupID, page)
 	case "toggle":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")

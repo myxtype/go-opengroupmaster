@@ -131,6 +131,22 @@ func lotteryDeleteDesc(minutes int) string {
 	return fmt.Sprintf("%d分钟后自动删除群成员参加抽奖发送的口令消息", minutes)
 }
 
+func lotteryStatusLabel(status string) string {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case "active":
+		return "未开奖"
+	case "closed":
+		return "已开奖"
+	case "canceled":
+		return "已取消"
+	default:
+		if strings.TrimSpace(status) == "" {
+			return "未知"
+		}
+		return status
+	}
+}
+
 func antiFloodPenaltyText(penalty string, muteSec int) string {
 	switch penalty {
 	case "warn":

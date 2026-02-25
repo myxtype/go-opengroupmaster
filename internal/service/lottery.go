@@ -14,6 +14,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	lotteryStatusActive   = "active"
+	lotteryStatusClosed   = "closed"
+	lotteryStatusCanceled = "canceled"
+)
+
 func (s *Service) CreateLotteryByTGGroupID(tgGroupID int64, title string, winners int) (*model.Lottery, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
@@ -95,6 +101,18 @@ func (s *Service) LotteryPanelViewByTGGroupID(tgGroupID int64) (*LotteryPanelVie
 		ResultPin:         cfg.ResultPin,
 		DeleteKeywordMins: cfg.DeleteKeywordMinutes,
 	}
+	if out.CreatedTotal, err = s.repo.CountLotteries(group.ID); err != nil {
+		return nil, err
+	}
+	if out.DrawnTotal, err = s.repo.CountLotteriesByStatus(group.ID, lotteryStatusClosed); err != nil {
+		return nil, err
+	}
+	if out.PendingTotal, err = s.repo.CountLotteriesByStatus(group.ID, lotteryStatusActive); err != nil {
+		return nil, err
+	}
+	if out.CanceledTotal, err = s.repo.CountLotteriesByStatus(group.ID, lotteryStatusCanceled); err != nil {
+		return nil, err
+	}
 
 	active, err := s.repo.GetActiveLottery(group.ID)
 	if err == nil && active != nil {
@@ -127,6 +145,63 @@ func (s *Service) LotteryPanelViewByTGGroupID(tgGroupID int64) (*LotteryPanelVie
 	}
 
 	return out, nil
+}
+
+func (s *Service) ListLotteryRecordsByTGGroupID(tgGroupID int64, page, pageSize int) (*LotteryRecordPage, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return nil, err
+	}
+	items, total, err := s.repo.ListLotteriesPage(group.ID, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	participantMap, err := s.repo.CountLotteryParticipantsByLotteryIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]LotteryRecordItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, LotteryRecordItem{
+			Lottery:      item,
+			Participants: participantMap[item.ID],
+		})
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 5
+	}
+	return &LotteryRecordPage{
+		Items:    out,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
+}
+
+func (s *Service) CancelLotteryByTGGroupID(tgGroupID int64, lotteryID uint) (bool, error) {
+	if lotteryID == 0 {
+		return false, errors.New("invalid lottery id")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	ok, err := s.repo.CancelLottery(group.ID, lotteryID)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("cancel_lottery_%d", lotteryID), 0, 0)
+	return true, nil
 }
 
 func (s *Service) ToggleLotteryConfigByTGGroupID(tgGroupID int64, key string) (bool, error) {

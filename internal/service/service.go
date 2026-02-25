@@ -291,6 +291,10 @@ type NightModeView struct {
 }
 
 type LotteryPanelView struct {
+	CreatedTotal       int64
+	DrawnTotal         int64
+	PendingTotal       int64
+	CanceledTotal      int64
 	ActiveID           uint
 	ActiveTitle        string
 	ActiveJoinKeyword  string
@@ -303,6 +307,18 @@ type LotteryPanelView struct {
 	PublishPin         bool
 	ResultPin          bool
 	DeleteKeywordMins  int
+}
+
+type LotteryRecordItem struct {
+	Lottery      model.Lottery
+	Participants int64
+}
+
+type LotteryRecordPage struct {
+	Items    []LotteryRecordItem
+	Page     int
+	PageSize int
+	Total    int64
 }
 
 type InvitePanelView struct {
