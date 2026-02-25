@@ -50,8 +50,6 @@
 │   │   ├── stats_logs.go
 │   │   ├── advanced_features.go
 │   │   └── config_store.go
-│   ├── tgmention/
-│   │   └── mention.go
 │   ├── handler/
 │   │   ├── handler.go
 │   │   ├── message.go
@@ -65,6 +63,8 @@
 ├── pkg/
 │   └── logger/
 │       └── logger.go
+│   └── tgmention/
+│       └── mention.go
 ├── go.mod
 └── README.md
 ```

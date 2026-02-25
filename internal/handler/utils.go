@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"supervisor/internal/model"
-	"supervisor/internal/tgmention"
+	"supervisor/pkg/tgmention"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
