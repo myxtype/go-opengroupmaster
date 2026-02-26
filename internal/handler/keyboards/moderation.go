@@ -9,7 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
+func AntiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		statusControlRow(
@@ -36,7 +36,7 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func antiFloodAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+func AntiFloodAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	offLabel := selectedLabel("关闭", currentSec <= 0)
 	sec5Label := selectedLabel("5秒", currentSec == 5)
@@ -61,7 +61,7 @@ func antiFloodAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.Inli
 	)
 }
 
-func antiFloodCountKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+func AntiFloodCountKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	c3Label := selectedLabel("3条", current == 3)
 	c5Label := selectedLabel("5条", current == 5)
@@ -86,7 +86,7 @@ func antiFloodCountKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboar
 	)
 }
 
-func antiFloodWindowKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+func AntiFloodWindowKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	sec3Label := selectedLabel("3秒", currentSec == 3)
 	sec5Label := selectedLabel("5秒", currentSec == 5)
@@ -111,7 +111,7 @@ func antiFloodWindowKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKey
 	)
 }
 
-func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+func AntiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := [][]tgbotapi.InlineKeyboardButton{
 		statusControlRow(
@@ -165,7 +165,7 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func antiSpamPenaltyKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+func AntiSpamPenaltyKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := moderationPenaltyRows(gid, "spam", view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -174,7 +174,7 @@ func antiSpamPenaltyKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbota
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func antiFloodPenaltyKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
+func AntiFloodPenaltyKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := moderationPenaltyRows(gid, "flood", view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
@@ -183,7 +183,7 @@ func antiFloodPenaltyKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbo
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func antiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+func AntiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	s10 := selectedLabel("10秒", currentSec == 10)
 	s30 := selectedLabel("30秒", currentSec == 30)
@@ -222,7 +222,7 @@ func antiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.Inlin
 	)
 }
 
-func antiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+func AntiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
@@ -241,7 +241,7 @@ func antiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.In
 	)
 }
 
-func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.InlineKeyboardMarkup {
+func VerifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	buttonLabel := "按钮"
 	mathLabel := "数学题"
@@ -289,7 +289,7 @@ func verifyKeyboard(tgGroupID int64, view *service.JoinVerifyView) tgbotapi.Inli
 	)
 }
 
-func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotapi.InlineKeyboardMarkup {
+func NewbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
@@ -305,7 +305,7 @@ func newbieLimitKeyboard(tgGroupID int64, view *service.NewbieLimitView) tgbotap
 	)
 }
 
-func verifyTimeoutMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+func VerifyTimeoutMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	m1Label := selectedLabel("1分钟", current == 1)
 	m5Label := selectedLabel("5分钟", current == 5)
@@ -322,7 +322,7 @@ func verifyTimeoutMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineK
 	)
 }
 
-func newbieLimitMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+func NewbieLimitMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	m10Label := selectedLabel("10分钟", current == 10)
 	m30Label := selectedLabel("30分钟", current == 30)
@@ -339,7 +339,7 @@ func newbieLimitMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKey
 	)
 }
 
-func nightModeKeyboard(tgGroupID int64, view *service.NightModeView) tgbotapi.InlineKeyboardMarkup {
+func NightModeKeyboard(tgGroupID int64, view *service.NightModeView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	deleteMediaLabel := "删除媒体"
 	globalMuteLabel := "全局禁言"

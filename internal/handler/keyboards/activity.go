@@ -10,7 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func chainKeyboard(tgGroupID int64, items []service.ChainSummary) tgbotapi.InlineKeyboardMarkup {
+func ChainKeyboard(tgGroupID int64, items []service.ChainSummary) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+3)
 	rows = append(rows,
@@ -34,7 +34,7 @@ func chainKeyboard(tgGroupID int64, items []service.ChainSummary) tgbotapi.Inlin
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func chainLimitModeKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func ChainLimitModeKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -52,7 +52,7 @@ func chainLimitModeKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func chainDurationKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func ChainDurationKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -79,7 +79,7 @@ func chainDurationKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func chainPublicJoinKeyboard(joinURL string, active bool) tgbotapi.InlineKeyboardMarkup {
+func ChainPublicJoinKeyboard(joinURL string, active bool) tgbotapi.InlineKeyboardMarkup {
 	if !active || strings.TrimSpace(joinURL) == "" {
 		return tgbotapi.NewInlineKeyboardMarkup()
 	}
@@ -90,7 +90,7 @@ func chainPublicJoinKeyboard(joinURL string, active bool) tgbotapi.InlineKeyboar
 	)
 }
 
-func monitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func MonitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -101,7 +101,7 @@ func monitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func pollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func PollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -112,7 +112,7 @@ func pollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKeywordMins int) tgbotapi.InlineKeyboardMarkup {
+func LotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKeywordMins int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	deleteText := "关闭"
 	if deleteKeywordMins > 0 {
@@ -137,7 +137,7 @@ func lotteryKeyboard(tgGroupID int64, publishPin bool, resultPin bool, deleteKey
 	)
 }
 
-func lotteryRecordsKeyboard(tgGroupID int64, items []service.LotteryRecordItem, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func LotteryRecordsKeyboard(tgGroupID int64, items []service.LotteryRecordItem, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+3)
 	for _, item := range items {
@@ -168,7 +168,7 @@ func lotteryRecordsKeyboard(tgGroupID int64, items []service.LotteryRecordItem, 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func lotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+func LotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	offLabel := selectedLabel("关闭", current <= 0)
 	m1Label := selectedLabel("1分钟", current == 1)
@@ -193,7 +193,7 @@ func lotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineK
 	)
 }
 
-func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
+func WelcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	_ = enabled
 	modeText := "验证后欢迎"
@@ -227,7 +227,7 @@ func welcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes i
 	)
 }
 
-func welcomeDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
+func WelcomeDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	offLabel := selectedLabel("关闭", current <= 0)
 	m1Label := selectedLabel("1分钟", current == 1)

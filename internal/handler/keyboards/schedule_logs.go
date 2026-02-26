@@ -10,7 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func ScheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+5)
 	for _, item := range items {
@@ -62,7 +62,7 @@ func scheduledListKeyboard(tgGroupID int64, items []model.ScheduledMessage, page
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func scheduledPinSelectKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func ScheduledPinSelectKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -76,7 +76,7 @@ func scheduledPinSelectKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func scheduledEditKeyboard(tgGroupID int64, id uint, page int, enabled bool, pin bool) tgbotapi.InlineKeyboardMarkup {
+func ScheduledEditKeyboard(tgGroupID int64, id uint, page int, enabled bool, pin bool) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	statusText := "启用"
 	if enabled {
@@ -105,7 +105,7 @@ func scheduledEditKeyboard(tgGroupID int64, id uint, page int, enabled bool, pin
 	)
 }
 
-func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbotapi.InlineKeyboardMarkup {
+func LogListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	allLabel := selectedLabel("全部", filter == "all")
 	spamLabel := selectedLabel("审核", filter == "anti_spam*")
@@ -134,7 +134,7 @@ func logListKeyboard(tgGroupID int64, page, totalPages int, filter string) tgbot
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi.InlineKeyboardMarkup {
+func SystemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	strictSelected := cfg.Join && cfg.Leave && cfg.Pin && cfg.Photo && cfg.Title
 	offSelected := !cfg.Join && !cfg.Leave && !cfg.Pin && !cfg.Photo && !cfg.Title

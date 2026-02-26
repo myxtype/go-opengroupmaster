@@ -10,7 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func mainMenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
+func MainMenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	addToGroupURL := "https://t.me"
 	if username := strings.TrimSpace(botUsername); username != "" {
 		addToGroupURL = fmt.Sprintf("https://t.me/%s?startgroup=true", username)
@@ -26,7 +26,7 @@ func mainMenuKeyboard(botUsername string) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func groupsKeyboard(groups []model.Group, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func GroupsKeyboard(groups []model.Group, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(groups)+3)
 	for _, g := range groups {
 		label := g.Title
@@ -52,7 +52,7 @@ func groupsKeyboard(groups []model.Group, page, totalPages int) tgbotapi.InlineK
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func GroupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	id := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -100,7 +100,7 @@ func groupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func pendingCancelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func PendingCancelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%d", tgGroupID)),
@@ -109,7 +109,7 @@ func pendingCancelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func rbacKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func RBACKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -120,7 +120,7 @@ func rbacKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func blacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func BlacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -131,7 +131,7 @@ func blacklistKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func settingsKeyboard(lang string) tgbotapi.InlineKeyboardMarkup {
+func SettingsKeyboard(lang string) tgbotapi.InlineKeyboardMarkup {
 	zhLabel := selectedLabel("中文", lang == "zh")
 	enLabel := selectedLabel("English", lang == "en")
 	return tgbotapi.NewInlineKeyboardMarkup(

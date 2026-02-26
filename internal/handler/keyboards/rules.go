@@ -10,7 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func inviteKeyboard(tgGroupID int64, enabled bool) tgbotapi.InlineKeyboardMarkup {
+func InviteKeyboard(tgGroupID int64, enabled bool) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
@@ -36,7 +36,7 @@ func inviteKeyboard(tgGroupID int64, enabled bool) tgbotapi.InlineKeyboardMarkup
 	)
 }
 
-func inviteExpireInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteExpireInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -49,7 +49,7 @@ func inviteExpireInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func inviteMemberInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteMemberInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -62,7 +62,7 @@ func inviteMemberInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-func inviteGenerateInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteGenerateInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -75,7 +75,7 @@ func inviteGenerateInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup 
 	)
 }
 
-func autoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func AutoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+4)
 	for _, item := range items {
@@ -107,7 +107,7 @@ func autoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, total
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func autoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbotapi.InlineKeyboardMarkup {
+func AutoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
@@ -121,7 +121,7 @@ func autoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbota
 	)
 }
 
-func bannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items []model.BannedWord, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items []model.BannedWord, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+8)
 	rows = append(rows,
@@ -167,7 +167,7 @@ func bannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func bannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tgbotapi.InlineKeyboardMarkup {
+func BannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := moderationPenaltyRowsWithSpec(
 		gid,
