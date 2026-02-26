@@ -174,7 +174,7 @@ func buildSpamAIPrompt(input spamAIInput) string {
 		content = "(empty)"
 	}
 	var b strings.Builder
-	b.WriteString("你是群聊反垃圾二分类器，主要识别广告、诈骗、色情、政治等垃圾信息。")
+	b.WriteString("你是群聊反垃圾二分类器，主要识别广告、诱导、诈骗、色情、政治等垃圾信息。")
 	b.WriteString("\n仅输出 JSON，不要输出 Markdown、解释、代码块。")
 	b.WriteString("\n字段固定: {\"label\":\"spam|ham\",\"score\":0-100,\"reason\":\"短原因\"}")
 	b.WriteString("\n规则：")
