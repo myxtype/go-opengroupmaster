@@ -179,15 +179,13 @@ func BannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tg
 		view.MuteMinutes,
 		view.BanMinutes,
 		moderationPenaltyRowSpec{
-			WarnLabelPrefix: false,
-			DeleteOnlyLabel: "仅撤回",
-			PenaltySet:      "feat:bw:penaltyset:%s:%s",
-			WarnCount:       "feat:bw:warncount:%s",
-			WarnAction:      "feat:bw:warnaction:%s:%s",
-			WarnMuteInput:   "feat:bw:warnmuteinput:%s",
-			WarnBanInput:    "feat:bw:warnbaninput:%s",
-			MuteInput:       "feat:bw:muteinput:%s",
-			BanInput:        "feat:bw:baninput:%s",
+			PenaltySet:    "feat:bw:penaltyset:%s:%s",
+			WarnCount:     "feat:bw:warncount:%s",
+			WarnAction:    "feat:bw:warnaction:%s:%s",
+			WarnMuteInput: "feat:bw:warnmuteinput:%s",
+			WarnBanInput:  "feat:bw:warnbaninput:%s",
+			MuteInput:     "feat:bw:muteinput:%s",
+			BanInput:      "feat:bw:baninput:%s",
 		},
 	)
 

@@ -228,7 +228,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 				if reasonText == "" {
 					reasonText = "规则判定"
 				}
-				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n处理：%s\n\n[AI广告深度学习模型]", antiSpamActorDisplayName(msg), reasonText, actionLabel)
+				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n处理：%s", antiSpamActorDisplayName(msg), reasonText, actionLabel)
 				var alertEntities []tgbotapi.MessageEntity
 				if msg.From != nil {
 					alertText, alertEntities = composeAntiSpamAlertWithMention(msg.From, reasonLabel, actionLabel)

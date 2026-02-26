@@ -88,29 +88,25 @@ func moderationPenaltyRows(gid, scope string, penalty string, warnThreshold int,
 		muteMinutes,
 		banMinutes,
 		moderationPenaltyRowSpec{
-			WarnLabelPrefix: true,
-			DeleteOnlyLabel: "惩罚：撤回+不处罚",
-			PenaltySet:      fmt.Sprintf("feat:mod:%spenalty:%%s:%%s", scope),
-			WarnCount:       fmt.Sprintf("feat:mod:%swarncount:%%s", scope),
-			WarnAction:      fmt.Sprintf("feat:mod:%swarnaction:%%s:%%s", scope),
-			WarnMuteInput:   fmt.Sprintf("feat:mod:%swarnmuteinput:%%s", scope),
-			WarnBanInput:    fmt.Sprintf("feat:mod:%swarnbaninput:%%s", scope),
-			MuteInput:       fmt.Sprintf("feat:mod:%smuteinput:%%s", scope),
-			BanInput:        fmt.Sprintf("feat:mod:%sbaninput:%%s", scope),
+			PenaltySet:    fmt.Sprintf("feat:mod:%spenalty:%%s:%%s", scope),
+			WarnCount:     fmt.Sprintf("feat:mod:%swarncount:%%s", scope),
+			WarnAction:    fmt.Sprintf("feat:mod:%swarnaction:%%s:%%s", scope),
+			WarnMuteInput: fmt.Sprintf("feat:mod:%swarnmuteinput:%%s", scope),
+			WarnBanInput:  fmt.Sprintf("feat:mod:%swarnbaninput:%%s", scope),
+			MuteInput:     fmt.Sprintf("feat:mod:%smuteinput:%%s", scope),
+			BanInput:      fmt.Sprintf("feat:mod:%sbaninput:%%s", scope),
 		},
 	)
 }
 
 type moderationPenaltyRowSpec struct {
-	WarnLabelPrefix bool
-	DeleteOnlyLabel string
-	PenaltySet      string
-	WarnCount       string
-	WarnAction      string
-	WarnMuteInput   string
-	WarnBanInput    string
-	MuteInput       string
-	BanInput        string
+	PenaltySet    string
+	WarnCount     string
+	WarnAction    string
+	WarnMuteInput string
+	WarnBanInput  string
+	MuteInput     string
+	BanInput      string
 }
 
 func moderationPenaltyRowsWithSpec(
@@ -132,20 +128,11 @@ func moderationPenaltyRowsWithSpec(
 		penaltyDeleteOnly = "delete_only"
 	)
 
-	labelPrefix := ""
-	if spec.WarnLabelPrefix {
-		labelPrefix = "惩罚："
-	}
-	deleteOnlyText := spec.DeleteOnlyLabel
-	if deleteOnlyText == "" {
-		deleteOnlyText = labelPrefix + "撤回+不处罚"
-	}
-
-	warnLabel := selectedLabel(labelPrefix+"警告", penalty == penaltyWarn)
-	muteLabel := selectedLabel(labelPrefix+"禁言", penalty == penaltyMute)
-	kickLabel := selectedLabel(labelPrefix+"踢出", penalty == penaltyKick)
-	kickBanLabel := selectedLabel(labelPrefix+"踢出+封禁", penalty == penaltyKickBan)
-	deleteOnlyLabel := selectedLabel(deleteOnlyText, penalty == penaltyDeleteOnly)
+	warnLabel := selectedLabel("警告", penalty == penaltyWarn)
+	muteLabel := selectedLabel("禁言", penalty == penaltyMute)
+	kickLabel := selectedLabel("踢出", penalty == penaltyKick)
+	kickBanLabel := selectedLabel("踢出+封禁", penalty == penaltyKickBan)
+	deleteOnlyLabel := selectedLabel("仅撤回", penalty == penaltyDeleteOnly)
 	warnMuteLabel := selectedLabel("阈值后禁言", warnAction == penaltyMute)
 	warnKickLabel := selectedLabel("阈值后踢出", warnAction == penaltyKick)
 	warnKickBanLabel := selectedLabel("阈值后封禁", warnAction == penaltyKickBan)
