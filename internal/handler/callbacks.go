@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"supervisor/internal/handler/keyboards"
 	svc "supervisor/internal/service"
 	"time"
 
@@ -228,15 +229,15 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "set":
 			h.answerCallback(bot, cb.ID, "请输入欢迎文案")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入新的欢迎文案，支持占位符 {user}\n示例：欢迎 {user} 加入本群", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入新的欢迎文案，支持占位符 {user}\n示例：欢迎 {user} 加入本群", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "media":
 			h.answerCallback(bot, cb.ID, "请发送欢迎图片")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit_media", TGGroupID: tgGroupID})
-			h.render(bot, target, "请发送一张图片作为欢迎媒体，或发送“关闭”清空媒体", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请发送一张图片作为欢迎媒体，或发送“关闭”清空媒体", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "button":
 			h.answerCallback(bot, cb.ID, "请输入按钮")
 			h.setPending(userID, pendingInput{Kind: "welcome_edit_button", TGGroupID: tgGroupID})
-			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "支持多按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“关闭”可清空按钮", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "preview":
 			if err := h.service.SendWelcomePreviewByTGGroupID(bot, tgGroupID, target.ChatID, userID); err != nil {
 				h.answerCallback(bot, cb.ID, "预览失败")
@@ -304,11 +305,11 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "setrole":
 			h.answerCallback(bot, cb.ID, "请输入角色配置")
 			h.setPending(userID, pendingInput{Kind: "rbac_set_role", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：tg_user_id|role\nrole: super_admin 或 admin", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入：tg_user_id|role\nrole: super_admin 或 admin", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "setacl":
 			h.answerCallback(bot, cb.ID, "请输入权限配置")
 			h.setPending(userID, pendingInput{Kind: "rbac_set_acl", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：feature|role1,role2\n示例：lottery|super_admin", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入：feature|role1,role2\n示例：lottery|super_admin", keyboards.PendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -320,11 +321,11 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "add":
 			h.answerCallback(bot, cb.ID, "请输入用户ID")
 			h.setPending(userID, pendingInput{Kind: "black_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：tg_user_id|原因(可选)\n将只加入当前群黑名单", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入：tg_user_id|原因(可选)\n将只加入当前群黑名单", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "remove":
 			h.answerCallback(bot, cb.ID, "请输入用户ID")
 			h.setPending(userID, pendingInput{Kind: "black_remove", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入要移除的 tg_user_id\n将只影响当前群黑名单", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入要移除的 tg_user_id\n将只影响当前群黑名单", keyboards.PendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -352,7 +353,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "expire":
 			h.answerCallback(bot, cb.ID, "请输入过期时间")
 			h.setPending(userID, pendingInput{Kind: "invite_set_expire", TGGroupID: tgGroupID})
-			h.render(bot, target, "1. 配置过期时间\n👉 请回复链接过期时间(不限制请输入:0)\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n格式:年-月-日 时:分\n例如:2026-02-24 17:09", inviteExpireInputKeyboard(tgGroupID))
+			h.render(bot, target, "1. 配置过期时间\n👉 请回复链接过期时间(不限制请输入:0)\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n格式:年-月-日 时:分\n例如:2026-02-24 17:09", keyboards.InviteExpireInputKeyboard(tgGroupID))
 		case "expireunlimit":
 			if _, err := h.service.SetInviteExpireDateByTGGroupID(tgGroupID, 0); err != nil {
 				h.answerCallback(bot, cb.ID, "设置失败")
@@ -363,7 +364,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "member":
 			h.answerCallback(bot, cb.ID, "请输入最大邀请人数")
 			h.setPending(userID, pendingInput{Kind: "invite_set_member_limit", TGGroupID: tgGroupID})
-			h.render(bot, target, "2. 最大邀请数配置\n\n👉 邀请达到设定人数后链接失效\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复单个链接最大邀请人数(不限制请输入:0)", inviteMemberInputKeyboard(tgGroupID))
+			h.render(bot, target, "2. 最大邀请数配置\n\n👉 邀请达到设定人数后链接失效\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复单个链接最大邀请人数(不限制请输入:0)", keyboards.InviteMemberInputKeyboard(tgGroupID))
 		case "memberunlimit":
 			if _, err := h.service.SetInviteMemberLimitByTGGroupID(tgGroupID, 0); err != nil {
 				h.answerCallback(bot, cb.ID, "设置失败")
@@ -374,7 +375,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "gen":
 			h.answerCallback(bot, cb.ID, "请输入生成数量上限")
 			h.setPending(userID, pendingInput{Kind: "invite_set_generate_limit", TGGroupID: tgGroupID})
-			h.render(bot, target, "3. 生成数量限制配置\n\n👉 生成链接数量达到设定数量后，不再生成新的链接\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复生成链接数量上限(不限制请输入:0)", inviteGenerateInputKeyboard(tgGroupID))
+			h.render(bot, target, "3. 生成数量限制配置\n\n👉 生成链接数量达到设定数量后，不再生成新的链接\n\n注意:此设置仅应用在新生成的链接中，不会修改已生成的链接\n\n请回复生成链接数量上限(不限制请输入:0)", keyboards.InviteGenerateInputKeyboard(tgGroupID))
 		case "genunlimit":
 			if _, err := h.service.SetInviteGenerateLimitByTGGroupID(tgGroupID, 0); err != nil {
 				h.answerCallback(bot, cb.ID, "设置失败")
@@ -411,7 +412,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "start":
 			h.answerCallback(bot, cb.ID, "请选择限制方式")
 			h.setPending(userID, pendingInput{Kind: "chain_create_mode", TGGroupID: tgGroupID})
-			h.render(bot, target, "第1步：请选择接龙限制方式", chainLimitModeKeyboard(tgGroupID))
+			h.render(bot, target, "第1步：请选择接龙限制方式", keyboards.ChainLimitModeKeyboard(tgGroupID))
 		case "limmode":
 			if len(parts) < 5 {
 				h.answerCallback(bot, cb.ID, "参数错误")
@@ -422,19 +423,19 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			case "none":
 				h.answerCallback(bot, cb.ID, "已设置为不限制")
 				h.setPending(userID, pendingInput{Kind: "chain_create_intro", TGGroupID: tgGroupID, ChainMode: mode, Count: 0, Deadline: 0})
-				h.render(bot, target, "第2步：请输入接龙规则或介绍", pendingCancelKeyboard(tgGroupID))
+				h.render(bot, target, "第2步：请输入接龙规则或介绍", keyboards.PendingCancelKeyboard(tgGroupID))
 			case "people":
 				h.answerCallback(bot, cb.ID, "请输入限制人数")
 				h.setPending(userID, pendingInput{Kind: "chain_create_count", TGGroupID: tgGroupID, ChainMode: mode})
-				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", pendingCancelKeyboard(tgGroupID))
+				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", keyboards.PendingCancelKeyboard(tgGroupID))
 			case "time":
 				h.answerCallback(bot, cb.ID, "请选择截止时间")
 				h.setPending(userID, pendingInput{Kind: "chain_create_duration", TGGroupID: tgGroupID, ChainMode: mode})
-				h.render(bot, target, "第2步：请选择多久后截止", chainDurationKeyboard(tgGroupID))
+				h.render(bot, target, "第2步：请选择多久后截止", keyboards.ChainDurationKeyboard(tgGroupID))
 			case "both":
 				h.answerCallback(bot, cb.ID, "请输入限制人数")
 				h.setPending(userID, pendingInput{Kind: "chain_create_count", TGGroupID: tgGroupID, ChainMode: mode})
-				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", pendingCancelKeyboard(tgGroupID))
+				h.render(bot, target, "第2步：请输入接龙人数上限（正整数）", keyboards.PendingCancelKeyboard(tgGroupID))
 			default:
 				h.answerCallback(bot, cb.ID, "未知限制方式")
 			}
@@ -463,10 +464,10 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.setPending(userID, pending)
 			if deadline > 0 {
 				h.answerCallback(bot, cb.ID, "截止时间已设置")
-				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间："+chainDeadlineText(deadline), pendingCancelKeyboard(tgGroupID))
+				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间："+chainDeadlineText(deadline), keyboards.PendingCancelKeyboard(tgGroupID))
 			} else {
 				h.answerCallback(bot, cb.ID, "已设置为无截止时间")
-				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间：不限时", pendingCancelKeyboard(tgGroupID))
+				h.render(bot, target, "第3步：请输入接龙规则或介绍\n截止时间：不限时", keyboards.PendingCancelKeyboard(tgGroupID))
 			}
 		case "export":
 			if len(parts) < 5 {
@@ -516,7 +517,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "create":
 			h.answerCallback(bot, cb.ID, "请输入投票内容")
 			h.setPending(userID, pendingInput{Kind: "poll_create", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：问题|选项1,选项2,选项3", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入：问题|选项1,选项2,选项3", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "stop":
 			if err := h.service.StopPollByTGGroupID(bot, tgGroupID); err != nil {
 				h.answerCallback(bot, cb.ID, "结束投票失败")
@@ -535,11 +536,11 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "add":
 			h.answerCallback(bot, cb.ID, "请输入关键词")
 			h.setPending(userID, pendingInput{Kind: "monitor_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入要监控的关键词（单条）", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入要监控的关键词（单条）", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "remove":
 			h.answerCallback(bot, cb.ID, "请输入关键词")
 			h.setPending(userID, pendingInput{Kind: "monitor_remove", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入要移除的关键词（单条）", pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "请输入要移除的关键词（单条）", keyboards.PendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -588,7 +589,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 	case "add":
 		h.answerCallback(bot, cb.ID, "请选择触发方式")
 		h.setPending(userID, pendingInput{Kind: "auto_add_mode", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "第1步：请选择触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", autoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:addmode:%d", tgGroupID)))
+		h.render(bot, target, "第1步：请选择触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:addmode:%d", tgGroupID)))
 	case "addmode":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -606,7 +607,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 			Page:      1,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第2步：请输入自动回复关键词", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "第2步：请输入自动回复关键词", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -652,7 +653,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 		}
 		h.answerCallback(bot, cb.ID, "请选择触发方式")
 		h.setPending(userID, pendingInput{Kind: "auto_edit_mode", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "第1步：请选择新触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", autoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:editmode:%d:%d:%d", tgGroupID, id, page)))
+		h.render(bot, target, "第1步：请选择新触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:editmode:%d:%d:%d", tgGroupID, id, page)))
 	case "editmode":
 		if len(parts) < 7 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -680,7 +681,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 			Page:      page,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第2步：请输入新的关键词", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "第2步：请输入新的关键词", keyboards.PendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
@@ -727,7 +728,7 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	case "warncount":
 		h.answerCallback(bot, cb.ID, "请输入警告次数")
 		h.setPending(userID, pendingInput{Kind: "bw_warn_threshold", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入达到处罚前的警告次数（正整数，例如 3）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入达到处罚前的警告次数（正整数，例如 3）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "warnaction":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -742,27 +743,27 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	case "warnmuteinput":
 		h.answerCallback(bot, cb.ID, "请输入阈值禁言时长")
 		h.setPending(userID, pendingInput{Kind: "bw_warn_action_mute_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入警告达到阈值后禁言时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入警告达到阈值后禁言时长（分钟，1-10080）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "warnbaninput":
 		h.answerCallback(bot, cb.ID, "请输入阈值封禁时长")
 		h.setPending(userID, pendingInput{Kind: "bw_warn_action_ban_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入警告达到阈值后封禁时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入警告达到阈值后封禁时长（分钟，1-10080）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "muteinput":
 		h.answerCallback(bot, cb.ID, "请输入禁言时长")
 		h.setPending(userID, pendingInput{Kind: "bw_mute_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入禁言时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入禁言时长（分钟，1-10080）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "baninput":
 		h.answerCallback(bot, cb.ID, "请输入封禁时长")
 		h.setPending(userID, pendingInput{Kind: "bw_ban_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入封禁时长（分钟，1-10080）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入封禁时长（分钟，1-10080）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "delwarninput":
 		h.answerCallback(bot, cb.ID, "请输入删除提醒时长")
 		h.setPending(userID, pendingInput{Kind: "bw_warn_delete_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "delwarn":
 		h.answerCallback(bot, cb.ID, "请输入删除提醒时长")
 		h.setPending(userID, pendingInput{Kind: "bw_warn_delete_minutes", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入提醒消息自动删除时长（分钟，0-1440；0 表示不自动删除）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "delwarnset":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -783,7 +784,7 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送违禁词")
 		h.setPending(userID, pendingInput{Kind: "bw_add", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "请直接发送要新增的违禁词（单条）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请直接发送要新增的违禁词（单条）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -829,7 +830,7 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.answerCallback(bot, cb.ID, "请输入新违禁词")
 		h.setPending(userID, pendingInput{Kind: "bw_edit", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请发送新的违禁词内容", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请发送新的违禁词内容", keyboards.PendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
@@ -843,17 +844,17 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 	case "create":
 		h.answerCallback(bot, cb.ID, "请发送抽奖配置")
 		h.setPending(cb.From.ID, pendingInput{Kind: "lottery_create", TGGroupID: tgGroupID})
-		h.render(bot, target, "请发送：抽奖标题|中奖人数|参与关键词\n示例：周末福利|3|参加", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请发送：抽奖标题|中奖人数|参与关键词\n示例：周末福利|3|参加", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "draw":
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(tgGroupID)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "开奖失败")
 			view, viewErr := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
 			if viewErr != nil {
-				h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", groupPanelKeyboard(tgGroupID))
+				h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", keyboards.GroupPanelKeyboard(tgGroupID))
 				return
 			}
-			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
+			h.render(bot, target, "开奖失败：没有可开奖的活动抽奖", keyboards.LotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 			return
 		}
 		h.answerCallback(bot, cb.ID, "开奖完成")
@@ -952,7 +953,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送定时消息")
 		h.setPending(userID, pendingInput{Kind: "sched_add_cron", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持文本或媒体），第3步可选设置链接按钮，第4步设置是否置顶", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "第1步：请输入 cron 表达式\n含义：分钟 小时 日 月 星期（共5段，用空格分隔）\n示例：\n- 0 9 * * *  （每天 09:00）\n- */30 * * * *（每30分钟）\n- 0 21 * * 1-5（工作日 21:00）\n输入后将进入第2步填写消息内容（支持文本或媒体），第3步可选设置链接按钮，第4步设置是否置顶", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -1089,7 +1090,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 		h.answerCallback(bot, cb.ID, "请输入新的文本内容")
 		h.setPending(userID, pendingInput{Kind: "sched_edit_text", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请输入新的定时消息文本。\n注意：若当前没有媒体，文本不能为空。", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入新的定时消息文本。\n注意：若当前没有媒体，文本不能为空。", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "editmedia":
 		if len(parts) < 6 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -1106,7 +1107,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 		h.answerCallback(bot, cb.ID, "请发送媒体")
 		h.setPending(userID, pendingInput{Kind: "sched_edit_media", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请发送图片/视频/文件/动图作为定时媒体（可带文字说明）。\n发送“关闭”可清空媒体。", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请发送图片/视频/文件/动图作为定时媒体（可带文字说明）。\n发送“关闭”可清空媒体。", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "editbuttons":
 		if len(parts) < 6 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -1123,7 +1124,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 		h.answerCallback(bot, cb.ID, "请输入按钮配置")
 		h.setPending(userID, pendingInput{Kind: "sched_edit_buttons", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请输入链接按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n发送“关闭”可清空按钮。", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入链接按钮配置，格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n发送“关闭”可清空按钮。", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "editcron":
 		if len(parts) < 6 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -1140,7 +1141,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 		h.answerCallback(bot, cb.ID, "请输入新的 cron")
 		h.setPending(userID, pendingInput{Kind: "sched_edit_cron", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请输入新的 cron 表达式（5段）：分钟 小时 日 月 星期\n示例：0 9 * * *", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入新的 cron 表达式（5段）：分钟 小时 日 月 星期\n示例：0 9 * * *", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "pin":
 		if len(parts) < 6 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -1188,7 +1189,7 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			pin,
 		); err != nil {
 			h.answerCallback(bot, cb.ID, "创建失败")
-			h.render(bot, target, "创建定时消息失败："+err.Error(), pendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "创建定时消息失败："+err.Error(), keyboards.PendingCancelKeyboard(tgGroupID))
 			return
 		}
 		h.clearPending(userID)
@@ -1303,7 +1304,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.answerCallback(bot, cb.ID, "请输入 AI 垃圾分阈值")
 		h.setPending(userID, pendingInput{Kind: "spam_ai_spam_score", TGGroupID: tgGroupID})
-		h.render(bot, target, fmt.Sprintf("当 AI 返回 score >= 该值时，判定为垃圾。\n当前阈值:%d\n👉 输入 1~100 的整数：", view.AISpamScore), pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, fmt.Sprintf("当 AI 返回 score >= 该值时，判定为垃圾。\n当前阈值:%d\n👉 输入 1~100 的整数：", view.AISpamScore), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spammsglen":
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
@@ -1313,7 +1314,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.answerCallback(bot, cb.ID, "请输入消息最大长度")
 		h.setPending(userID, pendingInput{Kind: "spam_msg_len", TGGroupID: tgGroupID})
-		h.render(bot, target, fmt.Sprintf("检测到消息内容长度大于设定数时，将会判定为超长消息并处罚。\n当前设置最大长度:%d\n👉 输入允许的消息最大长度（例如:100）:", view.MaxMessageLength), pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, fmt.Sprintf("检测到消息内容长度大于设定数时，将会判定为超长消息并处罚。\n当前设置最大长度:%d\n👉 输入允许的消息最大长度（例如:100）:", view.MaxMessageLength), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spamnamelen":
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
@@ -1323,17 +1324,17 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.answerCallback(bot, cb.ID, "请输入姓名最大长度")
 		h.setPending(userID, pendingInput{Kind: "spam_name_len", TGGroupID: tgGroupID})
-		h.render(bot, target, fmt.Sprintf("检测到姓名长度大于设定数时，将会判定为超长姓名并处罚。\n当前设置最大长度:%d\n👉 输入允许的姓名最大长度（例如:32）:", view.MaxNameLength), pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, fmt.Sprintf("检测到姓名长度大于设定数时，将会判定为超长姓名并处罚。\n当前设置最大长度:%d\n👉 输入允许的姓名最大长度（例如:32）:", view.MaxNameLength), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spamexadd":
 		h.answerCallback(bot, cb.ID, "请输入例外关键词")
 		h.setPending(userID, pendingInput{Kind: "spam_exception_add", TGGroupID: tgGroupID})
-		h.render(bot, target, "输入一个例外关键词（命中后跳过反垃圾检测）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "输入一个例外关键词（命中后跳过反垃圾检测）", keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spamexdel":
 		h.answerCallback(bot, cb.ID, "请输入要移除的关键词")
 		h.setPending(userID, pendingInput{Kind: "spam_exception_remove", TGGroupID: tgGroupID})
-		h.render(bot, target, "输入要移除的例外关键词（精确匹配，不区分大小写）", pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "输入要移除的例外关键词（精确匹配，不区分大小写）", keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spamalertdel":
 		h.answerCallback(bot, cb.ID, "请选择提醒策略")
@@ -1491,7 +1492,7 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.answerCallback(bot, cb.ID, "请输入时区")
 		h.setPending(userID, pendingInput{Kind: "night_tz", TGGroupID: tgGroupID})
-		h.render(bot, target, fmt.Sprintf("当前时区:%s\n请输入时区（示例：+8、-5、+8:30、UTC+8）", view.TimezoneText), pendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, fmt.Sprintf("当前时区:%s\n请输入时区（示例：+8、-5、+8:30、UTC+8）", view.TimezoneText), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "nightmode":
 		if len(parts) < 5 {
@@ -1735,7 +1736,7 @@ func (h *Handler) beginModerationPendingInput(
 ) {
 	h.answerCallback(bot, cb.ID, tip)
 	h.setPending(userID, pendingInput{Kind: kind, TGGroupID: tgGroupID})
-	h.render(bot, target, prompt, pendingCancelKeyboard(tgGroupID))
+	h.render(bot, target, prompt, keyboards.PendingCancelKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {

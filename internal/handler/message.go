@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"supervisor/internal/handler/keyboards"
 	svc "supervisor/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -73,7 +74,7 @@ func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Messa
 			}
 			return
 		}
-		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", mainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", keyboards.MainMenuKeyboard(bot.Self.UserName))
 	case "help":
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, privateHelpText()))
 	case "groups":
@@ -288,7 +289,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			Keyword:   keyword,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第3步：请输入自动回复内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第3步：请输入自动回复内容（支持换行）", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "auto_add_reply":
 		reply := msg.Text
@@ -313,7 +314,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			MatchType: matchType,
 			Content:   reply,
 		})
-		h.render(bot, target, "第4步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第4步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "auto_add_buttons":
 		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
@@ -359,7 +360,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			Keyword:   keyword,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第3步：请输入新的回复内容（支持换行）", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第3步：请输入新的回复内容（支持换行）", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "auto_edit_reply":
 		reply := msg.Text
@@ -385,7 +386,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			MatchType: matchType,
 			Content:   reply,
 		})
-		h.render(bot, target, "第4步（可选）：请输入新的链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”保持当前按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第4步（可选）：请输入新的链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”保持当前按钮，发送“关闭”清空按钮", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "auto_edit_buttons":
 		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
@@ -527,7 +528,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			Page:      pending.Page,
 			CronExpr:  cronExpr,
 		})
-		h.render(bot, target, "第2步：请输入要发送的消息内容。\n支持：\n- 纯文本（支持换行）\n- 图片/视频/文件/动图（可带文字说明）", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第2步：请输入要发送的消息内容。\n支持：\n- 纯文本（支持换行）\n- 图片/视频/文件/动图（可带文字说明）", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "sched_add_content":
 		if strings.TrimSpace(pending.CronExpr) == "" {
@@ -568,7 +569,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			MediaType:   mediaType,
 			MediaFileID: mediaFileID,
 		})
-		h.render(bot, target, "第3步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", pendingCancelKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第3步（可选）：请输入链接按钮配置。\n支持格式示例：\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明：\n- 按钮文字和网址中间用英文 - 分隔\n- 一行两个按钮用 && 分隔\n发送“跳过”表示不设置按钮，发送“关闭”清空按钮", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		return
 	case "sched_add_buttons":
 		if strings.TrimSpace(pending.CronExpr) == "" || (strings.TrimSpace(pending.Content) == "" && strings.TrimSpace(pending.MediaType) == "") {
@@ -582,7 +583,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		pending.Kind = "sched_add_pin"
 		pending.RawButtons = rawButtons
 		h.setPending(msg.From.ID, pending)
-		h.render(bot, target, "第4步：请选择发送后是否自动置顶", scheduledPinSelectKeyboard(pending.TGGroupID))
+		h.render(bot, target, "第4步：请选择发送后是否自动置顶", keyboards.ScheduledPinSelectKeyboard(pending.TGGroupID))
 		return
 	case "sched_edit_text":
 		if pending.RuleID == 0 {
@@ -714,11 +715,11 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		if pending.ChainMode == "both" {
 			pending.Kind = "chain_create_duration"
 			h.setPending(msg.From.ID, pending)
-			h.render(bot, target, "第3步：请选择多久后截止", chainDurationKeyboard(pending.TGGroupID))
+			h.render(bot, target, "第3步：请选择多久后截止", keyboards.ChainDurationKeyboard(pending.TGGroupID))
 		} else {
 			pending.Kind = "chain_create_intro"
 			h.setPending(msg.From.ID, pending)
-			h.render(bot, target, "第3步：请输入接龙规则或介绍", pendingCancelKeyboard(pending.TGGroupID))
+			h.render(bot, target, "第3步：请输入接龙规则或介绍", keyboards.PendingCancelKeyboard(pending.TGGroupID))
 		}
 		return
 	case "chain_create_intro":

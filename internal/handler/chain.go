@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"supervisor/internal/handler/keyboards"
 	"supervisor/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +25,7 @@ func (h *Handler) syncChainAnnouncementByID(bot *tgbotapi.BotAPI, chainID uint) 
 	}
 	text := renderChainAnnouncementText(view)
 	joinURL := chainJoinURL(bot.Self.UserName, chainID)
-	markup := chainPublicJoinKeyboard(joinURL, view.Active)
+	markup := keyboards.ChainPublicJoinKeyboard(joinURL, view.Active)
 
 	if view.AnnouncementMessageID > 0 {
 		edit := tgbotapi.NewEditMessageTextAndMarkup(view.TGGroupID, view.AnnouncementMessageID, text, markup)

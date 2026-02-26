@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"supervisor/internal/handler/keyboards"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -11,11 +12,11 @@ import (
 func (h *Handler) sendGroupsMenu(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64, page int) {
 	groups, err := h.service.ListManageableGroups(tgUserID)
 	if err != nil {
-		h.render(bot, target, "获取群列表失败", mainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "获取群列表失败", keyboards.MainMenuKeyboard(bot.Self.UserName))
 		return
 	}
 	if len(groups) == 0 {
-		h.render(bot, target, "你当前没有可管理且机器人已加入的群", mainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "你当前没有可管理且机器人已加入的群", keyboards.MainMenuKeyboard(bot.Self.UserName))
 		return
 	}
 	totalPages := (len(groups) + groupPageSize - 1) / groupPageSize
@@ -32,7 +33,7 @@ func (h *Handler) sendGroupsMenu(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	current := groups[start:end]
 	text := fmt.Sprintf("请选择要管理的群组（第 %d/%d 页）：", page, totalPages)
-	h.render(bot, target, text, groupsKeyboard(current, page, totalPages))
+	h.render(bot, target, text, keyboards.GroupsKeyboard(current, page, totalPages))
 }
 
 func (h *Handler) sendGroupPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -41,10 +42,10 @@ func (h *Handler) sendGroupPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	summary, err := h.service.GroupPanelSummary(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载群面板失败", mainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "加载群面板失败", keyboards.MainMenuKeyboard(bot.Self.UserName))
 		return
 	}
-	h.render(bot, target, summary, groupPanelKeyboard(tgGroupID))
+	h.render(bot, target, summary, keyboards.GroupPanelKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
@@ -53,7 +54,7 @@ func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, t
 	}
 	data, err := h.service.ListAutoRepliesByTGGroupID(tgGroupID, page, rulesPageSize)
 	if err != nil {
-		h.render(bot, target, "加载自动回复失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载自动回复失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	totalPages := maxPages(data.Total, rulesPageSize)
@@ -71,7 +72,7 @@ func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, t
 		btnCount := buttonRowsCount(item.ButtonRows)
 		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（链接按钮:%d）", item.ID, autoReplyMatchTypeLabel(item.MatchType), item.Keyword, item.Reply, btnCount))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), autoReplyListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AutoReplyListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
 func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
@@ -80,12 +81,12 @@ func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, 
 	}
 	view, err := h.service.BannedWordViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载违禁词设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载违禁词设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	data, err := h.service.ListBannedWordsByTGGroupID(tgGroupID, page, rulesPageSize)
 	if err != nil {
-		h.render(bot, target, "加载违禁词失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载违禁词失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	totalPages := maxPages(data.Total, rulesPageSize)
@@ -107,7 +108,7 @@ func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, 
 	for _, item := range data.Items {
 		lines = append(lines, fmt.Sprintf("#%d %s", item.ID, item.Word))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), bannedWordListKeyboard(tgGroupID, view, data.Items, data.Page, totalPages))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BannedWordListKeyboard(tgGroupID, view, data.Items, data.Page, totalPages))
 }
 
 func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -116,7 +117,7 @@ func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target render
 	}
 	view, err := h.service.BannedWordViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载违禁词设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载违禁词设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -131,7 +132,7 @@ func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target render
 		"4) 踢出+封禁：可设置封禁时长",
 		"5) 仅撤回消息+不惩罚",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), bannedWordPenaltyKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BannedWordPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
@@ -140,7 +141,7 @@ func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, t
 	}
 	data, err := h.service.ListScheduledMessagesByTGGroupID(tgGroupID, page, rulesPageSize)
 	if err != nil {
-		h.render(bot, target, "加载定时消息失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载定时消息失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	totalPages := maxPages(data.Total, rulesPageSize)
@@ -166,7 +167,7 @@ func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, t
 		}
 		lines = append(lines, fmt.Sprintf("#%d [%s] %s => %s（类型:%s，链接按钮:%d，%s）", item.ID, status, item.CronExpr, scheduledContentPreview(item.Content, 24), scheduledMediaTypeLabel(item.MediaType), btnCount, pin))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), scheduledListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.ScheduledListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
 func (h *Handler) sendScheduledEditPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, id uint, page int) {
@@ -175,7 +176,7 @@ func (h *Handler) sendScheduledEditPanel(bot *tgbotapi.BotAPI, target renderTarg
 	}
 	item, err := h.service.GetScheduledMessageByTGGroupID(tgGroupID, id)
 	if err != nil || item == nil {
-		h.render(bot, target, "加载定时任务失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载定时任务失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "关闭"
@@ -198,7 +199,7 @@ func (h *Handler) sendScheduledEditPanel(bot *tgbotapi.BotAPI, target renderTarg
 	if page < 1 {
 		page = 1
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), scheduledEditKeyboard(tgGroupID, item.ID, page, item.Enabled, item.PinMessage))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.ScheduledEditKeyboard(tgGroupID, item.ID, page, item.Enabled, item.PinMessage))
 }
 
 func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -207,7 +208,7 @@ func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	stats, err := h.service.GroupStatsByTGGroupID(tgGroupID, 10)
 	if err != nil {
-		h.render(bot, target, "加载统计失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载统计失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{fmt.Sprintf("群统计：%s (%d)", stats.GroupTitle, stats.GroupID)}
@@ -234,7 +235,7 @@ func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	}
 	view, err := h.service.InvitePanelViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载邀请链接设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载邀请链接设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "❌ 关闭"
@@ -254,7 +255,7 @@ func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 		fmt.Sprintf("├最大邀请人数:%s", inviteLimitText(view.MemberLimit)),
 		fmt.Sprintf("└生成数量上限:%s     已生成数量:%d", inviteLimitText(view.GenerateLimit), view.GeneratedCount),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), inviteKeyboard(tgGroupID, view.Enabled))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.InviteKeyboard(tgGroupID, view.Enabled))
 }
 
 func (h *Handler) sendLogPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int, filter string) {
@@ -263,7 +264,7 @@ func (h *Handler) sendLogPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUser
 	}
 	data, err := h.service.ListLogsByTGGroupID(tgGroupID, page, rulesPageSize, filter)
 	if err != nil {
-		h.render(bot, target, "加载管理日志失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载管理日志失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	totalPages := maxPages(data.Total, rulesPageSize)
@@ -280,7 +281,7 @@ func (h *Handler) sendLogPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUser
 	for _, item := range data.Items {
 		lines = append(lines, fmt.Sprintf("#%d %s @ %s", item.ID, item.Action, item.CreatedAt.Format("2006-01-02 15:04:05")))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), logListKeyboard(tgGroupID, data.Page, totalPages, filter))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LogListKeyboard(tgGroupID, data.Page, totalPages, filter))
 }
 
 func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -289,7 +290,7 @@ func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget
 	}
 	cfg, err := h.service.SystemCleanViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载系统消息清理失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载系统消息清理失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -302,7 +303,7 @@ func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget
 		fmt.Sprintf("修改头像: %s", onOffWithEmoji(cfg.Photo)),
 		fmt.Sprintf("修改名称: %s", onOffWithEmoji(cfg.Title)),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), systemCleanKeyboard(tgGroupID, cfg))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.SystemCleanKeyboard(tgGroupID, cfg))
 }
 
 func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -311,7 +312,7 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	}
 	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反刷屏设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "❌ 关闭"
@@ -326,7 +327,7 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
 		fmt.Sprintf("删除提醒:%s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiFloodKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -335,7 +336,7 @@ func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderT
 	}
 	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反刷屏设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -345,7 +346,7 @@ func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderT
 		"",
 		"可设置：惩罚方式、警告阈值、阈值后动作、禁言/封禁时长。",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiFloodPenaltyKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -354,7 +355,7 @@ func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target ren
 	}
 	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反刷屏设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -363,7 +364,7 @@ func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target ren
 		fmt.Sprintf("当前设置:%s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
 		"请选择提醒消息自动删除时间：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiFloodAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
 }
 
 func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -372,7 +373,7 @@ func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTar
 	}
 	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反刷屏设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -381,7 +382,7 @@ func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTar
 		fmt.Sprintf("当前设置:%d 条", view.MaxMessages),
 		"请选择触发条数：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiFloodCountKeyboard(tgGroupID, view.MaxMessages))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodCountKeyboard(tgGroupID, view.MaxMessages))
 }
 
 func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -390,7 +391,7 @@ func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTa
 	}
 	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反刷屏设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -399,7 +400,7 @@ func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTa
 		fmt.Sprintf("当前设置:%d 秒", view.WindowSec),
 		"请选择检测间隔：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiFloodWindowKeyboard(tgGroupID, view.WindowSec))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodWindowKeyboard(tgGroupID, view.WindowSec))
 }
 
 func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -408,7 +409,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 	}
 	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反垃圾设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "❌ 关闭"
@@ -450,7 +451,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("例外关键词:%s", keywords),
 		fmt.Sprintf("14. 删除提醒: %s", antiSpamAlertSettingText(view.WarnDeleteSec)),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiSpamKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -459,7 +460,7 @@ func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTa
 	}
 	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反垃圾设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -469,7 +470,7 @@ func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTa
 		"",
 		"可设置：惩罚方式、警告阈值、阈值后动作、禁言/封禁时长。",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiSpamPenaltyKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -478,7 +479,7 @@ func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target rend
 	}
 	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载反垃圾设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -487,7 +488,7 @@ func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target rend
 		fmt.Sprintf("当前设置:%s", antiSpamAlertSettingText(view.WarnDeleteSec)),
 		"请选择提醒策略：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiSpamAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
 }
 
 func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -496,7 +497,7 @@ func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget,
 	}
 	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载AI反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载AI反垃圾设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "❌ 关闭"
@@ -511,7 +512,7 @@ func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget,
 		"",
 		"说明：命中基础规则会直接按规则处理；规则未命中但可疑时，AI会做二分类判断。",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), antiSpamAIKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamAIKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -520,7 +521,7 @@ func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	}
 	view, err := h.service.JoinVerifyViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载验证设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载验证设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "关闭❌"
@@ -536,7 +537,7 @@ func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 		fmt.Sprintf("验证超时:%s", verifyTimeoutActionLabel(view.TimeoutAction)),
 		fmt.Sprintf("验证方式:%s", verifyTypeLabel(view.Type)),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), verifyKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.VerifyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -545,7 +546,7 @@ func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target ren
 	}
 	view, err := h.service.JoinVerifyViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载验证设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载验证设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -554,7 +555,7 @@ func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target ren
 		fmt.Sprintf("当前设置:%d分钟", view.TimeoutMinutes),
 		"请选择验证时间：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), verifyTimeoutMinutesKeyboard(tgGroupID, view.TimeoutMinutes))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.VerifyTimeoutMinutesKeyboard(tgGroupID, view.TimeoutMinutes))
 }
 
 func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -563,7 +564,7 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 	}
 	view, err := h.service.NewbieLimitViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载新成员限制失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载新成员限制失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "关闭❌"
@@ -577,7 +578,7 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("限制时长:%d分钟", view.Minutes),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NewbieLimitKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -586,7 +587,7 @@ func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target rende
 	}
 	view, err := h.service.NewbieLimitViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载新成员限制失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载新成员限制失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -595,7 +596,7 @@ func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target rende
 		fmt.Sprintf("当前设置:%d分钟", view.Minutes),
 		"请选择限制时长：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), newbieLimitMinutesKeyboard(tgGroupID, view.Minutes))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NewbieLimitMinutesKeyboard(tgGroupID, view.Minutes))
 }
 
 func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -604,7 +605,7 @@ func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	}
 	view, err := h.service.NightModeViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载夜间模式失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载夜间模式失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	status := "关闭❌"
@@ -620,7 +621,7 @@ func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, 
 		fmt.Sprintf("夜间时段:%s", view.NightWindow),
 		fmt.Sprintf("处理方式:%s", nightModeActionLabel(view.Mode)),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), nightModeKeyboard(tgGroupID, view))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NightModeKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -629,12 +630,12 @@ func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	view, err := h.service.ChainViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载接龙失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载接龙失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	activeItems, err := h.service.ListActiveChainSummariesByTGGroupID(tgGroupID, 8)
 	if err != nil {
-		h.render(bot, target, "加载接龙失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载接龙失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{"接龙管理"}
@@ -658,7 +659,7 @@ func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	}
 	lines = append(lines, "")
 	lines = append(lines, "创建后机器人会自动发送群公告，成员点击按钮进入私聊提交内容")
-	h.render(bot, target, strings.Join(lines, "\n"), chainKeyboard(tgGroupID, activeItems))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.ChainKeyboard(tgGroupID, activeItems))
 }
 
 func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -667,7 +668,7 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	}
 	items, err := h.service.ListMonitorKeywordsByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载关键词监控失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载关键词监控失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{"关键词监控"}
@@ -680,7 +681,7 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		}
 		lines = append(lines, "", "命中后将私聊通知群管理员")
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), monitorKeyboard(tgGroupID))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.MonitorKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -692,7 +693,7 @@ func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 		"创建格式：问题|选项1,选项2,...",
 		"示例：今天开会吗？|开,不开,待定",
 	}, "\n")
-	h.render(bot, target, text, pollKeyboard(tgGroupID))
+	h.render(bot, target, text, keyboards.PollKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -701,7 +702,7 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	}
 	view, err := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载抽奖面板失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载抽奖面板失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 
@@ -735,7 +736,7 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		lines = append(lines, "", fmt.Sprintf("最近一期：#%d %s [%s]", view.LatestID, view.LatestTitle, lotteryStatusLabel(view.LatestStatus)), fmt.Sprintf("关键词：%s", view.LatestJoinKeyword))
 	}
 
-	h.render(bot, target, strings.Join(lines, "\n"), lotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 }
 
 func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
@@ -744,7 +745,7 @@ func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTar
 	}
 	data, err := h.service.ListLotteryRecordsByTGGroupID(tgGroupID, page, rulesPageSize)
 	if err != nil {
-		h.render(bot, target, "加载抽奖记录失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载抽奖记录失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	totalPages := maxPages(data.Total, rulesPageSize)
@@ -767,7 +768,7 @@ func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTar
 		lines = append(lines, fmt.Sprintf("状态:%s  中奖人数:%d  参与人数:%d", lotteryStatusLabel(item.Lottery.Status), item.Lottery.WinnersCount, item.Participants))
 		lines = append(lines, fmt.Sprintf("口令:%s", keyword))
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), lotteryRecordsKeyboard(tgGroupID, data.Items, data.Page, totalPages))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LotteryRecordsKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
 func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -776,7 +777,7 @@ func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target ren
 	}
 	view, err := h.service.LotteryPanelViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载抽奖面板失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载抽奖面板失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{
@@ -785,7 +786,7 @@ func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target ren
 		fmt.Sprintf("当前设置:%s", lotteryDeleteDesc(view.DeleteKeywordMins)),
 		"请选择自动删除口令消息时长：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), lotteryDeleteMinutesKeyboard(tgGroupID, view.DeleteKeywordMins))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LotteryDeleteMinutesKeyboard(tgGroupID, view.DeleteKeywordMins))
 }
 
 func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -794,7 +795,7 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	}
 	cfg, enabled, err := h.service.WelcomeViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载欢迎设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载欢迎设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	modeText := "验证后欢迎"
@@ -825,7 +826,7 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 		fmt.Sprintf("├🔠 链接按钮: %s", buttonText),
 		fmt.Sprintf("└📄 文本内容: %s", onOffWithEmoji(strings.TrimSpace(cfg.Text) != "")),
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), welcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WelcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))
 }
 
 func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -834,7 +835,7 @@ func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target ren
 	}
 	cfg, _, err := h.service.WelcomeViewByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载欢迎设置失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载欢迎设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	deleteText := "关闭"
@@ -847,7 +848,7 @@ func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target ren
 		fmt.Sprintf("当前设置:%s", deleteText),
 		"请选择欢迎消息自动删除时间：",
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), welcomeDeleteMinutesKeyboard(tgGroupID, cfg.DeleteMinutes))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WelcomeDeleteMinutesKeyboard(tgGroupID, cfg.DeleteMinutes))
 }
 
 func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -856,10 +857,10 @@ func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 	}
 	text, err := h.service.RBACSummaryByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载权限分级失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载权限分级失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
-	h.render(bot, target, text, rbacKeyboard(tgGroupID))
+	h.render(bot, target, text, keyboards.RBACKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -868,7 +869,7 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	}
 	items, err := h.service.ListBlacklistByTGGroupID(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载黑名单失败", groupPanelKeyboard(tgGroupID))
+		h.render(bot, target, "加载黑名单失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
 	lines := []string{"本群黑名单"}
@@ -879,11 +880,11 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 			lines = append(lines, fmt.Sprintf("%d. %d (%s)", i+1, it.TGUserID, it.Reason))
 		}
 	}
-	h.render(bot, target, strings.Join(lines, "\n"), blacklistKeyboard(tgGroupID))
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BlacklistKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendSettingsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64) {
 	lang, _ := h.service.GetUserLanguage(tgUserID)
 	text := "设置\n当前语言: " + lang + "\n可切换为中文/英文（逐步覆盖）"
-	h.render(bot, target, text, settingsKeyboard(lang))
+	h.render(bot, target, text, keyboards.SettingsKeyboard(lang))
 }

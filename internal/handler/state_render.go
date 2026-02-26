@@ -1,11 +1,15 @@
 package handler
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"supervisor/internal/handler/keyboards"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
 
 func (h *Handler) ensureAdmin(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) bool {
 	ok, err := h.service.IsAdminByTGGroupID(tgGroupID, tgUserID)
 	if err != nil || !ok {
-		h.render(bot, target, "你不是该群管理员，或机器人尚未同步该群权限", mainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "你不是该群管理员，或机器人尚未同步该群权限", keyboards.MainMenuKeyboard(bot.Self.UserName))
 		return false
 	}
 	return true
