@@ -212,19 +212,8 @@ func lotteryStatusLabel(status string) string {
 	}
 }
 
-func antiFloodPenaltyText(penalty string, muteSec int) string {
-	switch penalty {
-	case "warn":
-		return "警告"
-	case "mute":
-		return fmt.Sprintf("禁言（%d秒）", muteSec)
-	case "kick":
-		return "踢出"
-	case "kick_ban":
-		return "踢出+封禁"
-	default:
-		return "撤回消息+不处罚"
-	}
+func antiFloodPenaltyText(penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) string {
+	return bannedWordPenaltyText(penalty, warnThreshold, warnAction, warnActionMuteMinutes, warnActionBanMinutes, muteMinutes, banMinutes)
 }
 
 func antiFloodAlertDeleteText(seconds int) string {

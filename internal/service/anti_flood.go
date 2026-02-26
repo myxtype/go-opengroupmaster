@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -19,12 +20,17 @@ func (s *Service) AntiFloodViewByTGGroupID(tgGroupID int64) (*AntiFloodView, err
 func antiFloodStateToView(state antiFloodState) *AntiFloodView {
 	cfg := normalizeAntiFloodConfig(state.Config)
 	return &AntiFloodView{
-		Enabled:       state.Enabled,
-		WindowSec:     cfg.WindowSec,
-		MaxMessages:   cfg.MaxMessages,
-		Penalty:       cfg.Penalty,
-		MuteSec:       cfg.MuteSec,
-		WarnDeleteSec: cfg.WarnDeleteSec,
+		Enabled:               state.Enabled,
+		WindowSec:             cfg.WindowSec,
+		MaxMessages:           cfg.MaxMessages,
+		Penalty:               cfg.Penalty,
+		WarnThreshold:         cfg.WarnThreshold,
+		WarnAction:            cfg.WarnAction,
+		WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+		WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+		MuteMinutes:           cfg.MuteMinutes,
+		BanMinutes:            cfg.BanMinutes,
+		WarnDeleteSec:         cfg.WarnDeleteSec,
 	}
 }
 
@@ -128,6 +134,9 @@ func (s *Service) SetAntiFloodWindowSecByTGGroupID(tgGroupID int64, sec int) (in
 }
 
 func (s *Service) SetAntiFloodPenaltyByTGGroupID(tgGroupID int64, penalty string) (string, error) {
+	if !isAllowedAntiFloodPenalty(penalty) {
+		return "", errors.New("invalid anti flood penalty")
+	}
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return "", err
@@ -137,18 +146,145 @@ func (s *Service) SetAntiFloodPenaltyByTGGroupID(tgGroupID int64, penalty string
 		return "", err
 	}
 	cfg := normalizeAntiFloodConfig(state.Config)
-	switch penalty {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-		cfg.Penalty = penalty
-	default:
-		cfg.Penalty = antiFloodPenaltyDeleteOnly
-	}
+	cfg.Penalty = penalty
 	state.Config = cfg
 	if err := s.saveAntiFloodState(group.ID, state); err != nil {
 		return "", err
 	}
 	_ = s.repo.CreateLog(group.ID, "set_anti_flood_penalty_"+cfg.Penalty, 0, 0)
 	return cfg.Penalty, nil
+}
+
+func (s *Service) SetAntiFloodWarnThresholdByTGGroupID(tgGroupID int64, count int) (int, error) {
+	if !isAllowedAntiFloodWarnThreshold(count) {
+		return 0, errors.New("invalid anti flood warn threshold")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WarnThreshold = count
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_warn_threshold_%d", count), 0, 0)
+	return count, nil
+}
+
+func (s *Service) SetAntiFloodWarnActionByTGGroupID(tgGroupID int64, action string) (string, error) {
+	if !isAllowedAntiFloodWarnAction(action) {
+		return "", errors.New("invalid anti flood warn action")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return "", err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WarnAction = action
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return "", err
+	}
+	_ = s.repo.CreateLog(group.ID, "set_anti_flood_warn_action_"+action, 0, 0)
+	return action, nil
+}
+
+func (s *Service) SetAntiFloodWarnActionMuteMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiFloodDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti flood warn action mute minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WarnActionMuteMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_warn_action_mute_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiFloodWarnActionBanMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiFloodDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti flood warn action ban minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.WarnActionBanMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_warn_action_ban_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiFloodMuteMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiFloodDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti flood mute minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.MuteMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_mute_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiFloodBanMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiFloodDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti flood ban minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiFloodState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiFloodConfig(state.Config)
+	cfg.BanMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiFloodState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_flood_ban_minutes_%d", minutes), 0, 0)
+	return minutes, nil
 }
 
 func (s *Service) CycleAntiFloodWarnDeleteSecByTGGroupID(tgGroupID int64) (int, error) {
@@ -219,6 +355,22 @@ func isAllowedAntiFloodWindowSec(sec int) bool {
 	}
 }
 
+func isAllowedAntiFloodPenalty(v string) bool {
+	return isAllowedModerationPenalty(v)
+}
+
+func isAllowedAntiFloodWarnAction(v string) bool {
+	return isAllowedModerationWarnAction(v)
+}
+
+func isAllowedAntiFloodWarnThreshold(v int) bool {
+	return isAllowedModerationWarnThreshold(v)
+}
+
+func isAllowedAntiFloodDurationMinutes(v int) bool {
+	return isAllowedModerationDurationMinutes(v)
+}
+
 func nextCycleInt(current int, options []int) int {
 	if len(options) == 0 {
 		return current
@@ -231,17 +383,6 @@ func nextCycleInt(current int, options []int) int {
 	return options[0]
 }
 
-func antiFloodActionLabel(penalty string, muteSec int) string {
-	switch penalty {
-	case antiFloodPenaltyWarn:
-		return "警告"
-	case antiFloodPenaltyMute:
-		return fmt.Sprintf("禁言 %d 秒", muteSec)
-	case antiFloodPenaltyKick:
-		return "踢出"
-	case antiFloodPenaltyKickBan:
-		return "踢出+封禁"
-	default:
-		return "撤回消息+不处罚"
-	}
+func antiFloodActionLabel(penalty string, muteMinutes int, banMinutes int) string {
+	return moderationPenaltyActionLabel(penalty, muteMinutes, banMinutes)
 }

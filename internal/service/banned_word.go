@@ -212,29 +212,19 @@ func (s *Service) bannedWordStateByGroupID(groupID uint) (bool, bannedWordConfig
 }
 
 func isAllowedBannedWordPenalty(v string) bool {
-	switch v {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-		return true
-	default:
-		return false
-	}
+	return isAllowedModerationPenalty(v)
 }
 
 func isAllowedBannedWordWarnAction(v string) bool {
-	switch v {
-	case antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan:
-		return true
-	default:
-		return false
-	}
+	return isAllowedModerationWarnAction(v)
 }
 
 func isAllowedBannedWordWarnThreshold(v int) bool {
-	return v > 0 && v <= 99
+	return isAllowedModerationWarnThreshold(v)
 }
 
 func isAllowedBannedWordDurationMinutes(v int) bool {
-	return v > 0 && v <= 10080
+	return isAllowedModerationDurationMinutes(v)
 }
 
 func isAllowedBannedWordWarnDeleteMinutes(v int) bool {

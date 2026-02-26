@@ -825,6 +825,16 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_warn_threshold":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置警告次数失败", h.service.SetAntiSpamWarnThresholdByTGGroupID, h.sendAntiSpamPenaltyPanel)
+	case "spam_warn_action_mute_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置阈值后禁言时长失败", h.service.SetAntiSpamWarnActionMuteMinutesByTGGroupID, h.sendAntiSpamPenaltyPanel)
+	case "spam_warn_action_ban_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置阈值后封禁时长失败", h.service.SetAntiSpamWarnActionBanMinutesByTGGroupID, h.sendAntiSpamPenaltyPanel)
+	case "spam_mute_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置禁言时长失败", h.service.SetAntiSpamMuteMinutesByTGGroupID, h.sendAntiSpamPenaltyPanel)
+	case "spam_ban_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置封禁时长失败", h.service.SetAntiSpamBanMinutesByTGGroupID, h.sendAntiSpamPenaltyPanel)
 	case "spam_ai_spam_score":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 1 || v > 100 {
@@ -856,6 +866,16 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "flood_warn_threshold":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置警告次数失败", h.service.SetAntiFloodWarnThresholdByTGGroupID, h.sendAntiFloodPenaltyPanel)
+	case "flood_warn_action_mute_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置阈值后禁言时长失败", h.service.SetAntiFloodWarnActionMuteMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
+	case "flood_warn_action_ban_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置阈值后封禁时长失败", h.service.SetAntiFloodWarnActionBanMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
+	case "flood_mute_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置禁言时长失败", h.service.SetAntiFloodMuteMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
+	case "flood_ban_minutes":
+		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置封禁时长失败", h.service.SetAntiFloodBanMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
 	case "night_tz":
 		tz, err := h.service.SetNightModeTimezoneByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
@@ -970,6 +990,28 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	}
 
 	h.clearPending(msg.From.ID)
+}
+
+func (h *Handler) handleModerationDurationInput(
+	bot *tgbotapi.BotAPI,
+	msg *tgbotapi.Message,
+	target renderTarget,
+	pending pendingInput,
+	text string,
+	failMessage string,
+	setFn func(int64, int) (int, error),
+	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+) {
+	v, err := strconv.Atoi(text)
+	if err != nil || v <= 0 {
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+		return
+	}
+	if _, err := setFn(pending.TGGroupID, v); err != nil {
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, failMessage))
+		return
+	}
+	sendPanelFn(bot, target, msg.From.ID, pending.TGGroupID)
 }
 
 func privateHelpText() string {

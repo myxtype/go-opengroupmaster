@@ -38,7 +38,12 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		AIEnabled:             cfg.AIEnabled,
 		AISpamScore:           cfg.AISpamScore,
 		Penalty:               cfg.Penalty,
-		MuteSec:               cfg.MuteSec,
+		WarnThreshold:         cfg.WarnThreshold,
+		WarnAction:            cfg.WarnAction,
+		WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+		WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+		MuteMinutes:           cfg.MuteMinutes,
+		BanMinutes:            cfg.BanMinutes,
 		WarnDeleteSec:         cfg.WarnDeleteSec,
 	}, nil
 }
@@ -61,6 +66,9 @@ func (s *Service) SetAntiSpamEnabledByTGGroupID(tgGroupID int64, enabled bool) (
 }
 
 func (s *Service) SetAntiSpamPenaltyByTGGroupID(tgGroupID int64, penalty string) (string, error) {
+	if !isAllowedAntiSpamPenalty(penalty) {
+		return "", errors.New("invalid anti spam penalty")
+	}
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return "", err
@@ -70,18 +78,145 @@ func (s *Service) SetAntiSpamPenaltyByTGGroupID(tgGroupID int64, penalty string)
 		return "", err
 	}
 	cfg := normalizeAntiSpamConfig(state.Config)
-	switch penalty {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-		cfg.Penalty = penalty
-	default:
-		cfg.Penalty = antiFloodPenaltyDeleteOnly
-	}
+	cfg.Penalty = penalty
 	state.Config = cfg
 	if err := s.saveAntiSpamState(group.ID, state); err != nil {
 		return "", err
 	}
 	_ = s.repo.CreateLog(group.ID, "set_anti_spam_penalty_"+cfg.Penalty, 0, 0)
 	return cfg.Penalty, nil
+}
+
+func (s *Service) SetAntiSpamWarnThresholdByTGGroupID(tgGroupID int64, count int) (int, error) {
+	if !isAllowedAntiSpamWarnThreshold(count) {
+		return 0, errors.New("invalid anti spam warn threshold")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.WarnThreshold = count
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_warn_threshold_%d", count), 0, 0)
+	return count, nil
+}
+
+func (s *Service) SetAntiSpamWarnActionByTGGroupID(tgGroupID int64, action string) (string, error) {
+	if !isAllowedAntiSpamWarnAction(action) {
+		return "", errors.New("invalid anti spam warn action")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return "", err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.WarnAction = action
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return "", err
+	}
+	_ = s.repo.CreateLog(group.ID, "set_anti_spam_warn_action_"+action, 0, 0)
+	return action, nil
+}
+
+func (s *Service) SetAntiSpamWarnActionMuteMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiSpamDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti spam warn action mute minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.WarnActionMuteMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_warn_action_mute_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiSpamWarnActionBanMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiSpamDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti spam warn action ban minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.WarnActionBanMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_warn_action_ban_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiSpamMuteMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiSpamDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti spam mute minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.MuteMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_mute_minutes_%d", minutes), 0, 0)
+	return minutes, nil
+}
+
+func (s *Service) SetAntiSpamBanMinutesByTGGroupID(tgGroupID int64, minutes int) (int, error) {
+	if !isAllowedAntiSpamDurationMinutes(minutes) {
+		return 0, errors.New("invalid anti spam ban minutes")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.BanMinutes = minutes
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_ban_minutes_%d", minutes), 0, 0)
+	return minutes, nil
 }
 
 func (s *Service) ToggleAntiSpamOptionByTGGroupID(tgGroupID int64, option string) (bool, error) {
@@ -332,4 +467,20 @@ func isAllowedAntiSpamWarnDeleteSec(sec int) bool {
 	default:
 		return false
 	}
+}
+
+func isAllowedAntiSpamPenalty(v string) bool {
+	return isAllowedModerationPenalty(v)
+}
+
+func isAllowedAntiSpamWarnAction(v string) bool {
+	return isAllowedModerationWarnAction(v)
+}
+
+func isAllowedAntiSpamWarnThreshold(v int) bool {
+	return isAllowedModerationWarnThreshold(v)
+}
+
+func isAllowedAntiSpamDurationMinutes(v int) bool {
+	return isAllowedModerationDurationMinutes(v)
 }

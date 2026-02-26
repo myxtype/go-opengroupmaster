@@ -298,69 +298,27 @@ func bannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items
 
 func bannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	const (
-		bwPenaltyWarn       = "warn"
-		bwPenaltyMute       = "mute"
-		bwPenaltyKick       = "kick"
-		bwPenaltyKickBan    = "kick_ban"
-		bwPenaltyDeleteOnly = "delete_only"
+	rows := moderationPenaltyRowsWithSpec(
+		gid,
+		view.Penalty,
+		view.WarnThreshold,
+		view.WarnAction,
+		view.WarnActionMuteMinutes,
+		view.WarnActionBanMinutes,
+		view.MuteMinutes,
+		view.BanMinutes,
+		moderationPenaltyRowSpec{
+			WarnLabelPrefix: false,
+			DeleteOnlyLabel: "仅撤回",
+			PenaltySet:      "feat:bw:penaltyset:%s:%s",
+			WarnCount:       "feat:bw:warncount:%s",
+			WarnAction:      "feat:bw:warnaction:%s:%s",
+			WarnMuteInput:   "feat:bw:warnmuteinput:%s",
+			WarnBanInput:    "feat:bw:warnbaninput:%s",
+			MuteInput:       "feat:bw:muteinput:%s",
+			BanInput:        "feat:bw:baninput:%s",
+		},
 	)
-	warnLabel := selectedLabel("警告", view.Penalty == bwPenaltyWarn)
-	muteLabel := selectedLabel("禁言", view.Penalty == bwPenaltyMute)
-	kickLabel := selectedLabel("踢出", view.Penalty == bwPenaltyKick)
-	kickBanLabel := selectedLabel("踢出+封禁", view.Penalty == bwPenaltyKickBan)
-	deleteOnlyLabel := selectedLabel("仅撤回", view.Penalty == bwPenaltyDeleteOnly)
-
-	warnMuteLabel := selectedLabel("阈值后禁言", view.WarnAction == bwPenaltyMute)
-	warnKickLabel := selectedLabel("阈值后踢出", view.WarnAction == bwPenaltyKick)
-	warnKickBanLabel := selectedLabel("阈值后封禁", view.WarnAction == bwPenaltyKickBan)
-
-	rows := [][]tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf("feat:bw:penaltyset:%s:%s", gid, bwPenaltyWarn)),
-			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf("feat:bw:penaltyset:%s:%s", gid, bwPenaltyMute)),
-			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf("feat:bw:penaltyset:%s:%s", gid, bwPenaltyKick)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf("feat:bw:penaltyset:%s:%s", gid, bwPenaltyKickBan)),
-			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:bw:penaltyset:%s:%s", gid, bwPenaltyDeleteOnly)),
-		),
-	}
-
-	if view.Penalty == bwPenaltyWarn {
-		rows = append(rows,
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("警告次数：%d（输入）", view.WarnThreshold), fmt.Sprintf("feat:bw:warncount:%s", gid)),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(warnMuteLabel, fmt.Sprintf("feat:bw:warnaction:%s:%s", gid, bwPenaltyMute)),
-				tgbotapi.NewInlineKeyboardButtonData(warnKickLabel, fmt.Sprintf("feat:bw:warnaction:%s:%s", gid, bwPenaltyKick)),
-				tgbotapi.NewInlineKeyboardButtonData(warnKickBanLabel, fmt.Sprintf("feat:bw:warnaction:%s:%s", gid, bwPenaltyKickBan)),
-			),
-		)
-		if view.WarnAction == bwPenaltyMute {
-			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值禁言时长：%d分钟（输入）", view.WarnActionMuteMinutes), fmt.Sprintf("feat:bw:warnmuteinput:%s", gid)),
-			))
-		}
-		if view.WarnAction == bwPenaltyKickBan {
-			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值封禁时长：%d分钟（输入）", view.WarnActionBanMinutes), fmt.Sprintf("feat:bw:warnbaninput:%s", gid)),
-			))
-		}
-	}
-
-	if view.Penalty == bwPenaltyMute {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("禁言时长：%d分钟（输入）", view.MuteMinutes), fmt.Sprintf("feat:bw:muteinput:%s", gid)),
-		))
-	}
-
-	if view.Penalty == bwPenaltyKickBan {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("封禁时长：%d分钟（输入）", view.BanMinutes), fmt.Sprintf("feat:bw:baninput:%s", gid)),
-		))
-	}
 
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("◀ 返回违禁词面板", fmt.Sprintf("feat:bw:view:%s", gid)),
@@ -523,12 +481,7 @@ func systemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 
 func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	warnLabel := selectedLabel("惩罚：警告", view.Penalty == "warn")
-	muteLabel := selectedLabel("惩罚：禁言", view.Penalty == "mute")
-	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
-	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
-	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
-	return tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		statusControlRow(
 			view.Enabled,
 			fmt.Sprintf("feat:mod:noop:%s", gid),
@@ -540,21 +493,17 @@ func antiFloodKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.In
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("检测间隔：%d秒", view.WindowSec), fmt.Sprintf("feat:mod:floodwindow:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:warn", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:mute", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("惩罚设置", fmt.Sprintf("feat:mod:floodpenaltycfg:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:kick", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:kick_ban", gid)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:mod:floodpenalty:%s:delete_only", gid)),
-		),
+	}
+
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+antiFloodAlertDeleteText(view.WarnDeleteSec), fmt.Sprintf("feat:mod:floodalertdel:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:floodview:%s", gid)),
 	)
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 func antiFloodAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
@@ -634,12 +583,7 @@ func antiFloodWindowKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKey
 
 func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	warnLabel := selectedLabel("惩罚：警告", view.Penalty == "warn")
-	muteLabel := selectedLabel("惩罚：禁言", view.Penalty == "mute")
-	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
-	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
-	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
-	return tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		statusControlRow(
 			view.Enabled,
 			fmt.Sprintf("feat:mod:noop:%s", gid),
@@ -647,16 +591,11 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			fmt.Sprintf("feat:mod:spamoff:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf("feat:mod:spampenalty:%s:warn", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf("feat:mod:spampenalty:%s:mute", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("惩罚设置", fmt.Sprintf("feat:mod:spampenaltycfg:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf("feat:mod:spampenalty:%s:kick", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf("feat:mod:spampenalty:%s:kick_ban", gid)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:mod:spampenalty:%s:delete_only", gid)),
-		),
+	}
+
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🤖 AI智能反垃圾设置", fmt.Sprintf("feat:mod:spamaicfg:%s", gid)),
 		),
@@ -693,6 +632,149 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:spamview:%s", gid)),
 	)
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func antiSpamPenaltyKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	rows := moderationPenaltyRows(gid, "spam", view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("◀ 返回反垃圾面板", fmt.Sprintf("feat:mod:spamview:%s", gid)),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func antiFloodPenaltyKeyboard(tgGroupID int64, view *service.AntiFloodView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	rows := moderationPenaltyRows(gid, "flood", view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("◀ 返回反刷屏面板", fmt.Sprintf("feat:mod:floodview:%s", gid)),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func moderationPenaltyRows(gid, scope string, penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) [][]tgbotapi.InlineKeyboardButton {
+	return moderationPenaltyRowsWithSpec(
+		gid,
+		penalty,
+		warnThreshold,
+		warnAction,
+		warnActionMuteMinutes,
+		warnActionBanMinutes,
+		muteMinutes,
+		banMinutes,
+		moderationPenaltyRowSpec{
+			WarnLabelPrefix: true,
+			DeleteOnlyLabel: "惩罚：撤回+不处罚",
+			PenaltySet:      fmt.Sprintf("feat:mod:%spenalty:%%s:%%s", scope),
+			WarnCount:       fmt.Sprintf("feat:mod:%swarncount:%%s", scope),
+			WarnAction:      fmt.Sprintf("feat:mod:%swarnaction:%%s:%%s", scope),
+			WarnMuteInput:   fmt.Sprintf("feat:mod:%swarnmuteinput:%%s", scope),
+			WarnBanInput:    fmt.Sprintf("feat:mod:%swarnbaninput:%%s", scope),
+			MuteInput:       fmt.Sprintf("feat:mod:%smuteinput:%%s", scope),
+			BanInput:        fmt.Sprintf("feat:mod:%sbaninput:%%s", scope),
+		},
+	)
+}
+
+type moderationPenaltyRowSpec struct {
+	WarnLabelPrefix bool
+	DeleteOnlyLabel string
+	PenaltySet      string
+	WarnCount       string
+	WarnAction      string
+	WarnMuteInput   string
+	WarnBanInput    string
+	MuteInput       string
+	BanInput        string
+}
+
+func moderationPenaltyRowsWithSpec(
+	gid string,
+	penalty string,
+	warnThreshold int,
+	warnAction string,
+	warnActionMuteMinutes int,
+	warnActionBanMinutes int,
+	muteMinutes int,
+	banMinutes int,
+	spec moderationPenaltyRowSpec,
+) [][]tgbotapi.InlineKeyboardButton {
+	const (
+		penaltyWarn       = "warn"
+		penaltyMute       = "mute"
+		penaltyKick       = "kick"
+		penaltyKickBan    = "kick_ban"
+		penaltyDeleteOnly = "delete_only"
+	)
+
+	labelPrefix := ""
+	if spec.WarnLabelPrefix {
+		labelPrefix = "惩罚："
+	}
+	deleteOnlyText := spec.DeleteOnlyLabel
+	if deleteOnlyText == "" {
+		deleteOnlyText = labelPrefix + "撤回+不处罚"
+	}
+
+	warnLabel := selectedLabel(labelPrefix+"警告", penalty == penaltyWarn)
+	muteLabel := selectedLabel(labelPrefix+"禁言", penalty == penaltyMute)
+	kickLabel := selectedLabel(labelPrefix+"踢出", penalty == penaltyKick)
+	kickBanLabel := selectedLabel(labelPrefix+"踢出+封禁", penalty == penaltyKickBan)
+	deleteOnlyLabel := selectedLabel(deleteOnlyText, penalty == penaltyDeleteOnly)
+	warnMuteLabel := selectedLabel("阈值后禁言", warnAction == penaltyMute)
+	warnKickLabel := selectedLabel("阈值后踢出", warnAction == penaltyKick)
+	warnKickBanLabel := selectedLabel("阈值后封禁", warnAction == penaltyKickBan)
+
+	rows := [][]tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyWarn)),
+			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyMute)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKick)),
+			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKickBan)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyDeleteOnly)),
+		),
+	}
+
+	if penalty == penaltyWarn {
+		rows = append(rows,
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("警告次数：%d（输入）", warnThreshold), fmt.Sprintf(spec.WarnCount, gid)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(warnMuteLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyMute)),
+				tgbotapi.NewInlineKeyboardButtonData(warnKickLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKick)),
+				tgbotapi.NewInlineKeyboardButtonData(warnKickBanLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKickBan)),
+			),
+		)
+		if warnAction == penaltyMute {
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值禁言时长：%d分钟（输入）", warnActionMuteMinutes), fmt.Sprintf(spec.WarnMuteInput, gid)),
+			))
+		}
+		if warnAction == penaltyKickBan {
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值封禁时长：%d分钟（输入）", warnActionBanMinutes), fmt.Sprintf(spec.WarnBanInput, gid)),
+			))
+		}
+	}
+
+	if penalty == penaltyMute {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("禁言时长：%d分钟（输入）", muteMinutes), fmt.Sprintf(spec.MuteInput, gid)),
+		))
+	}
+
+	if penalty == penaltyKickBan {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("封禁时长：%d分钟（输入）", banMinutes), fmt.Sprintf(spec.BanInput, gid)),
+		))
+	}
+	return rows
 }
 
 func antiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {

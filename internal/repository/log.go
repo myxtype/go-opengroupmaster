@@ -57,6 +57,30 @@ func (r *Repository) CountBannedWordWarnsSinceLastAction(groupID, targetID uint)
 	return total, err
 }
 
+func (r *Repository) CountAntiSpamWarnsSinceLastAction(groupID, targetID uint) (int64, error) {
+	var total int64
+	sub := r.db.Model(&model.Log{}).
+		Select("COALESCE(MAX(id), 0)").
+		Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, "anti_spam_warn_action_applied")
+	err := r.db.Model(&model.Log{}).
+		Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, "anti_spam_warn").
+		Where("id > (?)", sub).
+		Count(&total).Error
+	return total, err
+}
+
+func (r *Repository) CountAntiFloodWarnsSinceLastAction(groupID, targetID uint) (int64, error) {
+	var total int64
+	sub := r.db.Model(&model.Log{}).
+		Select("COALESCE(MAX(id), 0)").
+		Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, "anti_flood_warn_action_applied")
+	err := r.db.Model(&model.Log{}).
+		Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, "anti_flood_warn").
+		Where("id > (?)", sub).
+		Count(&total).Error
+	return total, err
+}
+
 func applyLogActionFilter(q *gorm.DB, action string) *gorm.DB {
 	if action == "" || action == "all" {
 		return q

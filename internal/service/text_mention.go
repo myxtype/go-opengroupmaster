@@ -39,12 +39,16 @@ func composeTextWithUserMention(prefix string, user *tgbotapi.User, suffix strin
 	}, suffix)
 }
 
-func composeAntiSpamAlertWithMention(user *tgbotapi.User, reasonLabel string) (string, []tgbotapi.MessageEntity) {
+func composeAntiSpamAlertWithMention(user *tgbotapi.User, reasonLabel string, actionLabel string) (string, []tgbotapi.MessageEntity) {
 	reason := strings.TrimSpace(reasonLabel)
 	if reason == "" {
 		reason = "规则判定"
 	}
-	return composeTextWithUserMention("", user, fmt.Sprintf(" 正在发送垃圾消息。\n原因：%s\n\n[AI广告深度学习模型]", reason))
+	action := strings.TrimSpace(actionLabel)
+	if action == "" {
+		action = "已撤回（不处罚）"
+	}
+	return composeTextWithUserMention("", user, fmt.Sprintf(" 正在发送垃圾消息。\n原因：%s\n处理：%s\n\n[AI广告深度学习模型]", reason, action))
 }
 
 func formatWelcomeMentions(users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {

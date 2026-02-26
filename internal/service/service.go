@@ -89,18 +89,30 @@ type antiSpamConfig struct {
 	AIEnabled               bool     `json:"ai_enabled"`
 	AISpamScore             int      `json:"ai_spam_score"`
 	Penalty                 string   `json:"penalty"`
-	MuteSec                 int      `json:"mute_sec"`
+	WarnThreshold           int      `json:"warn_threshold"`
+	WarnAction              string   `json:"warn_action"`
+	WarnActionMuteMinutes   int      `json:"warn_action_mute_minutes"`
+	WarnActionBanMinutes    int      `json:"warn_action_ban_minutes"`
+	MuteMinutes             int      `json:"mute_minutes"`
+	BanMinutes              int      `json:"ban_minutes"`
+	MuteSec                 int      `json:"mute_sec"`        // 兼容历史配置，已弃用
 	WarnDeleteSec           int      `json:"warn_delete_sec"` // -1 表示不提示/0 表示不删除/>0 表示对应秒数后删除
 }
 
 type antiFloodConfig struct {
-	WindowSec       int    `json:"window_sec"`
-	MaxMessages     int    `json:"max_messages"`
-	Penalty         string `json:"penalty"`
-	MuteSec         int    `json:"mute_sec"`
-	WarnDeleteSec   int    `json:"warn_delete_sec"`
-	RepeatWindow    int    `json:"repeat_window_sec"`
-	RepeatThreshold int    `json:"repeat_threshold"`
+	WindowSec             int    `json:"window_sec"`
+	MaxMessages           int    `json:"max_messages"`
+	Penalty               string `json:"penalty"`
+	WarnThreshold         int    `json:"warn_threshold"`
+	WarnAction            string `json:"warn_action"`
+	WarnActionMuteMinutes int    `json:"warn_action_mute_minutes"`
+	WarnActionBanMinutes  int    `json:"warn_action_ban_minutes"`
+	MuteMinutes           int    `json:"mute_minutes"`
+	BanMinutes            int    `json:"ban_minutes"`
+	MuteSec               int    `json:"mute_sec"` // 兼容历史配置，已弃用
+	WarnDeleteSec         int    `json:"warn_delete_sec"`
+	RepeatWindow          int    `json:"repeat_window_sec"`
+	RepeatThreshold       int    `json:"repeat_threshold"`
 }
 
 type antiFloodState struct {
@@ -301,12 +313,17 @@ type NewbieLimitView struct {
 }
 
 type AntiFloodView struct {
-	Enabled       bool
-	WindowSec     int
-	MaxMessages   int
-	Penalty       string
-	MuteSec       int
-	WarnDeleteSec int
+	Enabled               bool
+	WindowSec             int
+	MaxMessages           int
+	Penalty               string
+	WarnThreshold         int
+	WarnAction            string
+	WarnActionMuteMinutes int
+	WarnActionBanMinutes  int
+	MuteMinutes           int
+	BanMinutes            int
+	WarnDeleteSec         int
 }
 
 type AntiSpamView struct {
@@ -328,7 +345,12 @@ type AntiSpamView struct {
 	AIEnabled             bool
 	AISpamScore           int
 	Penalty               string
-	MuteSec               int
+	WarnThreshold         int
+	WarnAction            string
+	WarnActionMuteMinutes int
+	WarnActionBanMinutes  int
+	MuteMinutes           int
+	BanMinutes            int
 	WarnDeleteSec         int
 }
 

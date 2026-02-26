@@ -323,10 +323,29 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 		"",
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("当前设置:在%d秒内发送%d条消息触发反刷屏", view.WindowSec, view.MaxMessages),
-		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.MuteSec)),
+		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
 		fmt.Sprintf("删除提醒:%s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), antiFloodKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反刷屏设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"💬 反刷屏 - 惩罚设置",
+		"",
+		fmt.Sprintf("当前惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
+		"",
+		"可设置：惩罚方式、警告阈值、阈值后动作、禁言/封禁时长。",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiFloodPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
@@ -411,7 +430,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		"📨 反垃圾",
 		"",
 		fmt.Sprintf("状态:%s", status),
-		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.MuteSec)),
+		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
 		fmt.Sprintf("AI判定:%s", onOffWithEmoji(view.AIEnabled)),
 		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
 		"",
@@ -432,6 +451,25 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("14. 删除提醒: %s", antiSpamAlertSettingText(view.WarnDeleteSec)),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), antiSpamKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"📨 反垃圾 - 惩罚设置",
+		"",
+		fmt.Sprintf("当前惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
+		"",
+		"可设置：惩罚方式、警告阈值、阈值后动作、禁言/封禁时长。",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiSpamPenaltyKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

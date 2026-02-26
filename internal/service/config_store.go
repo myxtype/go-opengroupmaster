@@ -136,6 +136,12 @@ func defaultAntiSpamConfig() antiSpamConfig {
 		AIEnabled:               false,
 		AISpamScore:             70,
 		Penalty:                 antiFloodPenaltyDeleteOnly,
+		WarnThreshold:           3,
+		WarnAction:              antiFloodPenaltyMute,
+		WarnActionMuteMinutes:   60,
+		WarnActionBanMinutes:    60,
+		MuteMinutes:             60,
+		BanMinutes:              60,
 		MuteSec:                 60,
 		WarnDeleteSec:           10,
 	}
@@ -154,17 +160,25 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	if cfg.AISpamScore > 100 {
 		cfg.AISpamScore = 100
 	}
-	if cfg.MuteSec <= 0 {
-		cfg.MuteSec = 60
-	}
 	if cfg.WarnDeleteSec < -1 {
 		cfg.WarnDeleteSec = -1
 	}
-	switch cfg.Penalty {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-	default:
-		cfg.Penalty = antiFloodPenaltyDeleteOnly
-	}
+	penaltyCfg := normalizeModerationPenaltyConfig(moderationPenaltyConfig{
+		Penalty:               cfg.Penalty,
+		WarnThreshold:         cfg.WarnThreshold,
+		WarnAction:            cfg.WarnAction,
+		WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+		WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+		MuteMinutes:           cfg.MuteMinutes,
+		BanMinutes:            cfg.BanMinutes,
+	}, antiFloodPenaltyDeleteOnly, cfg.MuteSec)
+	cfg.Penalty = penaltyCfg.Penalty
+	cfg.WarnThreshold = penaltyCfg.WarnThreshold
+	cfg.WarnAction = penaltyCfg.WarnAction
+	cfg.WarnActionMuteMinutes = penaltyCfg.WarnActionMuteMinutes
+	cfg.WarnActionBanMinutes = penaltyCfg.WarnActionBanMinutes
+	cfg.MuteMinutes = penaltyCfg.MuteMinutes
+	cfg.BanMinutes = penaltyCfg.BanMinutes
 	// 例外的关键词
 	cfg.ExceptionKeywords = normalizeKeywordList(cfg.ExceptionKeywords)
 	return cfg
@@ -250,13 +264,19 @@ func (s *Service) saveAntiSpamState(groupID uint, state antiSpamState) error {
 
 func defaultAntiFloodConfig() antiFloodConfig {
 	return antiFloodConfig{
-		WindowSec:       5,
-		MaxMessages:     5,
-		Penalty:         antiFloodPenaltyDeleteOnly,
-		MuteSec:         60,
-		WarnDeleteSec:   10,
-		RepeatWindow:    20,
-		RepeatThreshold: 3,
+		WindowSec:             5,
+		MaxMessages:           5,
+		Penalty:               antiFloodPenaltyDeleteOnly,
+		WarnThreshold:         3,
+		WarnAction:            antiFloodPenaltyMute,
+		WarnActionMuteMinutes: 60,
+		WarnActionBanMinutes:  60,
+		MuteMinutes:           60,
+		BanMinutes:            60,
+		MuteSec:               60,
+		WarnDeleteSec:         10,
+		RepeatWindow:          20,
+		RepeatThreshold:       3,
 	}
 }
 
@@ -267,17 +287,25 @@ func normalizeAntiFloodConfig(cfg antiFloodConfig) antiFloodConfig {
 	if cfg.MaxMessages <= 0 {
 		cfg.MaxMessages = 5
 	}
-	if cfg.MuteSec <= 0 {
-		cfg.MuteSec = 60
-	}
 	if cfg.WarnDeleteSec < 0 {
 		cfg.WarnDeleteSec = 0
 	}
-	switch cfg.Penalty {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-	default:
-		cfg.Penalty = antiFloodPenaltyDeleteOnly
-	}
+	penaltyCfg := normalizeModerationPenaltyConfig(moderationPenaltyConfig{
+		Penalty:               cfg.Penalty,
+		WarnThreshold:         cfg.WarnThreshold,
+		WarnAction:            cfg.WarnAction,
+		WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+		WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+		MuteMinutes:           cfg.MuteMinutes,
+		BanMinutes:            cfg.BanMinutes,
+	}, antiFloodPenaltyDeleteOnly, cfg.MuteSec)
+	cfg.Penalty = penaltyCfg.Penalty
+	cfg.WarnThreshold = penaltyCfg.WarnThreshold
+	cfg.WarnAction = penaltyCfg.WarnAction
+	cfg.WarnActionMuteMinutes = penaltyCfg.WarnActionMuteMinutes
+	cfg.WarnActionBanMinutes = penaltyCfg.WarnActionBanMinutes
+	cfg.MuteMinutes = penaltyCfg.MuteMinutes
+	cfg.BanMinutes = penaltyCfg.BanMinutes
 	return cfg
 }
 
@@ -577,46 +605,22 @@ func defaultBannedWordConfig() bannedWordConfig {
 }
 
 func normalizeBannedWordConfig(cfg bannedWordConfig) bannedWordConfig {
-	switch cfg.Penalty {
-	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:
-	default:
-		cfg.Penalty = antiFloodPenaltyWarn
-	}
-	if cfg.WarnThreshold <= 0 {
-		cfg.WarnThreshold = 3
-	}
-	if cfg.WarnThreshold > 99 {
-		cfg.WarnThreshold = 99
-	}
-	switch cfg.WarnAction {
-	case antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan:
-	default:
-		cfg.WarnAction = antiFloodPenaltyMute
-	}
-	if cfg.WarnActionMuteMinutes <= 0 {
-		cfg.WarnActionMuteMinutes = 60
-	}
-	if cfg.WarnActionMuteMinutes > 10080 {
-		cfg.WarnActionMuteMinutes = 10080
-	}
-	if cfg.WarnActionBanMinutes <= 0 {
-		cfg.WarnActionBanMinutes = 60
-	}
-	if cfg.WarnActionBanMinutes > 10080 {
-		cfg.WarnActionBanMinutes = 10080
-	}
-	if cfg.MuteMinutes <= 0 {
-		cfg.MuteMinutes = 60
-	}
-	if cfg.MuteMinutes > 10080 {
-		cfg.MuteMinutes = 10080
-	}
-	if cfg.BanMinutes <= 0 {
-		cfg.BanMinutes = 60
-	}
-	if cfg.BanMinutes > 10080 {
-		cfg.BanMinutes = 10080
-	}
+	penaltyCfg := normalizeModerationPenaltyConfig(moderationPenaltyConfig{
+		Penalty:               cfg.Penalty,
+		WarnThreshold:         cfg.WarnThreshold,
+		WarnAction:            cfg.WarnAction,
+		WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+		WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+		MuteMinutes:           cfg.MuteMinutes,
+		BanMinutes:            cfg.BanMinutes,
+	}, antiFloodPenaltyWarn, 0)
+	cfg.Penalty = penaltyCfg.Penalty
+	cfg.WarnThreshold = penaltyCfg.WarnThreshold
+	cfg.WarnAction = penaltyCfg.WarnAction
+	cfg.WarnActionMuteMinutes = penaltyCfg.WarnActionMuteMinutes
+	cfg.WarnActionBanMinutes = penaltyCfg.WarnActionBanMinutes
+	cfg.MuteMinutes = penaltyCfg.MuteMinutes
+	cfg.BanMinutes = penaltyCfg.BanMinutes
 	if cfg.WarnDeleteMinutes < 0 {
 		cfg.WarnDeleteMinutes = 10
 	}

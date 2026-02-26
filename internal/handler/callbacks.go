@@ -1245,18 +1245,35 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		}
 		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
 		return
+	case "spampenaltycfg":
+		h.answerCallback(bot, cb.ID, "加载惩罚设置")
+		h.sendAntiSpamPenaltyPanel(bot, target, userID, tgGroupID)
+		return
 	case "spampenalty":
-		if len(parts) < 5 {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		penalty, err := h.service.SetAntiSpamPenaltyByTGGroupID(tgGroupID, parts[4])
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "设置失败")
-			return
-		}
-		h.answerCallback(bot, cb.ID, "惩罚已设为 "+antiFloodPenaltyText(penalty, 60))
-		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		h.handleModerationPenaltySetCallback(
+			bot, cb, target, userID, tgGroupID, parts,
+			h.service.SetAntiSpamPenaltyByTGGroupID,
+			h.antiSpamPenaltySummaryByTGGroupID,
+			h.sendAntiSpamPenaltyPanel,
+		)
+		return
+	case "spamwarncount":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_warn_threshold", "请输入警告次数", "请输入达到处罚前的警告次数（正整数，例如 3）")
+		return
+	case "spamwarnaction":
+		h.handleModerationWarnActionSetCallback(bot, cb, target, userID, tgGroupID, parts, h.service.SetAntiSpamWarnActionByTGGroupID, h.sendAntiSpamPenaltyPanel)
+		return
+	case "spamwarnmuteinput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_warn_action_mute_minutes", "请输入阈值禁言时长", "请输入警告达到阈值后禁言时长（分钟，1-10080）")
+		return
+	case "spamwarnbaninput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_warn_action_ban_minutes", "请输入阈值封禁时长", "请输入警告达到阈值后封禁时长（分钟，1-10080）")
+		return
+	case "spammuteinput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_mute_minutes", "请输入禁言时长", "请输入禁言时长（分钟，1-10080）")
+		return
+	case "spambaninput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_ban_minutes", "请输入封禁时长", "请输入封禁时长（分钟，1-10080）")
 		return
 	case "spamaicfg":
 		h.answerCallback(bot, cb.ID, "加载AI反垃圾")
@@ -1580,17 +1597,34 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendAntiFloodWindowPanel(bot, target, userID, tgGroupID)
 		return
 	case "floodpenalty":
-		if len(parts) < 5 {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		penalty, err := h.service.SetAntiFloodPenaltyByTGGroupID(tgGroupID, parts[4])
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "设置失败")
-			return
-		}
-		h.answerCallback(bot, cb.ID, "惩罚已设为 "+antiFloodPenaltyText(penalty, 60))
-		h.sendAntiFloodPanel(bot, target, userID, tgGroupID)
+		h.handleModerationPenaltySetCallback(
+			bot, cb, target, userID, tgGroupID, parts,
+			h.service.SetAntiFloodPenaltyByTGGroupID,
+			h.antiFloodPenaltySummaryByTGGroupID,
+			h.sendAntiFloodPenaltyPanel,
+		)
+		return
+	case "floodpenaltycfg":
+		h.answerCallback(bot, cb.ID, "加载惩罚设置")
+		h.sendAntiFloodPenaltyPanel(bot, target, userID, tgGroupID)
+		return
+	case "floodwarncount":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "flood_warn_threshold", "请输入警告次数", "请输入达到处罚前的警告次数（正整数，例如 3）")
+		return
+	case "floodwarnaction":
+		h.handleModerationWarnActionSetCallback(bot, cb, target, userID, tgGroupID, parts, h.service.SetAntiFloodWarnActionByTGGroupID, h.sendAntiFloodPenaltyPanel)
+		return
+	case "floodwarnmuteinput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "flood_warn_action_mute_minutes", "请输入阈值禁言时长", "请输入警告达到阈值后禁言时长（分钟，1-10080）")
+		return
+	case "floodwarnbaninput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "flood_warn_action_ban_minutes", "请输入阈值封禁时长", "请输入警告达到阈值后封禁时长（分钟，1-10080）")
+		return
+	case "floodmuteinput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "flood_mute_minutes", "请输入禁言时长", "请输入禁言时长（分钟，1-10080）")
+		return
+	case "floodbaninput":
+		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "flood_ban_minutes", "请输入封禁时长", "请输入封禁时长（分钟，1-10080）")
 		return
 	case "floodalertdel":
 		h.answerCallback(bot, cb.ID, "请选择删除提醒时长")
@@ -1621,6 +1655,87 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	}
 
 	h.answerCallback(bot, cb.ID, "未知操作")
+}
+
+func (h *Handler) antiSpamPenaltySummaryByTGGroupID(tgGroupID int64) (string, error) {
+	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	return antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes), nil
+}
+
+func (h *Handler) antiFloodPenaltySummaryByTGGroupID(tgGroupID int64) (string, error) {
+	view, err := h.service.AntiFloodViewByTGGroupID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	return antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes), nil
+}
+
+func (h *Handler) handleModerationPenaltySetCallback(
+	bot *tgbotapi.BotAPI,
+	cb *tgbotapi.CallbackQuery,
+	target renderTarget,
+	userID int64,
+	tgGroupID int64,
+	parts []string,
+	setFn func(int64, string) (string, error),
+	summaryFn func(int64) (string, error),
+	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+) {
+	if len(parts) < 5 {
+		h.answerCallback(bot, cb.ID, "参数错误")
+		return
+	}
+	if _, err := setFn(tgGroupID, parts[4]); err != nil {
+		h.answerCallback(bot, cb.ID, "设置失败")
+		return
+	}
+	summary, err := summaryFn(tgGroupID)
+	if err != nil {
+		h.answerCallback(bot, cb.ID, "设置失败")
+		return
+	}
+	h.answerCallback(bot, cb.ID, "惩罚已设为 "+summary)
+	sendPanelFn(bot, target, userID, tgGroupID)
+}
+
+func (h *Handler) handleModerationWarnActionSetCallback(
+	bot *tgbotapi.BotAPI,
+	cb *tgbotapi.CallbackQuery,
+	target renderTarget,
+	userID int64,
+	tgGroupID int64,
+	parts []string,
+	setFn func(int64, string) (string, error),
+	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+) {
+	if len(parts) < 5 {
+		h.answerCallback(bot, cb.ID, "参数错误")
+		return
+	}
+	if _, err := setFn(tgGroupID, parts[4]); err != nil {
+		h.answerCallback(bot, cb.ID, "设置失败")
+		return
+	}
+	h.answerCallback(bot, cb.ID, "阈值后动作已更新")
+	sendPanelFn(bot, target, userID, tgGroupID)
+}
+
+func (h *Handler) beginModerationPendingInput(
+	bot *tgbotapi.BotAPI,
+	cb *tgbotapi.CallbackQuery,
+	target renderTarget,
+	userID int64,
+	tgGroupID int64,
+	kind string,
+	tip string,
+	prompt string,
+) {
+	h.answerCallback(bot, cb.ID, tip)
+	h.setPending(userID, pendingInput{Kind: kind, TGGroupID: tgGroupID})
+	h.render(bot, target, prompt, pendingCancelKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {
@@ -1665,6 +1780,10 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendWelcomePanel(bot, target, userID, pending.TGGroupID)
 	case "spam_msg_len", "spam_name_len", "spam_exception_add", "spam_exception_remove":
 		h.sendAntiSpamPanel(bot, target, userID, pending.TGGroupID)
+	case "spam_warn_threshold", "spam_warn_action_mute_minutes", "spam_warn_action_ban_minutes", "spam_mute_minutes", "spam_ban_minutes":
+		h.sendAntiSpamPenaltyPanel(bot, target, userID, pending.TGGroupID)
+	case "flood_warn_threshold", "flood_warn_action_mute_minutes", "flood_warn_action_ban_minutes", "flood_mute_minutes", "flood_ban_minutes":
+		h.sendAntiFloodPenaltyPanel(bot, target, userID, pending.TGGroupID)
 	case "spam_ai_spam_score":
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz":
