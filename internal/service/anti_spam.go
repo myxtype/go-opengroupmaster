@@ -33,6 +33,8 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		MaxNameLength:         cfg.MaxNameLength,
 		ExceptionKeywordCount: len(keywords),
 		ExceptionKeywords:     keywords,
+		AIEnabled:             cfg.AIEnabled,
+		AISpamScore:           cfg.AISpamScore,
 		Penalty:               cfg.Penalty,
 		MuteSec:               cfg.MuteSec,
 		WarnDeleteSec:         cfg.WarnDeleteSec,
@@ -267,6 +269,47 @@ func (s *Service) SetAntiSpamWarnDeleteSecByTGGroupID(tgGroupID int64, sec int) 
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_warn_delete_%d", cfg.WarnDeleteSec), 0, 0)
 	return cfg.WarnDeleteSec, nil
+}
+
+func (s *Service) SetAntiSpamAIEnabledByTGGroupID(tgGroupID int64, enabled bool) (bool, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return false, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return false, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.AIEnabled = enabled
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return false, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_ai_enabled_%t", enabled), 0, 0)
+	return cfg.AIEnabled, nil
+}
+
+func (s *Service) SetAntiSpamAISpamScoreByTGGroupID(tgGroupID int64, spamScore int) (int, error) {
+	if spamScore < 1 || spamScore > 100 {
+		return 0, errors.New("invalid ai spam score")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return 0, err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.AISpamScore = spamScore
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return 0, err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_ai_spam_score_%d", spamScore), 0, 0)
+	return cfg.AISpamScore, nil
 }
 
 func isAllowedAntiSpamWarnDeleteSec(sec int) bool {

@@ -133,6 +133,8 @@ func defaultAntiSpamConfig() antiSpamConfig {
 		BlockLongName:           false,
 		MaxNameLength:           32,
 		ExceptionKeywords:       []string{},
+		AIEnabled:               false,
+		AISpamScore:             70,
 		Penalty:                 antiFloodPenaltyDeleteOnly,
 		MuteSec:                 60,
 		WarnDeleteSec:           10,
@@ -145,6 +147,12 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	}
 	if cfg.MaxNameLength <= 0 {
 		cfg.MaxNameLength = 32
+	}
+	if cfg.AISpamScore <= 0 {
+		cfg.AISpamScore = 70
+	}
+	if cfg.AISpamScore > 100 {
+		cfg.AISpamScore = 100
 	}
 	if cfg.MuteSec <= 0 {
 		cfg.MuteSec = 60

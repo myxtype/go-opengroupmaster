@@ -192,3 +192,12 @@ type GroupMemberJoin struct {
 	FirstJoinAt time.Time `gorm:"not null"`
 	CreatedAt   time.Time `gorm:"autoCreateTime"`
 }
+
+// AISpamCache 表示 AI 反垃圾判定缓存（避免同内容重复请求模型）。
+type AISpamCache struct {
+	ID          uint      `gorm:"primaryKey"`
+	ChatID      int64     `gorm:"uniqueIndex:idx_ai_spam_cache_chat_hash,priority:1;index:idx_ai_spam_cache_created,priority:2;not null"`
+	ContentHash string    `gorm:"size:64;uniqueIndex:idx_ai_spam_cache_chat_hash,priority:2;not null"`
+	ResultJSON  string    `gorm:"type:text;not null"`
+	CreatedAt   time.Time `gorm:"index:idx_ai_spam_cache_created,priority:1;autoCreateTime"`
+}

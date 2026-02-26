@@ -825,6 +825,17 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "spam_ai_spam_score":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 1 || v > 100 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入 1~100 的整数"))
+			return
+		}
+		if _, err := h.service.SetAntiSpamAISpamScoreByTGGroupID(pending.TGGroupID, v); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置 AI 垃圾分失败"))
+			return
+		}
+		h.sendAntiSpamAIPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "spam_exception_add":
 		if text == "" {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))

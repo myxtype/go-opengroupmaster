@@ -1249,6 +1249,36 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.answerCallback(bot, cb.ID, "惩罚已设为 "+antiFloodPenaltyText(penalty, 60))
 		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
 		return
+	case "spamaicfg":
+		h.answerCallback(bot, cb.ID, "加载AI反垃圾")
+		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamaion":
+		if _, err := h.service.SetAntiSpamAIEnabledByTGGroupID(tgGroupID, true); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "AI反垃圾已开启")
+		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamaioff":
+		if _, err := h.service.SetAntiSpamAIEnabledByTGGroupID(tgGroupID, false); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "AI反垃圾已关闭")
+		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
+		return
+	case "spamaiscore":
+		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请输入 AI 垃圾分阈值")
+		h.setPending(userID, pendingInput{Kind: "spam_ai_spam_score", TGGroupID: tgGroupID})
+		h.render(bot, target, fmt.Sprintf("当 AI 返回 score >= 该值时，判定为垃圾。\n当前阈值:%d\n👉 输入 1~100 的整数：", view.AISpamScore), pendingCancelKeyboard(tgGroupID))
+		return
 	case "spammsglen":
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 		if err != nil {
@@ -1610,6 +1640,8 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendWelcomePanel(bot, target, userID, pending.TGGroupID)
 	case "spam_msg_len", "spam_name_len", "spam_exception_add", "spam_exception_remove":
 		h.sendAntiSpamPanel(bot, target, userID, pending.TGGroupID)
+	case "spam_ai_spam_score":
+		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
 	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":

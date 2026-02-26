@@ -35,6 +35,7 @@ func New(dbPath string) (*Repository, error) {
 		&model.UserPoint{}, &model.Lottery{}, &model.LotteryParticipant{}, &model.Chain{}, &model.ChainEntry{}, &model.Log{},
 		&model.GroupBlacklist{}, &model.AutoDeleteTask{}, &model.JoinVerifyPending{},
 		&model.InviteLink{}, &model.InviteEvent{}, &model.GroupMemberJoin{},
+		&model.AISpamCache{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

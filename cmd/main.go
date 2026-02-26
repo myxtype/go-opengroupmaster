@@ -33,7 +33,7 @@ func main() {
 	}
 	botAPI.Debug = cfg.BotDebug
 
-	svc := service.New(repo, l)
+	svc := service.New(repo, l, cfg)
 	svc.SetAdminSyncInterval(time.Duration(cfg.AdminSyncIntervalSecs) * time.Second)
 	svc.StartAutoDeleteWorker(botAPI)
 	defer svc.StopAutoDeleteWorker()

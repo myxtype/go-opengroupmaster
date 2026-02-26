@@ -1,6 +1,10 @@
 package service
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -258,6 +262,27 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	if spamState.Enabled {
 		cfg := normalizeAntiSpamConfig(spamState.Config)
 		blocked, reasonCode, reasonLabel := antiSpamViolation(msg, cfg)
+		decisionSource := "rule"
+
+		// 规则先判定；未命中规则且开启 AI 时，使用 AI 二分类补充判断。
+		if !blocked && cfg.AIEnabled {
+			aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg)
+			if aiErr != nil {
+				decisionSource = "rule_fallback"
+				if s.logger != nil {
+					s.logger.Printf("anti spam ai fallback chat=%d msg=%d err=%v", msg.Chat.ID, msg.MessageID, aiErr)
+				}
+			} else if aiResult.IsSpamBy(cfg.AISpamScore) {
+				blocked = true
+				reasonCode = "ai"
+				decisionSource = "ai"
+				if fromCache {
+					decisionSource = "ai_cache"
+				}
+				reasonLabel = fmt.Sprintf("AI:%d分 %s", aiResult.Score, strings.TrimSpace(aiResult.Reason))
+			}
+		}
+
 		if blocked {
 			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
 			appliedPenalty := cfg.Penalty
@@ -287,12 +312,23 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 					RevokeMessages:   true,
 				})
 			}
+			if strings.TrimSpace(reasonLabel) == "" {
+				reasonLabel = "规则判定"
+			}
 			alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), reasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
 			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
 			if sendErr == nil && cfg.WarnDeleteSec > 0 {
 				s.ScheduleMessageDelete(msg.Chat.ID, alert.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 			}
-			_ = s.repo.CreateLog(group.ID, "anti_spam_"+appliedPenalty+"_"+reasonCode, 0, 0)
+			logReason := safeActionToken(reasonCode)
+			if logReason == "" {
+				logReason = "unknown"
+			}
+			logSource := safeActionToken(decisionSource)
+			if logSource == "" {
+				logSource = "rule"
+			}
+			_ = s.repo.CreateLog(group.ID, fmt.Sprintf("anti_spam_%s_%s_%s", appliedPenalty, logSource, logReason), 0, 0)
 			return true, nil
 		}
 	}
@@ -457,6 +493,75 @@ func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string,
 	return false, "", ""
 }
 
+func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message) (spamAIResult, bool, error) {
+	if s.spamAI == nil {
+		return spamAIResult{}, false, errors.New("nil ai classifier")
+	}
+	cacheTTL := s.spamAICacheTTL
+	if cacheTTL <= 0 {
+		cacheTTL = 7 * 24 * time.Hour
+	}
+	now := time.Now()
+	hash := antiSpamContentHash(msg)
+	if hash == "" {
+		return spamAIResult{}, false, errors.New("empty content hash")
+	}
+	if cached, err := s.repo.FindAISpamCache(msg.Chat.ID, hash, now.Add(-cacheTTL)); err == nil && cached != nil {
+		var out spamAIResult
+		if uErr := json.Unmarshal([]byte(cached.ResultJSON), &out); uErr == nil {
+			if normalized, nErr := out.Normalized(); nErr == nil {
+				return normalized, true, nil
+			}
+		}
+	}
+
+	result, _, err := s.spamAI.Classify(context.Background(), spamAIInput{Content: antiSpamMessageContent(msg)})
+	if err != nil {
+		return spamAIResult{}, false, err
+	}
+	normalized, err := result.Normalized()
+	if err != nil {
+		return spamAIResult{}, false, err
+	}
+	if payload, mErr := json.Marshal(normalized); mErr == nil {
+		_ = s.repo.UpsertAISpamCache(msg.Chat.ID, hash, string(payload), now)
+	}
+	if msg != nil && msg.MessageID > 0 && msg.MessageID%200 == 0 {
+		_ = s.repo.DeleteAISpamCacheBefore(now.Add(-cacheTTL))
+	}
+	return normalized, false, nil
+}
+
+func antiSpamContentHash(msg *tgbotapi.Message) string {
+	if msg == nil {
+		return ""
+	}
+	content := normalizeSpamText(antiSpamMessageContent(msg))
+	parts := []string{
+		content,
+		fmt.Sprintf("photo:%d", len(msg.Photo)),
+		fmt.Sprintf("video:%t", msg.Video != nil),
+		fmt.Sprintf("animation:%t", msg.Animation != nil),
+		fmt.Sprintf("document:%t", msg.Document != nil),
+		fmt.Sprintf("sticker:%t", msg.Sticker != nil),
+		fmt.Sprintf("voice:%t", msg.Voice != nil),
+		fmt.Sprintf("audio:%t", msg.Audio != nil),
+		fmt.Sprintf("sender_chat:%d", antiSpamChatID(msg.SenderChat)),
+		fmt.Sprintf("forward_chat:%d", antiSpamChatID(msg.ForwardFromChat)),
+		fmt.Sprintf("auto_forward:%t", msg.IsAutomaticForward),
+	}
+	raw := strings.Join(parts, "|")
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+func antiSpamChatID(chat *tgbotapi.Chat) int64 {
+	if chat == nil {
+		return 0
+	}
+	return chat.ID
+}
+
 func antiSpamNameLength(msg *tgbotapi.Message) int {
 	if msg == nil {
 		return 0
@@ -520,4 +625,30 @@ func containsETHAddress(content string) bool {
 
 func normalizeSpamText(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
+}
+
+func safeActionToken(v string) string {
+	value := strings.ToLower(strings.TrimSpace(v))
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range value {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum {
+			b.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if !lastUnderscore {
+			b.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+	out := strings.Trim(b.String(), "_")
+	if len(out) > 32 {
+		out = out[:32]
+	}
+	return out
 }

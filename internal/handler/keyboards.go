@@ -664,6 +664,9 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf("feat:mod:spampenalty:%s:delete_only", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🤖 AI智能反垃圾设置", fmt.Sprintf("feat:mod:spamaicfg:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽图片 "+onOffWithEmoji(view.BlockPhoto), fmt.Sprintf("feat:mod:spamopt:%s:photo", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽链接 "+onOffWithEmoji(view.BlockLink), fmt.Sprintf("feat:mod:spamopt:%s:link", gid)),
 		),
@@ -703,6 +706,25 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData(warnDelete60Label, fmt.Sprintf("feat:mod:spamalertdel:%s:60", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:spamview:%s", gid)),
+	)
+}
+
+func antiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		statusControlRow(
+			view.AIEnabled,
+			fmt.Sprintf("feat:mod:noop:%s", gid),
+			fmt.Sprintf("feat:mod:spamaion:%s", gid),
+			fmt.Sprintf("feat:mod:spamaioff:%s", gid),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("AI垃圾分:%d", view.AISpamScore), fmt.Sprintf("feat:mod:spamaiscore:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:mod:spamaicfg:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回反垃圾面板", fmt.Sprintf("feat:mod:spamview:%s", gid)),
+		),
 	)
 }
 

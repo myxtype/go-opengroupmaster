@@ -20,16 +20,26 @@
 cp .env.example .env
 ```
 
-2. 设置 `BOT_TOKEN`（可选调优项：`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`）
+2. 设置 `BOT_TOKEN`（可选调优项：`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`、`ANTI_SPAM_AI_*`）
 
    - `UPDATE_WORKERS`：Update 并发 worker 数（默认 `8`，同一会话按 chat/user 分片后保持有序）
    - `ADMIN_SYNC_INTERVAL_SECS`：同一群管理员同步最小间隔秒数（默认 `300`，避免每条消息都请求管理员列表）
+   - `ANTI_SPAM_AI_MODEL`：本地 Ollama 模型名（默认 `qwen2.5:1.5b`）
+   - `ANTI_SPAM_AI_SERVER_URL`：Ollama 服务地址（默认 `http://127.0.0.1:11434`）
+   - `ANTI_SPAM_AI_TIMEOUT_SECS`：单次 AI 判定超时秒数（默认 `8`）
 
 3. 安装依赖并运行
 
 ```bash
 go mod tidy
 go run ./cmd
+```
+
+本地模型建议：
+
+```bash
+ollama pull qwen2.5:1.5b
+ollama serve
 ```
 
 ## 构建
@@ -109,7 +119,7 @@ go run ./cmd
    - `👋 欢迎开关`：切换欢迎消息启用状态
    - `✍️ 编辑欢迎语`：自定义进群欢迎文案（支持 `{user}` 占位符）
    - `🔠 欢迎按钮`：支持多按钮；格式 `按钮文字 - 链接`，同一行两个按钮用 `&&` 分隔
-   - `🚫 反垃圾设置`：状态、惩罚、14项检测开关、例外关键词、提醒自动删除（固定按钮：关闭/5/10/20/30/60秒）
+   - `🚫 反垃圾设置`：状态、惩罚、14项检测开关、例外关键词、提醒自动删除；AI 智能反垃圾配置移动到三级面板（AI 开关、AI 判定垃圾分）
    - `⚡ 反刷屏设置`：配置状态、触发阈值、惩罚类型、提醒自动删除（触发条数/检测间隔/删除提醒均为下一级面板固定按钮）
    - `🧩 验证设置`：集中配置进群验证
    - 验证状态：启用 / 关闭
@@ -190,6 +200,12 @@ go run ./cmd
 - `text_mention` 生效前提：机器人已拿到目标用户 `id`（如来自发言、入群事件、回调查询等）
 - mention 文本/实体构造逻辑已统一抽取到 `internal/tgmention`，避免 handler 与 service 重复实现
 - 欢迎语、反垃圾/反刷屏提醒、抽奖关键词消息与“参与抽奖成功”提示消息的“自动删除”已改为 SQLite 持久化队列 + 单 worker 执行，重启后会继续处理到期任务
+- 反垃圾新增“规则先行 + AI 灰区判定”流程：
+  - 先跑规则引擎评分，强风险直接拦截
+  - 仅灰区消息触发 AI 二分类（`spam/ham`）
+  - AI 仅接收并输出短 JSON：`{"label":"spam|ham","score":0~100,"reason":"短原因"}`
+  - AI 不可用、超时或输出异常时，自动回退到规则引擎，不影响机器人稳定性
+- AI 反垃圾判定结果支持 SQLite 缓存（键：`chat_id + content_hash`，字段含 `result_json`、`created_at`，TTL 7 天）
 - 系统消息清理默认配置：
   - 进群: 启用✅
   - 退群: 启用✅

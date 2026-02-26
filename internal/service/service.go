@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"supervisor/internal/config"
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
 )
@@ -85,6 +86,8 @@ type antiSpamConfig struct {
 	BlockLongName           bool     `json:"block_long_name"`
 	MaxNameLength           int      `json:"max_name_length"`
 	ExceptionKeywords       []string `json:"exception_keywords"`
+	AIEnabled               bool     `json:"ai_enabled"`
+	AISpamScore             int      `json:"ai_spam_score"`
 	Penalty                 string   `json:"penalty"`
 	MuteSec                 int      `json:"mute_sec"`
 	WarnDeleteSec           int      `json:"warn_delete_sec"`
@@ -174,6 +177,8 @@ type rbacConfig struct {
 type Service struct {
 	repo            *repository.Repository
 	logger          *log.Logger
+	spamAI          spamAIClassifier
+	spamAICacheTTL  time.Duration
 	scheduleRuntime ScheduleRuntime
 	autoDeleteMu    sync.Mutex
 	autoDeleteWake  chan struct{}
@@ -320,6 +325,8 @@ type AntiSpamView struct {
 	MaxNameLength         int
 	ExceptionKeywordCount int
 	ExceptionKeywords     []string
+	AIEnabled             bool
+	AISpamScore           int
 	Penalty               string
 	MuteSec               int
 	WarnDeleteSec         int
@@ -384,10 +391,12 @@ type InviteGenerateResult struct {
 	GenerateLimit  int
 }
 
-func New(repo *repository.Repository, logger *log.Logger) *Service {
+func New(repo *repository.Repository, logger *log.Logger, cfg *config.Config) *Service {
 	return &Service{
 		repo:           repo,
 		logger:         logger,
+		spamAI:         newSpamAIClassifier(cfg, logger),
+		spamAICacheTTL: 7 * 24 * time.Hour,
 		configCache:    make(map[string]featureConfigCacheEntry),
 		antiSpamCache:  make(map[uint]antiSpamState),
 		antiFloodCache: make(map[uint]antiFloodState),

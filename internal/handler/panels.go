@@ -412,6 +412,8 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		"",
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.MuteSec)),
+		fmt.Sprintf("AI判定:%s", onOffWithEmoji(view.AIEnabled)),
+		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
 		"",
 		fmt.Sprintf("1. 屏蔽图片: %s", onOffWithEmoji(view.BlockPhoto)),
 		fmt.Sprintf("2. 屏蔽链接: %s", onOffWithEmoji(view.BlockLink)),
@@ -430,6 +432,30 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("14. 删除提醒: %s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), antiSpamKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载AI反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.AIEnabled {
+		status = "✅ 启用"
+	}
+	lines := []string{
+		"🤖 AI智能反垃圾",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
+		"",
+		"说明：命中基础规则会直接按规则处理；规则未命中但可疑时，AI会做二分类判断。",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiSpamAIKeyboard(tgGroupID, view))
 }
 
 func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
