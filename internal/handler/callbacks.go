@@ -110,9 +110,18 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		return
 	}
 
-	if !h.ensureAdmin(bot, target, userID, tgGroupID) {
-		h.answerCallback(bot, cb.ID, "无权限")
-		return
+	// "管理员解禁"按钮会出现在群提醒消息上，非管理员点击时只给出提示，不重绘该消息。
+	if feature == "mod" && action == "spamunlock" {
+		ok, err := h.service.IsAdminByTGGroupID(tgGroupID, userID)
+		if err != nil || !ok {
+			h.answerCallback(bot, cb.ID, "你不是该群管理员，或机器人尚未同步该群权限")
+			return
+		}
+	} else {
+		if !h.ensureAdmin(bot, target, userID, tgGroupID) {
+			h.answerCallback(bot, cb.ID, "无权限")
+			return
+		}
 	}
 	if perm := permissionFeatureKey(feature, action); perm != "" {
 		ok, err := h.service.CanAccessFeatureByTGGroupID(tgGroupID, userID, perm)
@@ -1310,9 +1319,13 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.render(bot, target, "输入要移除的例外关键词（精确匹配，不区分大小写）", pendingCancelKeyboard(tgGroupID))
 		return
 	case "spamalertdel":
+		h.answerCallback(bot, cb.ID, "请选择提醒策略")
+		h.sendAntiSpamAlertDeletePanel(bot, target, userID, tgGroupID)
+		return
+	case "spamalertdelset":
 		if len(parts) < 5 {
-			h.answerCallback(bot, cb.ID, "请选择具体秒数")
-			h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+			h.answerCallback(bot, cb.ID, "请选择具体选项")
+			h.sendAntiSpamAlertDeletePanel(bot, target, userID, tgGroupID)
 			return
 		}
 		secValue, err := strconv.Atoi(parts[4])
@@ -1325,12 +1338,24 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
 		}
-		if sec <= 0 {
-			h.answerCallback(bot, cb.ID, "提醒自动删除：关闭")
-		} else {
-			h.answerCallback(bot, cb.ID, fmt.Sprintf("提醒自动删除：%d 秒", sec))
+		h.answerCallback(bot, cb.ID, "删除提醒已设置为 "+antiSpamAlertSettingText(sec))
+		h.sendAntiSpamAlertDeletePanel(bot, target, userID, tgGroupID)
+		return
+	case "spamunlock":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
 		}
-		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		targetUserID, err := strconv.ParseInt(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if err := h.service.ReleaseAntiSpamPenaltyByTGGroupID(bot, tgGroupID, targetUserID); err != nil {
+			h.answerCallback(bot, cb.ID, "解禁失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "已解禁")
 		return
 	case "flood", "floodview":
 		h.answerCallback(bot, cb.ID, "加载反刷屏")

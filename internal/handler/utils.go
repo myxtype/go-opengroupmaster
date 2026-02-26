@@ -234,6 +234,38 @@ func antiFloodAlertDeleteText(seconds int) string {
 	return fmt.Sprintf("%d秒", seconds)
 }
 
+func antiSpamAlertSettingText(seconds int) string {
+	switch seconds {
+	case -1:
+		return "不提醒"
+	case 0:
+		return "不删除"
+	case 10:
+		return "10秒"
+	case 30:
+		return "30秒"
+	case 60:
+		return "60秒"
+	case 300:
+		return "5分钟"
+	case 600:
+		return "10分钟"
+	case 1800:
+		return "30分钟"
+	case 3600:
+		return "1小时"
+	case 21600:
+		return "6小时"
+	case 43200:
+		return "12小时"
+	default:
+		if seconds <= 0 {
+			return "不删除"
+		}
+		return fmt.Sprintf("%d秒", seconds)
+	}
+}
+
 func verifyTypeLabel(v string) string {
 	switch v {
 	case "math":

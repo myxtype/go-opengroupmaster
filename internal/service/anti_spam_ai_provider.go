@@ -174,7 +174,7 @@ func buildSpamAIPrompt(input spamAIInput) string {
 		content = "(empty)"
 	}
 	var b strings.Builder
-	b.WriteString("你是群聊反垃圾二分类器。")
+	b.WriteString("你是群聊反垃圾二分类器，主要识别广告、诈骗、色情、政治等垃圾信息。")
 	b.WriteString("\n仅输出 JSON，不要输出 Markdown、解释、代码块。")
 	b.WriteString("\n字段固定: {\"label\":\"spam|ham\",\"score\":0-100,\"reason\":\"短原因\"}")
 	b.WriteString("\n规则：")
@@ -183,7 +183,6 @@ func buildSpamAIPrompt(input spamAIInput) string {
 	b.WriteString("\n3) reason 要短，不超过 20 个字")
 	b.WriteString("\n4) 严禁输出任何多余字段")
 	b.WriteString("\n")
-	b.WriteString("注意：消息可能通过插入无意义字符（如 x、·、空格、符号、零宽字符、emoji表情）绕过检测，请按“归一化”的语义判断。\n\n")
 	b.WriteString("\n消息内容如下：")
 	b.WriteString("\n<<<")
 	b.WriteString(content)

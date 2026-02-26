@@ -157,8 +157,8 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	if cfg.MuteSec <= 0 {
 		cfg.MuteSec = 60
 	}
-	if cfg.WarnDeleteSec < 0 {
-		cfg.WarnDeleteSec = 0
+	if cfg.WarnDeleteSec < -1 {
+		cfg.WarnDeleteSec = -1
 	}
 	switch cfg.Penalty {
 	case antiFloodPenaltyWarn, antiFloodPenaltyMute, antiFloodPenaltyKick, antiFloodPenaltyKickBan, antiFloodPenaltyDeleteOnly:

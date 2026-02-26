@@ -429,9 +429,27 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("12. 当前设置最大姓名长度: %d", view.MaxNameLength),
 		fmt.Sprintf("13. 已添加例外: %d条", view.ExceptionKeywordCount),
 		fmt.Sprintf("例外关键词:%s", keywords),
-		fmt.Sprintf("14. 删除提醒: %s", antiFloodAlertDeleteText(view.WarnDeleteSec)),
+		fmt.Sprintf("14. 删除提醒: %s", antiSpamAlertSettingText(view.WarnDeleteSec)),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), antiSpamKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载反垃圾设置失败", groupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"📨 反垃圾 - 删除提醒",
+		"",
+		fmt.Sprintf("当前设置:%s", antiSpamAlertSettingText(view.WarnDeleteSec)),
+		"请选择提醒策略：",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), antiSpamAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
 }
 
 func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

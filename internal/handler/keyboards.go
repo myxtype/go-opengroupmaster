@@ -639,12 +639,6 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 	kickLabel := selectedLabel("惩罚：踢出", view.Penalty == "kick")
 	kickBanLabel := selectedLabel("惩罚：踢出+封禁", view.Penalty == "kick_ban")
 	deleteOnlyLabel := selectedLabel("惩罚：撤回+不处罚", view.Penalty == "delete_only")
-	warnDeleteOffLabel := selectedLabel("关闭", view.WarnDeleteSec <= 0)
-	warnDelete5Label := selectedLabel("5秒", view.WarnDeleteSec == 5)
-	warnDelete10Label := selectedLabel("10秒", view.WarnDeleteSec == 10)
-	warnDelete20Label := selectedLabel("20秒", view.WarnDeleteSec == 20)
-	warnDelete30Label := selectedLabel("30秒", view.WarnDeleteSec == 30)
-	warnDelete60Label := selectedLabel("60秒", view.WarnDeleteSec == 60)
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -695,17 +689,48 @@ func antiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("例外-（按关键词）", fmt.Sprintf("feat:mod:spamexdel:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("删除提醒：", fmt.Sprintf("feat:mod:noop:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(warnDeleteOffLabel, fmt.Sprintf("feat:mod:spamalertdel:%s:0", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(warnDelete5Label, fmt.Sprintf("feat:mod:spamalertdel:%s:5", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(warnDelete10Label, fmt.Sprintf("feat:mod:spamalertdel:%s:10", gid)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(warnDelete20Label, fmt.Sprintf("feat:mod:spamalertdel:%s:20", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(warnDelete30Label, fmt.Sprintf("feat:mod:spamalertdel:%s:30", gid)),
-			tgbotapi.NewInlineKeyboardButtonData(warnDelete60Label, fmt.Sprintf("feat:mod:spamalertdel:%s:60", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("删除提醒设置", fmt.Sprintf("feat:mod:spamalertdel:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:spamview:%s", gid)),
+	)
+}
+
+func antiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	s10 := selectedLabel("10秒", currentSec == 10)
+	s30 := selectedLabel("30秒", currentSec == 30)
+	s60 := selectedLabel("60秒", currentSec == 60)
+	m5 := selectedLabel("5分钟", currentSec == 300)
+	m10 := selectedLabel("10分钟", currentSec == 600)
+	m30 := selectedLabel("30分钟", currentSec == 1800)
+	h1 := selectedLabel("1小时", currentSec == 3600)
+	h6 := selectedLabel("6小时", currentSec == 21600)
+	h12 := selectedLabel("12小时", currentSec == 43200)
+	noDelete := selectedLabel("不删除", currentSec == 0)
+	noAlert := selectedLabel("不提醒", currentSec == -1)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(s10, fmt.Sprintf("feat:mod:spamalertdelset:%s:10", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(s30, fmt.Sprintf("feat:mod:spamalertdelset:%s:30", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(s60, fmt.Sprintf("feat:mod:spamalertdelset:%s:60", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(m5, fmt.Sprintf("feat:mod:spamalertdelset:%s:300", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m10, fmt.Sprintf("feat:mod:spamalertdelset:%s:600", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(m30, fmt.Sprintf("feat:mod:spamalertdelset:%s:1800", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(h1, fmt.Sprintf("feat:mod:spamalertdelset:%s:3600", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(h6, fmt.Sprintf("feat:mod:spamalertdelset:%s:21600", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(h12, fmt.Sprintf("feat:mod:spamalertdelset:%s:43200", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(noDelete, fmt.Sprintf("feat:mod:spamalertdelset:%s:0", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(noAlert, fmt.Sprintf("feat:mod:spamalertdelset:%s:-1", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回反垃圾面板", fmt.Sprintf("feat:mod:spamview:%s", gid)),
+		),
 	)
 }
 

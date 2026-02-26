@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error) {
@@ -312,9 +314,20 @@ func (s *Service) SetAntiSpamAISpamScoreByTGGroupID(tgGroupID int64, spamScore i
 	return cfg.AISpamScore, nil
 }
 
+func (s *Service) ReleaseAntiSpamPenaltyByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64) error {
+	if bot == nil {
+		return errors.New("nil bot")
+	}
+	_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
+		OnlyIfBanned:     true,
+	})
+	return s.restoreMemberSpeak(bot, tgGroupID, tgUserID)
+}
+
 func isAllowedAntiSpamWarnDeleteSec(sec int) bool {
 	switch sec {
-	case 0, 5, 10, 20, 30, 60:
+	case -1, 0, 10, 30, 60, 300, 600, 1800, 3600, 21600, 43200:
 		return true
 	default:
 		return false

@@ -315,10 +315,20 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			if strings.TrimSpace(reasonLabel) == "" {
 				reasonLabel = "规则判定"
 			}
-			alertText := fmt.Sprintf("%s 触发反垃圾（%s），已%s", antiSpamActorDisplayName(msg), reasonLabel, antiFloodActionLabel(appliedPenalty, cfg.MuteSec))
-			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
-			if sendErr == nil && cfg.WarnDeleteSec > 0 {
-				s.ScheduleMessageDelete(msg.Chat.ID, alert.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+			if cfg.WarnDeleteSec != -1 {
+				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n\n[AI广告深度学习模型]", antiSpamActorDisplayName(msg))
+				alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+				if msg.From != nil {
+					alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(
+							tgbotapi.NewInlineKeyboardButtonData("管理员解禁", fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)),
+						),
+					)
+				}
+				alertMsg, sendErr := bot.Send(alert)
+				if sendErr == nil && cfg.WarnDeleteSec > 0 {
+					s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+				}
 			}
 			logReason := safeActionToken(reasonCode)
 			if logReason == "" {
