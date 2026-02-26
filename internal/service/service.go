@@ -90,7 +90,7 @@ type antiSpamConfig struct {
 	AISpamScore             int      `json:"ai_spam_score"`
 	Penalty                 string   `json:"penalty"`
 	MuteSec                 int      `json:"mute_sec"`
-	WarnDeleteSec           int      `json:"warn_delete_sec"`
+	WarnDeleteSec           int      `json:"warn_delete_sec"` // -1 表示不提示/0 表示不删除/>0 表示对应秒数后删除
 }
 
 type antiFloodConfig struct {

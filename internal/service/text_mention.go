@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 
 	"supervisor/pkg/tgmention"
@@ -36,6 +37,14 @@ func composeTextWithUserMention(prefix string, user *tgbotapi.User, suffix strin
 		LastName:  user.LastName,
 		Fallback:  "该用户",
 	}, suffix)
+}
+
+func composeAntiSpamAlertWithMention(user *tgbotapi.User, reasonLabel string) (string, []tgbotapi.MessageEntity) {
+	reason := strings.TrimSpace(reasonLabel)
+	if reason == "" {
+		reason = "规则判定"
+	}
+	return composeTextWithUserMention("", user, fmt.Sprintf(" 正在发送垃圾消息。\n原因：%s\n\n[AI广告深度学习模型]", reason))
 }
 
 func formatWelcomeMentions(users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {

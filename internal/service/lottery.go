@@ -65,8 +65,8 @@ func (s *Service) DrawActiveLotteryByTGGroupID(tgGroupID int64) ([]model.User, e
 		return nil, errors.New("no participants")
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
 
 	count := lottery.WinnersCount
 	if count > len(ids) {

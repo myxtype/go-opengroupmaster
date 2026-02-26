@@ -121,7 +121,7 @@ func (s *Service) saveWelcomeConfig(groupID uint, cfg welcomeConfig) error {
 func defaultAntiSpamConfig() antiSpamConfig {
 	return antiSpamConfig{
 		BlockPhoto:              false,
-		BlockLink:               true,
+		BlockLink:               false,
 		BlockChannelAlias:       false,
 		BlockForwardFromChannel: false,
 		BlockForwardFromUser:    false,
@@ -165,10 +165,12 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	default:
 		cfg.Penalty = antiFloodPenaltyDeleteOnly
 	}
+	// 例外的关键词
 	cfg.ExceptionKeywords = normalizeKeywordList(cfg.ExceptionKeywords)
 	return cfg
 }
 
+// 去重并转为小写
 func normalizeKeywordList(items []string) []string {
 	uniq := make(map[string]struct{}, len(items))
 	out := make([]string, 0, len(items))

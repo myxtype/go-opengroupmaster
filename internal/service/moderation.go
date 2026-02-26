@@ -312,12 +312,18 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 					RevokeMessages:   true,
 				})
 			}
-			if strings.TrimSpace(reasonLabel) == "" {
-				reasonLabel = "规则判定"
-			}
 			if cfg.WarnDeleteSec != -1 {
-				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n\n[AI广告深度学习模型]", antiSpamActorDisplayName(msg))
+				reasonText := strings.TrimSpace(reasonLabel)
+				if reasonText == "" {
+					reasonText = "规则判定"
+				}
+				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n\n[AI广告深度学习模型]", antiSpamActorDisplayName(msg), reasonText)
+				var alertEntities []tgbotapi.MessageEntity
+				if msg.From != nil {
+					alertText, alertEntities = composeAntiSpamAlertWithMention(msg.From, reasonLabel)
+				}
 				alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+				alert.Entities = alertEntities
 				if msg.From != nil {
 					alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 						tgbotapi.NewInlineKeyboardRow(
