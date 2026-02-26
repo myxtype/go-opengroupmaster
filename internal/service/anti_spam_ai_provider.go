@@ -183,6 +183,7 @@ func buildSpamAIPrompt(input spamAIInput) string {
 	b.WriteString("\n3) reason 要短，不超过 20 个字")
 	b.WriteString("\n4) 严禁输出任何多余字段")
 	b.WriteString("\n")
+	b.WriteString("注意：消息可能通过插入无意义字符（如 x、·、空格、符号、零宽字符、emoji表情）绕过检测，请按“归一化”的语义判断。\n\n")
 	b.WriteString("\n消息内容如下：")
 	b.WriteString("\n<<<")
 	b.WriteString(content)
