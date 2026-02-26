@@ -56,8 +56,10 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 	}
 
 	if msg.Text != "" {
+		// 关键词监控
 		_ = s.notifyKeywordMonitor(bot, group, msg)
 
+		// 违禁词
 		bwEnabled, bwCfg, err := s.bannedWordStateByGroupID(group.ID)
 		if err != nil {
 			return err
@@ -122,6 +124,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			}
 		}
 
+		// 抽奖关键词
 		if msg.From != nil {
 			matched, joined, err := s.TryJoinLotteryByKeyword(group, msg.From, msg.Text)
 			if err != nil {
@@ -145,6 +148,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			}
 		}
 
+		// 自动回复匹配
 		rule, err := s.repo.MatchAutoReply(group.ID, msg.Text)
 		if err != nil {
 			return err
@@ -159,6 +163,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		}
 	}
 
+	// 增加积分
 	if msg.From != nil {
 		u, err := s.repo.UpsertUserFromTG(msg.From)
 		if err == nil {
