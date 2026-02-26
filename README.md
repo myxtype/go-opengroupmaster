@@ -205,9 +205,9 @@ ollama serve
 - `text_mention` 生效前提：机器人已拿到目标用户 `id`（如来自发言、入群事件、回调查询等）
 - mention 文本/实体构造逻辑已统一抽取到 `internal/tgmention`，避免 handler 与 service 重复实现
 - 欢迎语、反垃圾/反刷屏提醒、抽奖关键词消息与“参与抽奖成功”提示消息的“自动删除”已改为 SQLite 持久化队列 + 单 worker 执行，重启后会继续处理到期任务
-- 反垃圾新增“规则先行 + AI 灰区判定”流程：
-  - 先跑规则引擎评分，强风险直接拦截
-  - 仅灰区消息触发 AI 二分类（`spam/ham`）
+- 反垃圾新增“规则 + AI 判定”流程：
+  - 先跑规则引擎，强风险直接拦截
+  - 未触发规则引擎，进行 AI 二分类（`spam/ham`）
   - AI 仅接收并输出短 JSON：`{"label":"spam|ham","score":0~100,"reason":"短原因"}`
   - AI 不可用、超时或输出异常时，自动回退到规则引擎，不影响机器人稳定性
 - AI 反垃圾判定结果支持 SQLite 缓存（键：`chat_id + content_hash`，字段含 `result_json`、`created_at`，TTL 7 天）
