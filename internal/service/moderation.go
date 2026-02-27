@@ -183,7 +183,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			decisionSource := "rule"
 
 			// 规则先判定；未命中规则且开启 AI 时，使用 AI 二分类补充判断。
-			if !blocked && cfg.AIEnabled {
+			if !blocked && cfg.AIEnabled && s.antiSpamAIAvailable() {
 				aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg, cfg.AIStrictness)
 				if aiErr != nil {
 					decisionSource = "rule_fallback"

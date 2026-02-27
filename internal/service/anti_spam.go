@@ -18,6 +18,7 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		return nil, err
 	}
 	cfg := normalizeAntiSpamConfig(state.Config)
+	aiAvailable := s.antiSpamAIAvailable()
 	keywords := append([]string{}, cfg.ExceptionKeywords...)
 	return &AntiSpamView{
 		Enabled:               state.Enabled,
@@ -36,7 +37,8 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		MaxNameLength:         cfg.MaxNameLength,
 		ExceptionKeywordCount: len(keywords),
 		ExceptionKeywords:     keywords,
-		AIEnabled:             cfg.AIEnabled,
+		AIAvailable:           aiAvailable,
+		AIEnabled:             cfg.AIEnabled && aiAvailable,
 		AISpamScore:           cfg.AISpamScore,
 		AIStrictness:          cfg.AIStrictness,
 		Penalty:               cfg.Penalty,
@@ -415,6 +417,9 @@ func (s *Service) SetAntiSpamWarnDeleteSecByTGGroupID(tgGroupID int64, sec int) 
 }
 
 func (s *Service) SetAntiSpamAIEnabledByTGGroupID(tgGroupID int64, enabled bool) (bool, error) {
+	if enabled && !s.antiSpamAIAvailable() {
+		return false, errors.New("anti spam ai model is not configured")
+	}
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return false, err
@@ -431,6 +436,10 @@ func (s *Service) SetAntiSpamAIEnabledByTGGroupID(tgGroupID int64, enabled bool)
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_ai_enabled_%t", enabled), 0, 0)
 	return cfg.AIEnabled, nil
+}
+
+func (s *Service) antiSpamAIAvailable() bool {
+	return s != nil && s.spamAI != nil
 }
 
 func (s *Service) SetAntiSpamAISpamScoreByTGGroupID(tgGroupID int64, spamScore int) (int, error) {

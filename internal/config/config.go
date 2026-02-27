@@ -31,7 +31,7 @@ func Load() (*Config, error) {
 		GormLogSilent:         parseBool(os.Getenv("GORM_LOG_SILENT")),
 		UpdateWorkers:         parseIntDefault(os.Getenv("UPDATE_WORKERS"), 8),
 		AdminSyncIntervalSecs: parseIntDefault(os.Getenv("ADMIN_SYNC_INTERVAL_SECS"), 300),
-		AntiSpamAIModel:       envOrDefault("ANTI_SPAM_AI_MODEL", "qwen2.5:1.5b"),
+		AntiSpamAIModel:       strings.TrimSpace(os.Getenv("ANTI_SPAM_AI_MODEL")),
 		AntiSpamAIServerURL:   envOrDefault("ANTI_SPAM_AI_SERVER_URL", "http://127.0.0.1:11434"),
 		AntiSpamAITimeoutSecs: parseIntDefault(os.Getenv("ANTI_SPAM_AI_TIMEOUT_SECS"), 8),
 	}
@@ -40,9 +40,6 @@ func Load() (*Config, error) {
 	}
 	if cfg.AdminSyncIntervalSecs < 1 {
 		cfg.AdminSyncIntervalSecs = 300
-	}
-	if strings.TrimSpace(cfg.AntiSpamAIModel) == "" {
-		cfg.AntiSpamAIModel = "qwen2.5:1.5b"
 	}
 	if strings.TrimSpace(cfg.AntiSpamAIServerURL) == "" {
 		cfg.AntiSpamAIServerURL = "http://127.0.0.1:11434"

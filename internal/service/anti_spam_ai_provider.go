@@ -128,11 +128,18 @@ type spamAIClassifier interface {
 }
 
 func newSpamAIClassifier(cfg *config.Config, logger *log.Logger) spamAIClassifier {
-	c, err := newLangChainOllamaClassifier(cfg.AntiSpamAIModel, cfg.AntiSpamAIServerURL, time.Duration(cfg.AntiSpamAITimeoutSecs)*time.Second, logger)
+	model := strings.TrimSpace(cfg.AntiSpamAIModel)
+	if model == "" {
+		if logger != nil {
+			logger.Printf("anti spam ai disabled: ANTI_SPAM_AI_MODEL is empty")
+		}
+		return nil
+	}
+	c, err := newLangChainOllamaClassifier(model, cfg.AntiSpamAIServerURL, time.Duration(cfg.AntiSpamAITimeoutSecs)*time.Second, logger)
 	if err != nil {
 		panic(err)
 	}
-	logger.Printf("anti spam ai ready: provider=%s model=%s server=%s timeout=%ds", c.Name(), cfg.AntiSpamAIModel, cfg.AntiSpamAIServerURL, cfg.AntiSpamAITimeoutSecs)
+	logger.Printf("anti spam ai ready: provider=%s model=%s server=%s timeout=%ds", c.Name(), model, cfg.AntiSpamAIServerURL, cfg.AntiSpamAITimeoutSecs)
 	return c
 }
 

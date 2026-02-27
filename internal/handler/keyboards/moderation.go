@@ -125,10 +125,13 @@ func AntiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 		),
 	}
 
-	rows = append(rows,
-		tgbotapi.NewInlineKeyboardRow(
+	if view != nil && view.AIAvailable {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🤖 AI智能反垃圾设置", fmt.Sprintf("feat:mod:spamaicfg:%s", gid)),
-		),
+		))
+	}
+
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽图片 "+onOffWithEmoji(view.BlockPhoto), fmt.Sprintf("feat:mod:spamopt:%s:photo", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽链接 "+onOffWithEmoji(view.BlockLink), fmt.Sprintf("feat:mod:spamopt:%s:link", gid)),

@@ -360,6 +360,7 @@ type AntiSpamView struct {
 	MaxNameLength         int
 	ExceptionKeywordCount int
 	ExceptionKeywords     []string
+	AIAvailable           bool
 	AIEnabled             bool
 	AISpamScore           int
 	AIStrictness          string

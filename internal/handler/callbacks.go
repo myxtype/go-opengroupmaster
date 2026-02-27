@@ -1265,6 +1265,20 @@ func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 }
 
 func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+	ensureAntiSpamAIAvailable := func() bool {
+		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return false
+		}
+		if view.AIAvailable {
+			return true
+		}
+		h.answerCallback(bot, cb.ID, "未配置 ANTI_SPAM_AI_MODEL，AI 功能不可用")
+		h.sendAntiSpamPanel(bot, target, userID, tgGroupID)
+		return false
+	}
+
 	switch action {
 	case "noop":
 		h.answerCallback(bot, cb.ID, "")
@@ -1337,10 +1351,16 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.beginModerationPendingInput(bot, cb, target, userID, tgGroupID, "spam_ban_minutes", "请输入封禁时长", "请输入封禁时长（分钟，1-10080）")
 		return
 	case "spamaicfg":
+		if !ensureAntiSpamAIAvailable() {
+			return
+		}
 		h.answerCallback(bot, cb.ID, "加载AI反垃圾")
 		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
 		return
 	case "spamaion":
+		if !ensureAntiSpamAIAvailable() {
+			return
+		}
 		if _, err := h.service.SetAntiSpamAIEnabledByTGGroupID(tgGroupID, true); err != nil {
 			h.answerCallback(bot, cb.ID, "设置失败")
 			return
@@ -1357,6 +1377,9 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
 		return
 	case "spamaiscore":
+		if !ensureAntiSpamAIAvailable() {
+			return
+		}
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "加载失败")
@@ -1367,6 +1390,9 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.render(bot, target, fmt.Sprintf("当 AI 返回 score >= 该值时，判定为垃圾。\n当前阈值:%d\n👉 输入 1~100 的整数：", view.AISpamScore), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "spamaistrict":
+		if !ensureAntiSpamAIAvailable() {
+			return
+		}
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
 			return

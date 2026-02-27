@@ -479,9 +479,15 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		"",
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
-		fmt.Sprintf("AI判定:%s", onOffWithEmoji(view.AIEnabled)),
-		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
-		fmt.Sprintf("AI严格度:%s", antiSpamAIStrictnessText(view.AIStrictness)),
+	}
+	if view.AIAvailable {
+		lines = append(lines,
+			fmt.Sprintf("AI判定:%s", onOffWithEmoji(view.AIEnabled)),
+			fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
+			fmt.Sprintf("AI严格度:%s", antiSpamAIStrictnessText(view.AIStrictness)),
+		)
+	}
+	lines = append(lines,
 		"",
 		fmt.Sprintf("1. 屏蔽图片: %s", onOffWithEmoji(view.BlockPhoto)),
 		fmt.Sprintf("2. 屏蔽链接: %s", onOffWithEmoji(view.BlockLink)),
@@ -499,7 +505,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("14. 已添加例外: %d条", view.ExceptionKeywordCount),
 		fmt.Sprintf("例外关键词:%s", keywords),
 		fmt.Sprintf("15. 删除提醒: %s", antiSpamAlertSettingText(view.WarnDeleteSec)),
-	}
+	)
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamKeyboard(tgGroupID, view))
 }
 
@@ -552,6 +558,15 @@ func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget,
 	status := "❌ 关闭"
 	if view.AIEnabled {
 		status = "✅ 启用"
+	}
+	if !view.AIAvailable {
+		lines := []string{
+			"🤖 AI智能反垃圾",
+			"",
+			"当前未配置 AI 模型（ANTI_SPAM_AI_MODEL），AI 功能不可用。",
+		}
+		h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamKeyboard(tgGroupID, view))
+		return
 	}
 	lines := []string{
 		"🤖 AI智能反垃圾",
