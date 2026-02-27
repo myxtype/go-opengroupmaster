@@ -1,4 +1,4 @@
-# GroupMaster Bot (Go + SQLite)
+# GroupMaster Bot (Go + SQLite/PostgreSQL)
 
 基于 Telegram Bot API 的群管理机器人，按 PRD 拆分为 `handler/service/repository` 分层，默认可运行 MVP。
 
@@ -20,8 +20,12 @@
 cp .env.example .env
 ```
 
-2. 设置 `BOT_TOKEN`（可选调优项：`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`、`ANTI_SPAM_AI_*`）
+2. 设置 `BOT_TOKEN`（可选调优项：`DB_PATH`、`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`、`ANTI_SPAM_AI_*`）
 
+   - `DB_PATH`：数据库连接配置（默认 `./data/bot.db`，即 SQLite 文件）
+   - 支持 SQLite 路径：如 `./data/bot.db`
+   - 支持 PostgreSQL DSN：如 `postgres://user:password@127.0.0.1:5432/groupmaster?sslmode=disable`
+   - 也支持 `postgresql://...` 与 `pgsql://...` 前缀
    - `UPDATE_WORKERS`：Update 并发 worker 数（默认 `8`，同一会话按 chat/user 分片后保持有序）
    - `ADMIN_SYNC_INTERVAL_SECS`：同一群管理员同步最小间隔秒数（默认 `300`，避免每条消息都请求管理员列表）
    - `ANTI_SPAM_AI_MODEL`：本地 Ollama 模型名（默认 `qwen2.5:1.5b`）
@@ -241,10 +245,11 @@ ollama serve
 
 ## 注意事项
 
-- SQLite 已启用 WAL：`PRAGMA journal_mode=WAL`
+- 使用 SQLite 时会自动启用 WAL：`PRAGMA journal_mode=WAL`
+- 使用 PostgreSQL 时不会执行 SQLite 专属 PRAGMA
 - Update 处理已支持分片并发（默认 8 worker），同一 chat/user 仍保持顺序处理，避免私聊输入态错乱
 - Telegram 无法直接查询“某用户管理的所有群”，当前采用“机器人入群后同步管理员”方案。
-- 生产建议切换 webhook、增加限流/审计日志、并把数据库迁移到 PostgreSQL。
+- 生产建议切换 webhook、增加限流/审计日志；数据库可按场景选择 SQLite 或 PostgreSQL。
 
 ## PRD 对照清单（当前代码）
 

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"supervisor/internal/model"
 
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -16,17 +18,30 @@ type Repository struct {
 }
 
 func New(dbPath string) (*Repository, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-		return nil, fmt.Errorf("create db dir: %w", err)
+	dsn := strings.TrimSpace(dbPath)
+	if dsn == "" {
+		return nil, fmt.Errorf("db dsn is empty")
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	dialector, isPostgres := openDialector(dsn)
+	if !isPostgres {
+		if err := ensureSQLiteDir(dsn); err != nil {
+			return nil, fmt.Errorf("create db dir: %w", err)
+		}
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
+		if isPostgres {
+			return nil, fmt.Errorf("open postgres: %w", err)
+		}
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	if err := db.Exec("PRAGMA journal_mode=WAL;").Error; err != nil {
-		return nil, fmt.Errorf("enable wal: %w", err)
+	if !isPostgres {
+		if err := db.Exec("PRAGMA journal_mode=WAL;").Error; err != nil {
+			return nil, fmt.Errorf("enable wal: %w", err)
+		}
 	}
 
 	if err := db.AutoMigrate(
@@ -45,4 +60,23 @@ func New(dbPath string) (*Repository, error) {
 
 func (r *Repository) DB() *gorm.DB {
 	return r.db
+}
+
+func openDialector(dsn string) (gorm.Dialector, bool) {
+	lower := strings.ToLower(dsn)
+	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
+		return postgres.Open(dsn), true
+	}
+	if strings.HasPrefix(lower, "pgsql://") {
+		return postgres.Open("postgres://" + dsn[len("pgsql://"):]), true
+	}
+	return sqlite.Open(dsn), false
+}
+
+func ensureSQLiteDir(dsn string) error {
+	lower := strings.ToLower(dsn)
+	if dsn == ":memory:" || strings.HasPrefix(lower, "file:") {
+		return nil
+	}
+	return os.MkdirAll(filepath.Dir(dsn), 0o755)
 }
