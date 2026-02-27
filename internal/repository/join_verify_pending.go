@@ -22,6 +22,7 @@ func (r *Repository) UpsertJoinVerifyPending(pending *model.JoinVerifyPending) e
 		DoUpdates: clause.AssignmentColumns([]string{
 			"mode",
 			"answer",
+			"fail_count",
 			"message_id",
 			"timeout_action",
 			"deadline",

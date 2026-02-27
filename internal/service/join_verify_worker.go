@@ -105,6 +105,7 @@ func (s *Service) processDueJoinVerify(bot *tgbotapi.BotAPI) {
 				Deadline:      row.Deadline,
 				Mode:          row.Mode,
 				Answer:        row.Answer,
+				FailCount:     row.FailCount,
 				MessageID:     row.MessageID,
 				TimeoutAction: row.TimeoutAction,
 			})

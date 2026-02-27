@@ -74,7 +74,7 @@ func verifyTimeoutActionLabel(v string) string {
 	if v == "kick" {
 		return "踢出"
 	}
-	return "禁言"
+	return "永久禁言"
 }
 
 func moderationPenaltyRows(gid, scope string, penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) [][]tgbotapi.InlineKeyboardButton {

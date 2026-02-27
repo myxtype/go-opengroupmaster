@@ -40,6 +40,7 @@ type verifyPending struct {
 	Deadline      time.Time
 	Mode          string
 	Answer        string
+	FailCount     int
 	MessageID     int
 	TimeoutAction string
 }

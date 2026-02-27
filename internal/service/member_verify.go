@@ -19,6 +19,11 @@ import (
 var ErrVerifyWrongAnswer = errors.New("wrong answer")
 var chineseCaptchaPool = []string{"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安", "全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾"}
 
+const (
+	verifyFailLimit          = 3
+	verifyPermanentMuteHours = 24 * 365 * 10
+)
+
 type verifyChallengeOptions struct {
 	mode          string
 	tgGroupID     int64
@@ -355,8 +360,23 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQu
 	}
 	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" || pending.Mode == "zhvoice" {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
+			pending.FailCount++
+			if pending.FailCount >= verifyFailLimit {
+				popped, popErr := s.popVerifyPendingByID(pending.ID)
+				if popErr != nil {
+					return popErr
+				}
+				if !popped {
+					return errors.New("verification expired")
+				}
+				s.applyVerifyTimeout(bot, pending)
+				return errors.New("verification expired")
+			}
 			if err := s.refreshVerifyChallenge(bot, cb, pending); err != nil {
 				s.logger.Printf("refresh verify challenge failed group=%d user=%d mode=%s: %v", tgGroupID, tgUserID, pending.Mode, err)
+				if saveErr := s.addVerifyPending(pending); saveErr != nil {
+					s.logger.Printf("persist verify fail count failed group=%d user=%d mode=%s: %v", tgGroupID, tgUserID, pending.Mode, saveErr)
+				}
 			}
 			return ErrVerifyWrongAnswer
 		}
@@ -449,6 +469,7 @@ func (s *Service) addVerifyPending(p verifyPending) error {
 		TGUserID:      p.TGUserID,
 		Mode:          p.Mode,
 		Answer:        p.Answer,
+		FailCount:     p.FailCount,
 		MessageID:     p.MessageID,
 		TimeoutAction: p.TimeoutAction,
 		Deadline:      p.Deadline,
@@ -470,6 +491,7 @@ func (s *Service) getVerifyPending(tgGroupID, tgUserID int64) (verifyPending, bo
 		Deadline:      row.Deadline,
 		Mode:          row.Mode,
 		Answer:        row.Answer,
+		FailCount:     row.FailCount,
 		MessageID:     row.MessageID,
 		TimeoutAction: row.TimeoutAction,
 	}, true, nil
@@ -516,14 +538,12 @@ func (s *Service) applyVerifyTimeout(bot *tgbotapi.BotAPI, pending verifyPending
 			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
 			OnlyIfBanned:     true,
 		})
-		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, fmt.Sprintf("用户 %d 验证超时，已移出群组", tgUserID)))
 	} else {
 		_, _ = bot.Request(tgbotapi.RestrictChatMemberConfig{
 			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
+			UntilDate:        time.Now().Add(verifyPermanentMuteHours * time.Hour).Unix(),
 			Permissions:      &tgbotapi.ChatPermissions{},
 		})
-		_, _ = bot.Send(tgbotapi.NewMessage(tgGroupID, fmt.Sprintf("用户 %d 验证超时，已禁言 24 小时", tgUserID)))
 	}
 	if pending.MessageID > 0 {
 		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
@@ -627,7 +647,7 @@ func verifyTimeoutActionText(action string) string {
 	if action == "kick" {
 		return "踢出"
 	}
-	return "禁言"
+	return "永久禁言"
 }
 
 func buildCaptchaImage() (string, []byte, error) {

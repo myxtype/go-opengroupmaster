@@ -80,6 +80,7 @@ type JoinVerifyPending struct {
 	TGUserID      int64     `gorm:"uniqueIndex:idx_join_verify_pending_user,priority:2;index:idx_join_verify_pending_deadline,priority:3;not null"`
 	Mode          string    `gorm:"size:32;not null"`
 	Answer        string    `gorm:"type:text"`
+	FailCount     int       `gorm:"not null;default:0"`
 	MessageID     int       `gorm:"not null;default:0"`
 	TimeoutAction string    `gorm:"size:16;not null;default:mute"`
 	Deadline      time.Time `gorm:"index:idx_join_verify_pending_deadline,priority:1;not null"`
