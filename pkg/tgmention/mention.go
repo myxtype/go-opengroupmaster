@@ -16,17 +16,35 @@ type UserRef struct {
 	Fallback  string
 }
 
+const (
+	maxDisplayNameRunes = 16
+	nameMaskSuffix      = "░"
+)
+
 func UTF16Len(s string) int {
 	return len(utf16.Encode([]rune(s)))
 }
 
-func UserLabel(u UserRef) string {
-	if username := strings.TrimSpace(u.Username); username != "" {
-		return "@" + username
+func maskLongName(name string) string {
+	runes := []rune(strings.TrimSpace(name))
+	if len(runes) <= maxDisplayNameRunes {
+		return string(runes)
 	}
+	suffixRunes := []rune(nameMaskSuffix)
+	visibleRunes := maxDisplayNameRunes - len(suffixRunes)
+	if visibleRunes < 1 {
+		visibleRunes = 1
+	}
+	return string(runes[:visibleRunes]) + nameMaskSuffix
+}
+
+func UserLabel(u UserRef) string {
 	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
 	if name != "" {
-		return name
+		return maskLongName(name)
+	}
+	if username := strings.TrimSpace(u.Username); username != "" {
+		return "@" + username
 	}
 	if fallback := strings.TrimSpace(u.Fallback); fallback != "" {
 		return fallback

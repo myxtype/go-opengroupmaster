@@ -547,10 +547,11 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message) (spamAIResult, b
 		}
 	}
 
-	result, _, err := s.spamAI.Classify(context.Background(), spamAIInput{Content: antiSpamMessageContent(msg)})
+	result, err := s.spamAI.Classify(context.Background(), spamAIInput{Content: antiSpamMessageContent(msg)})
 	if err != nil {
 		return spamAIResult{}, false, err
 	}
+	s.logger.Printf("spam ai result: %+v", result)
 	normalized, err := result.Normalized()
 	if err != nil {
 		return spamAIResult{}, false, err

@@ -83,36 +83,16 @@ func parseSpamAIResult(raw string) (spamAIResult, error) {
 }
 
 type spamAIClassifier interface {
-	Classify(ctx context.Context, input spamAIInput) (spamAIResult, string, error)
+	Classify(ctx context.Context, input spamAIInput) (spamAIResult, error)
 	Name() string
-}
-
-type disabledSpamAIClassifier struct {
-	reason string
-}
-
-func (d disabledSpamAIClassifier) Classify(context.Context, spamAIInput) (spamAIResult, string, error) {
-	if d.reason == "" {
-		d.reason = "ai classifier disabled"
-	}
-	return spamAIResult{}, "", errors.New(d.reason)
-}
-
-func (d disabledSpamAIClassifier) Name() string {
-	return "disabled"
 }
 
 func newSpamAIClassifier(cfg *config.Config, logger *log.Logger) spamAIClassifier {
 	c, err := newLangChainOllamaClassifier(cfg.AntiSpamAIModel, cfg.AntiSpamAIServerURL, time.Duration(cfg.AntiSpamAITimeoutSecs)*time.Second, logger)
 	if err != nil {
-		if logger != nil {
-			logger.Printf("anti spam ai disabled: %v", err)
-		}
-		return disabledSpamAIClassifier{reason: err.Error()}
+		panic(err)
 	}
-	if logger != nil {
-		logger.Printf("anti spam ai ready: provider=%s model=%s server=%s timeout=%ds", c.Name(), cfg.AntiSpamAIModel, cfg.AntiSpamAIServerURL, cfg.AntiSpamAITimeoutSecs)
-	}
+	logger.Printf("anti spam ai ready: provider=%s model=%s server=%s timeout=%ds", c.Name(), cfg.AntiSpamAIModel, cfg.AntiSpamAIServerURL, cfg.AntiSpamAITimeoutSecs)
 	return c
 }
 
@@ -140,9 +120,9 @@ func (c *langChainOllamaClassifier) Name() string {
 	return "langchaingo_ollama"
 }
 
-func (c *langChainOllamaClassifier) Classify(ctx context.Context, input spamAIInput) (spamAIResult, string, error) {
+func (c *langChainOllamaClassifier) Classify(ctx context.Context, input spamAIInput) (spamAIResult, error) {
 	if c == nil || c.llm == nil {
-		return spamAIResult{}, "", fmt.Errorf("nil ai classifier")
+		return spamAIResult{}, fmt.Errorf("nil ai classifier")
 	}
 	callCtx := ctx
 	cancel := func() {}
@@ -159,13 +139,13 @@ func (c *langChainOllamaClassifier) Classify(ctx context.Context, input spamAIIn
 		llms.WithMaxTokens(120),
 	)
 	if err != nil {
-		return spamAIResult{}, "", err
+		return spamAIResult{}, err
 	}
 	parsed, err := parseSpamAIResult(raw)
 	if err != nil {
-		return spamAIResult{}, raw, err
+		return spamAIResult{}, err
 	}
-	return parsed, raw, nil
+	return parsed, nil
 }
 
 func buildSpamAIPrompt(input spamAIInput) string {
