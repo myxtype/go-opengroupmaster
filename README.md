@@ -13,6 +13,7 @@
 
 - 核心特性
 - 环境要求
+- 直接下载可执行文件（推荐）
 - 快速开始
 - 配置说明
 - 启用 AI 智能反垃圾（可选）
@@ -39,15 +40,59 @@
 
 ## 环境要求
 
-- Go `1.26`（见 [go.mod](go.mod)）
 - Telegram Bot Token（通过 `@BotFather` 获取）
 - 数据库：
   - 默认 SQLite（本地文件）
   - 或 PostgreSQL（生产建议）
+- 运行方式二选一：
+  - 源码运行：需要 Go `1.26`（见 [go.mod](go.mod)）
+  - 可执行文件运行：不需要安装 Go
 
-## 快速开始
+## 直接下载可执行文件（推荐）
 
-适合第一次跑项目的小白用户，按下面步骤照做即可。
+如果你不想安装 Go，可以直接下载预编译二进制运行。
+
+1. 打开 Releases 页面下载对应系统文件：
+
+- <https://github.com/myxtype/go-opengroupmaster/releases>
+
+2. 选择与你系统匹配的压缩包（示例）：
+
+- Linux x64：`groupmasterbot-linux-amd64.tar.gz`
+- Linux ARM64：`groupmasterbot-linux-arm64.tar.gz`
+- macOS Intel：`groupmasterbot-darwin-amd64.tar.gz`
+- macOS Apple Silicon：`groupmasterbot-darwin-arm64.tar.gz`
+- Windows x64：`groupmasterbot-windows-amd64.exe.tar.gz`
+
+3. 解压并运行：
+
+- Linux/macOS：
+
+```bash
+tar -xzf groupmasterbot-linux-amd64.tar.gz
+chmod +x groupmasterbot-linux-amd64
+./groupmasterbot-linux-amd64
+```
+
+- Windows：
+  - 解压后双击 `groupmasterbot-windows-amd64.exe`，或在终端执行：
+
+```powershell
+.\groupmasterbot-windows-amd64.exe
+```
+
+4. 首次运行前准备 `.env`：
+
+```env
+BOT_TOKEN=123456:replace-with-your-bot-token
+DB_PATH=sqlite://./data/bot.db
+```
+
+可选：Release 附带 `checksums.txt`，可用于校验下载文件完整性。
+
+## 快速开始（源码运行）
+
+如果你希望自行编译或参与开发，请使用源码运行方式。
 
 1. 克隆仓库
 
