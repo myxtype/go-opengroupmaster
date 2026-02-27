@@ -143,8 +143,6 @@ func SystemCleanKeyboard(tgGroupID int64, cfg *service.SystemCleanView) tgbotapi
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("严格", strictSelected), fmt.Sprintf("feat:sys:preset:%s:strict", gid)),
 			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("推荐", recommendedSelected), fmt.Sprintf("feat:sys:preset:%s:recommended", gid)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(selectedLabel("关闭", offSelected), fmt.Sprintf("feat:sys:preset:%s:off", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
