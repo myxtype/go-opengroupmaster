@@ -1,14 +1,42 @@
 package repository
 
-import "supervisor/internal/model"
+import (
+	"supervisor/internal/model"
+
+	"gorm.io/gorm"
+)
 
 func (r *Repository) AddPoints(groupID, userID uint, delta int) error {
+	_, _, err := r.AdjustPoints(groupID, userID, delta)
+	return err
+}
+
+func (r *Repository) AdjustPoints(groupID, userID uint, delta int) (int, int, error) {
+	applied := 0
+	current := 0
+	err := r.db.Transaction(func(txTx *gorm.DB) error {
+		up := &model.UserPoint{GroupID: groupID, UserID: userID}
+		if err := txTx.Where("group_id = ? and user_id = ?", groupID, userID).FirstOrCreate(up).Error; err != nil {
+			return err
+		}
+		next := up.Points + delta
+		if next < 0 {
+			next = 0
+		}
+		applied = next - up.Points
+		up.Points = next
+		current = next
+		return txTx.Save(up).Error
+	})
+	return applied, current, err
+}
+
+func (r *Repository) UserPoints(groupID, userID uint) (int, error) {
 	up := &model.UserPoint{GroupID: groupID, UserID: userID}
 	if err := r.db.Where("group_id = ? and user_id = ?", groupID, userID).FirstOrCreate(up).Error; err != nil {
-		return err
+		return 0, err
 	}
-	up.Points += delta
-	return r.db.Save(up).Error
+	return up.Points, nil
 }
 
 func (r *Repository) TopUsersByPoints(groupID uint, limit int) ([]model.UserPoint, error) {
@@ -16,6 +44,40 @@ func (r *Repository) TopUsersByPoints(groupID uint, limit int) ([]model.UserPoin
 		limit = 10
 	}
 	out := make([]model.UserPoint, 0, limit)
-	err := r.db.Where("group_id = ?", groupID).Order("points desc").Limit(limit).Find(&out).Error
+	err := r.db.Where("group_id = ?", groupID).Order("points desc, user_id asc").Limit(limit).Find(&out).Error
 	return out, err
+}
+
+type pointEventSum struct {
+	Total int64
+}
+
+func (r *Repository) CreatePointEvent(event *model.PointEvent) error {
+	if event == nil {
+		return nil
+	}
+	return r.db.Create(event).Error
+}
+
+func (r *Repository) SumPointEventDeltaByDayAndType(groupID, userID uint, dayKey, eventType string) (int, error) {
+	if dayKey == "" || eventType == "" {
+		return 0, nil
+	}
+	var out pointEventSum
+	err := r.db.Model(&model.PointEvent{}).
+		Select("coalesce(sum(delta), 0) as total").
+		Where("group_id = ? and user_id = ? and day_key = ? and type = ?", groupID, userID, dayKey, eventType).
+		Scan(&out).Error
+	return int(out.Total), err
+}
+
+func (r *Repository) ExistsPointEventByDayAndType(groupID, userID uint, dayKey, eventType string) (bool, error) {
+	if dayKey == "" || eventType == "" {
+		return false, nil
+	}
+	var total int64
+	err := r.db.Model(&model.PointEvent{}).
+		Where("group_id = ? and user_id = ? and day_key = ? and type = ?", groupID, userID, dayKey, eventType).
+		Count(&total).Error
+	return total > 0, err
 }

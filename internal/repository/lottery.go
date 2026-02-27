@@ -40,6 +40,14 @@ func (r *Repository) JoinLottery(lotteryID, userID uint) (bool, error) {
 	return true, nil
 }
 
+func (r *Repository) IsLotteryParticipant(lotteryID, userID uint) (bool, error) {
+	var total int64
+	err := r.db.Model(&model.LotteryParticipant{}).
+		Where("lottery_id = ? and user_id = ?", lotteryID, userID).
+		Count(&total).Error
+	return total > 0, err
+}
+
 func (r *Repository) ListLotteryParticipantUserIDs(lotteryID uint) ([]uint, error) {
 	var parts []model.LotteryParticipant
 	if err := r.db.Where("lottery_id = ?", lotteryID).Find(&parts).Error; err != nil {

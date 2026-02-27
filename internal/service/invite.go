@@ -332,6 +332,7 @@ func (s *Service) TrackInviteByChatMemberUpdate(update *tgbotapi.ChatMemberUpdat
 		return err
 	}
 	if created {
+		_ = s.rewardInvitePoints(group.ID, linkRow.CreatorTGUserID)
 		_ = s.repo.CreateLog(group.ID, "invite_valid_join", 0, 0)
 	}
 	return nil

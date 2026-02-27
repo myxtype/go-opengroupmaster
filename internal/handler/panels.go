@@ -229,6 +229,53 @@ func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	h.render(bot, target, strings.Join(lines, "\n"), markup)
 }
 
+func (h *Handler) sendPointsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.PointsPanelViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载积分设置失败", keyboards.GroupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.Enabled {
+		status = "✅ 开启"
+	}
+	msgDaily := "无限制"
+	if view.Config.MessageDaily > 0 {
+		msgDaily = strconv.Itoa(view.Config.MessageDaily)
+	}
+	msgMinLen := "无限制"
+	if view.Config.MessageMinLen > 0 {
+		msgMinLen = strconv.Itoa(view.Config.MessageMinLen)
+	}
+	inviteDaily := "无限制"
+	if view.Config.InviteDaily > 0 {
+		inviteDaily = strconv.Itoa(view.Config.InviteDaily)
+	}
+	lines := []string{
+		"💰 积分系统",
+		"",
+		fmt.Sprintf("状态: %s", status),
+		"签到规则:",
+		fmt.Sprintf("└ 发送“%s”（可配置），每日签到获得:%d 积分", view.Config.CheckinKeyword, 1),
+		"发言规则:",
+		fmt.Sprintf("└ 发言1次，获得:%d 积分", 1),
+		fmt.Sprintf("└ 每日获取上限:%s 积分 （可配置）", msgDaily),
+		fmt.Sprintf("└ 最小字数长度限制: %s （可配置）", msgMinLen),
+		"邀请规则:",
+		fmt.Sprintf("└ 邀请1人，获得:%d 积分 （可配置）", view.Config.InviteReward),
+		fmt.Sprintf("└ 每日获取上限:%s 积分 （可配置）", inviteDaily),
+		"积分别名:",
+		fmt.Sprintf("└ 群组中发送“%s”查询自己的积分（可配置）", view.Config.BalanceAlias),
+		"排行别名：",
+		fmt.Sprintf("└ 群组中发送“%s”查询积分排名（可配置）", view.Config.RankAlias),
+		fmt.Sprintf("抽奖消耗:\n└ 参与抽奖消耗:%d 积分", view.Config.LotteryCost),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.PointsKeyboard(tgGroupID, view))
+}
+
 func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

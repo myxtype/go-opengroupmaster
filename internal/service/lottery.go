@@ -365,9 +365,49 @@ func (s *Service) TryJoinLotteryByKeyword(group *model.Group, tgUser *tgbotapi.U
 	if err != nil {
 		return true, false, err
 	}
-	created, err := s.repo.JoinLottery(lottery.ID, u.ID)
+	existed, err := s.repo.IsLotteryParticipant(lottery.ID, u.ID)
 	if err != nil {
 		return true, false, err
+	}
+	if existed {
+		return true, false, nil
+	}
+	enabled, err := s.pointsEnabled(group.ID)
+	if err != nil {
+		return true, false, err
+	}
+	cost := 0
+	if enabled {
+		cfg, cfgErr := s.getPointsConfig(group.ID)
+		if cfgErr != nil {
+			return true, false, cfgErr
+		}
+		cost = cfg.LotteryCost
+	}
+	if cost > 0 {
+		ok, _, spendErr := s.spendPoints(group.ID, u.ID, pointsEventLottery, cost, time.Now())
+		if spendErr != nil {
+			return true, false, spendErr
+		}
+		if !ok {
+			return true, false, ErrInsufficientPoints
+		}
+	}
+	created, err := s.repo.JoinLottery(lottery.ID, u.ID)
+	if err != nil {
+		if cost > 0 {
+			refund, _, _ := s.repo.AdjustPoints(group.ID, u.ID, cost)
+			if refund > 0 {
+				_ = s.recordPointEvent(group.ID, u.ID, pointsEventLottery, refund, time.Now())
+			}
+		}
+		return true, false, err
+	}
+	if !created && cost > 0 {
+		refund, _, _ := s.repo.AdjustPoints(group.ID, u.ID, cost)
+		if refund > 0 {
+			_ = s.recordPointEvent(group.ID, u.ID, pointsEventLottery, refund, time.Now())
+		}
 	}
 	return true, created, nil
 }

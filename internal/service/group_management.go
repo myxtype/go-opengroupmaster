@@ -107,6 +107,10 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	pointsEnabled, err := s.IsFeatureEnabled(group.ID, featurePoints, false)
+	if err != nil {
+		return "", err
+	}
 	nightState, err := s.getNightModeState(group.ID)
 	if err != nil {
 		return "", err
@@ -119,6 +123,7 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	antiFloodText := onOff(antiFloodEnabled)
 	verifyText := onOff(verifyEnabled)
 	newbieText := onOff(newbieEnabled)
+	pointsText := onOff(pointsEnabled)
 	nightCfg := normalizeNightModeConfig(nightState.Config)
 	nightText := onOff(nightState.Enabled)
 	nightDesc := fmt.Sprintf("%s，%s，%s", formatUTCOffset(nightCfg.TimezoneOffsetMinutes), formatNightWindow(nightCfg.StartHour, nightCfg.EndHour), nightModeLabelForSummary(nightCfg.Mode))
@@ -129,6 +134,7 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 		"【内容】",
 		fmt.Sprintf("自动回复: %d 条   违禁词: %d 条", autoCount, bwCount),
 		fmt.Sprintf("欢迎消息: %s", welcomeText),
+		fmt.Sprintf("积分系统: %s", pointsText),
 		"",
 		"【风控】",
 		fmt.Sprintf("反垃圾: %s   反刷屏: %s", antiSpamText, antiFloodText),

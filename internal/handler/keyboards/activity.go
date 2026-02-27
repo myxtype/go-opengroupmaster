@@ -193,6 +193,45 @@ func LotteryDeleteMinutesKeyboard(tgGroupID int64, current int) tgbotapi.InlineK
 	)
 }
 
+func PointsKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:points:noop:%s", gid),
+			fmt.Sprintf("feat:points:on:%s", gid),
+			fmt.Sprintf("feat:points:off:%s", gid),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("签到口令："+view.Config.CheckinKeyword, fmt.Sprintf("feat:points:checkinkey:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("发言上限："+pointsLimitText(view.Config.MessageDaily), fmt.Sprintf("feat:points:msgdaily:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("最小字数："+pointsLimitText(view.Config.MessageMinLen), fmt.Sprintf("feat:points:msgmin:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("邀请奖励：%d", view.Config.InviteReward), fmt.Sprintf("feat:points:invitereward:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("邀请上限："+pointsLimitText(view.Config.InviteDaily), fmt.Sprintf("feat:points:invitedaily:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("积分别名："+view.Config.BalanceAlias, fmt.Sprintf("feat:points:aliasbalance:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("排行别名："+view.Config.RankAlias, fmt.Sprintf("feat:points:aliasrank:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("增加积分(+1)", fmt.Sprintf("feat:points:add:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("扣除积分(-1)", fmt.Sprintf("feat:points:sub:%s", gid)),
+		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:points:view:%s", gid)),
+	)
+}
+
+func pointsLimitText(v int) string {
+	if v <= 0 {
+		return "无限制"
+	}
+	return strconv.Itoa(v)
+}
+
 func WelcomeKeyboard(tgGroupID int64, enabled bool, mode string, deleteMinutes int) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	_ = enabled

@@ -42,6 +42,22 @@ func (r *Repository) FindUserByUsername(username string) (*model.User, error) {
 	return &u, nil
 }
 
+func (r *Repository) FindUserByTGUserID(tgUserID int64) (*model.User, error) {
+	var u model.User
+	if err := r.db.Where("tg_user_id = ?", tgUserID).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *Repository) EnsureUserByTGUserID(tgUserID int64) (*model.User, error) {
+	user := &model.User{TGUserID: tgUserID}
+	if err := r.db.Where("tg_user_id = ?", tgUserID).FirstOrCreate(user).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (r *Repository) SetUserLanguage(tgUserID int64, lang string) error {
 	user := &model.User{TGUserID: tgUserID}
 	if err := r.db.Where("tg_user_id = ?", tgUserID).FirstOrCreate(user).Error; err != nil {

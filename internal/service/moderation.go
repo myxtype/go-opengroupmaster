@@ -56,6 +56,14 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 	}
 
 	if msg.Text != "" {
+		handled, err := s.handlePointsTextCommand(bot, group, msg)
+		if err != nil {
+			return err
+		}
+		if handled {
+			return nil
+		}
+
 		// 关键词监控
 		_ = s.notifyKeywordMonitor(bot, group, msg)
 
@@ -63,6 +71,15 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		if msg.From != nil {
 			matched, joined, err := s.TryJoinLotteryByKeyword(group, msg.From, msg.Text)
 			if err != nil {
+				if errors.Is(err, ErrInsufficientPoints) {
+					cfg, cfgErr := s.getPointsConfig(group.ID)
+					if cfgErr == nil {
+						_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("当前积分不足，参与抽奖需要 %d 积分。发送“%s”可查询积分。", cfg.LotteryCost, cfg.BalanceAlias)))
+					} else {
+						_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前积分不足，无法参与抽奖。"))
+					}
+					return nil
+				}
 				return err
 			}
 			if matched {
@@ -100,10 +117,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 
 	// 增加积分
 	if msg.From != nil {
-		u, err := s.repo.UpsertUserFromTG(msg.From)
-		if err == nil {
-			_ = s.repo.AddPoints(group.ID, u.ID, 1)
-		}
+		_ = s.rewardMessagePoints(group, msg)
 	}
 
 	return nil

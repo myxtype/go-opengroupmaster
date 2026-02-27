@@ -262,6 +262,66 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		}
 		h.answerCallback(bot, cb.ID, "加载统计")
 		h.sendStatsPanel(bot, target, userID, tgGroupID)
+	case "points":
+		switch action {
+		case "noop":
+			h.answerCallback(bot, cb.ID, "")
+		case "view":
+			h.answerCallback(bot, cb.ID, "加载积分设置")
+			h.sendPointsPanel(bot, target, userID, tgGroupID)
+		case "on":
+			if _, err := h.service.SetPointsEnabledByTGGroupID(tgGroupID, true); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "积分系统已开启")
+			h.sendPointsPanel(bot, target, userID, tgGroupID)
+		case "off":
+			if _, err := h.service.SetPointsEnabledByTGGroupID(tgGroupID, false); err != nil {
+				h.answerCallback(bot, cb.ID, "设置失败")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "积分系统已关闭")
+			h.sendPointsPanel(bot, target, userID, tgGroupID)
+		case "checkinkey":
+			h.answerCallback(bot, cb.ID, "请输入签到口令")
+			h.setPending(userID, pendingInput{Kind: "points_checkin_keyword", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入签到口令（例如：签到）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "msgdaily":
+			h.answerCallback(bot, cb.ID, "请输入发言每日上限")
+			h.setPending(userID, pendingInput{Kind: "points_message_daily", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入发言每日获取上限积分（0 表示无限制）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "msgmin":
+			h.answerCallback(bot, cb.ID, "请输入最小字数")
+			h.setPending(userID, pendingInput{Kind: "points_message_min_len", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入发言最小字数长度（0 表示无限制）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "invitereward":
+			h.answerCallback(bot, cb.ID, "请输入邀请奖励")
+			h.setPending(userID, pendingInput{Kind: "points_invite_reward", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入每次邀请奖励积分（>=0）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "invitedaily":
+			h.answerCallback(bot, cb.ID, "请输入邀请每日上限")
+			h.setPending(userID, pendingInput{Kind: "points_invite_daily", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入邀请每日获取上限积分（0 表示无限制）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "aliasbalance":
+			h.answerCallback(bot, cb.ID, "请输入积分别名")
+			h.setPending(userID, pendingInput{Kind: "points_balance_alias", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入查询个人积分的关键词（例如：积分）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "aliasrank":
+			h.answerCallback(bot, cb.ID, "请输入排行别名")
+			h.setPending(userID, pendingInput{Kind: "points_rank_alias", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入查询积分排行的关键词（例如：积分排行）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "add":
+			h.answerCallback(bot, cb.ID, "请输入目标用户")
+			h.setPending(userID, pendingInput{Kind: "points_admin_add", TGGroupID: tgGroupID})
+			h.render(bot, target, "增加积分\n👉 请输入用户名，用户ID，或转发成员消息到这里", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "sub":
+			h.answerCallback(bot, cb.ID, "请输入目标用户")
+			h.setPending(userID, pendingInput{Kind: "points_admin_sub", TGGroupID: tgGroupID})
+			h.render(bot, target, "扣除积分\n👉 请输入用户名，用户ID，或转发成员消息到这里", keyboards.PendingCancelKeyboard(tgGroupID))
+		default:
+			h.answerCallback(bot, cb.ID, "未知操作")
+		}
 	case "logs":
 		switch action {
 		case "list":
@@ -1812,6 +1872,8 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz", "night_start_hour", "night_end_hour":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
+	case "points_checkin_keyword", "points_message_daily", "points_message_min_len", "points_invite_reward", "points_invite_daily", "points_balance_alias", "points_rank_alias", "points_admin_add", "points_admin_sub":
+		h.sendPointsPanel(bot, target, userID, pending.TGGroupID)
 	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":
 		h.sendInvitePanel(bot, target, userID, pending.TGGroupID)
 	default:

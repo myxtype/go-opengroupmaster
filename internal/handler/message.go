@@ -257,6 +257,35 @@ func (h *Handler) resolveBlacklistTargetAndReason(msg *tgbotapi.Message) (int64,
 	return target, reason, nil
 }
 
+func (h *Handler) resolvePointTarget(msg *tgbotapi.Message, text string) (int64, string, error) {
+	if msg != nil && msg.ForwardFrom != nil && !msg.ForwardFrom.IsBot {
+		name := displayNameFromUser(msg.ForwardFrom)
+		if strings.TrimSpace(name) == "" {
+			name = fmt.Sprintf("%d", msg.ForwardFrom.ID)
+		}
+		return msg.ForwardFrom.ID, name, nil
+	}
+	raw := strings.TrimSpace(text)
+	if raw == "" {
+		return 0, "", fmt.Errorf("empty target")
+	}
+	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return id, raw, nil
+	}
+	username := strings.TrimPrefix(raw, "@")
+	if strings.TrimSpace(username) == "" {
+		return 0, "", fmt.Errorf("invalid username")
+	}
+	user, err := h.service.Repo().FindUserByUsername(username)
+	if err != nil {
+		return 0, "", err
+	}
+	if strings.TrimSpace(user.Username) != "" {
+		return user.TGUserID, "@" + user.Username, nil
+	}
+	return user.TGUserID, fmt.Sprintf("%d", user.TGUserID), nil
+}
+
 func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 	pending, ok := h.getPending(msg.From.ID)
 	if !ok {
@@ -902,6 +931,120 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("结束小时已设置为 %02d:00", hour)))
 		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_checkin_keyword":
+		keyword, err := h.service.SetPointsCheckinKeywordByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "签到口令不能为空"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "签到口令已设置为："+keyword))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_message_daily":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			return
+		}
+		limit, err := h.service.SetPointsMessageDailyLimitByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置发言每日上限失败"))
+			return
+		}
+		if limit <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "发言每日上限：无限制"))
+		} else {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("发言每日上限已设置为：%d", limit)))
+		}
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_message_min_len":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			return
+		}
+		minLen, err := h.service.SetPointsMessageMinLenByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置最小字数失败"))
+			return
+		}
+		if minLen <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "最小字数长度：无限制"))
+		} else {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("最小字数长度已设置为：%d", minLen)))
+		}
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_invite_reward":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			return
+		}
+		reward, err := h.service.SetPointsInviteRewardByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置邀请奖励失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请奖励已设置为：%d", reward)))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_invite_daily":
+		v, err := strconv.Atoi(text)
+		if err != nil || v < 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			return
+		}
+		limit, err := h.service.SetPointsInviteDailyLimitByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置邀请每日上限失败"))
+			return
+		}
+		if limit <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "邀请每日上限：无限制"))
+		} else {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请每日上限已设置为：%d", limit)))
+		}
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_balance_alias":
+		alias, err := h.service.SetPointsBalanceAliasByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "积分别名不能为空"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "积分别名已设置为："+alias))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_rank_alias":
+		alias, err := h.service.SetPointsRankAliasByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "排行别名不能为空"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "排行别名已设置为："+alias))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_admin_add":
+		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			return
+		}
+		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, targetTGUserID, 1)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "增加积分失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 增加积分：%d\n当前积分：%d", display, applied, current)))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_admin_sub":
+		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			return
+		}
+		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, targetTGUserID, -1)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "扣除积分失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 扣除积分：%d\n当前积分：%d", display, -applied, current)))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {
@@ -1060,6 +1203,9 @@ func groupHelpText() string {
 		"/lottery_create 标题|人数|口令 - 创建抽奖（口令可省略，默认“参加”）",
 		"/lottery_draw - 立即开奖",
 		"/link - 生成专属邀请链接并查看邀请统计",
+		"发送“签到” - 每日签到获取积分（可配置）",
+		"发送“积分” - 查询个人积分（可配置）",
+		"发送“积分排行” - 查询积分排行（可配置）",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
 		"",

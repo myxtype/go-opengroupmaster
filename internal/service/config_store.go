@@ -741,6 +741,90 @@ func (s *Service) saveInviteConfig(groupID uint, cfg inviteConfig) error {
 	return s.saveFeatureConfigEntry(groupID, featureInvite, string(b))
 }
 
+func defaultPointsConfig() pointsConfig {
+	return pointsConfig{
+		CheckinKeyword: "签到",
+		MessageDaily:   0,
+		MessageMinLen:  0,
+		InviteReward:   1,
+		InviteDaily:    0,
+		BalanceAlias:   "积分",
+		RankAlias:      "积分排行",
+		LotteryCost:    1,
+	}
+}
+
+func normalizePointsConfig(cfg pointsConfig) pointsConfig {
+	if strings.TrimSpace(cfg.CheckinKeyword) == "" {
+		cfg.CheckinKeyword = "签到"
+	}
+	cfg.CheckinKeyword = strings.TrimSpace(cfg.CheckinKeyword)
+	if cfg.MessageDaily < 0 {
+		cfg.MessageDaily = 0
+	}
+	if cfg.MessageMinLen < 0 {
+		cfg.MessageMinLen = 0
+	}
+	if cfg.InviteReward < 0 {
+		cfg.InviteReward = 0
+	}
+	if cfg.InviteReward > 100000 {
+		cfg.InviteReward = 100000
+	}
+	if cfg.InviteDaily < 0 {
+		cfg.InviteDaily = 0
+	}
+	if strings.TrimSpace(cfg.BalanceAlias) == "" {
+		cfg.BalanceAlias = "积分"
+	}
+	cfg.BalanceAlias = strings.TrimSpace(cfg.BalanceAlias)
+	if strings.TrimSpace(cfg.RankAlias) == "" {
+		cfg.RankAlias = "积分排行"
+	}
+	cfg.RankAlias = strings.TrimSpace(cfg.RankAlias)
+	if cfg.LotteryCost < 0 {
+		cfg.LotteryCost = 0
+	}
+	if cfg.LotteryCost > 100000 {
+		cfg.LotteryCost = 100000
+	}
+	return cfg
+}
+
+func (s *Service) getPointsConfig(groupID uint) (pointsConfig, error) {
+	cfg := defaultPointsConfig()
+	entry, err := s.readFeatureConfigEntry(groupID, featurePoints)
+	if err != nil {
+		return cfg, err
+	}
+	if !entry.Exists {
+		if saveErr := s.savePointsConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = normalizePointsConfig(rawCfg)
+	if entry.Config == "" || !reflect.DeepEqual(rawCfg, cfg) {
+		if saveErr := s.savePointsConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+	}
+	return cfg, nil
+}
+
+func (s *Service) savePointsConfig(groupID uint, cfg pointsConfig) error {
+	cfg = normalizePointsConfig(cfg)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.saveFeatureConfigEntry(groupID, featurePoints, string(b))
+}
+
 func (s *Service) getKeywordMonitorConfig(groupID uint) (keywordMonitorConfig, error) {
 	cfg := keywordMonitorConfig{Keywords: []string{}}
 	entry, err := s.readFeatureConfigEntry(groupID, featureKeywordMonitor)

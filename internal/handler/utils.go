@@ -36,6 +36,8 @@ func permissionFeatureKey(feature, action string) string {
 		return "logs"
 	case "stats":
 		return "stats"
+	case "points":
+		return "stats"
 	case "mod":
 		return "moderation"
 	case "sys":

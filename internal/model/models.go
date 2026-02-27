@@ -102,6 +102,17 @@ type UserPoint struct {
 	Points  int  `gorm:"default:0"`
 }
 
+// PointEvent 表示积分变动流水（签到/发言/邀请/抽奖消耗/手动加减）。
+type PointEvent struct {
+	ID        uint      `gorm:"primaryKey"`
+	GroupID   uint      `gorm:"index:idx_point_event_group_user_day_type,priority:1;index:idx_point_event_group_day_type,priority:1;not null"`
+	UserID    uint      `gorm:"index:idx_point_event_group_user_day_type,priority:2;not null"`
+	DayKey    string    `gorm:"size:10;index:idx_point_event_group_user_day_type,priority:3;index:idx_point_event_group_day_type,priority:3;not null"`
+	Type      string    `gorm:"size:32;index:idx_point_event_group_user_day_type,priority:4;index:idx_point_event_group_day_type,priority:2;not null"`
+	Delta     int       `gorm:"not null"`
+	CreatedAt time.Time `gorm:"index:idx_point_event_group_day_type,priority:4;autoCreateTime"`
+}
+
 // Lottery 表示群组内的一次抽奖活动。
 type Lottery struct {
 	ID           uint   `gorm:"primaryKey"`

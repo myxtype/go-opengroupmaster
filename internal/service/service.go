@@ -23,6 +23,7 @@ const featureRBAC = "rbac"
 const featureLottery = "lottery"
 const featureInvite = "invite"
 const featureBannedWords = "banned_words"
+const featurePoints = "points"
 
 const (
 	antiFloodPenaltyWarn       = "warn"
@@ -171,6 +172,17 @@ type inviteConfig struct {
 	ExpireDate    int64 `json:"expire_date"`
 	MemberLimit   int   `json:"member_limit"`
 	GenerateLimit int   `json:"generate_limit"`
+}
+
+type pointsConfig struct {
+	CheckinKeyword string `json:"checkin_keyword"`
+	MessageDaily   int    `json:"message_daily_limit"`
+	MessageMinLen  int    `json:"message_min_length"`
+	InviteReward   int    `json:"invite_reward"`
+	InviteDaily    int    `json:"invite_daily_limit"`
+	BalanceAlias   string `json:"balance_alias"`
+	RankAlias      string `json:"rank_alias"`
+	LotteryCost    int    `json:"lottery_cost"`
 }
 
 type bannedWordConfig struct {
@@ -417,6 +429,11 @@ type InviteGenerateResult struct {
 	UserStats      InviteUserStats
 	GroupGenerated int64
 	GenerateLimit  int
+}
+
+type PointsPanelView struct {
+	Enabled bool
+	Config  pointsConfig
 }
 
 func New(repo *repository.Repository, logger *log.Logger, cfg *config.Config) *Service {
