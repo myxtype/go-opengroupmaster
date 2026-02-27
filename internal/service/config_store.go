@@ -121,6 +121,7 @@ func (s *Service) saveWelcomeConfig(groupID uint, cfg welcomeConfig) error {
 func defaultAntiSpamConfig() antiSpamConfig {
 	return antiSpamConfig{
 		BlockPhoto:              false,
+		BlockContactShare:       false,
 		BlockLink:               false,
 		BlockChannelAlias:       false,
 		BlockForwardFromChannel: false,

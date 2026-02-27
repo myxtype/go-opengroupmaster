@@ -177,100 +177,103 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	}
 	if spamState.Enabled {
 		cfg := normalizeAntiSpamConfig(spamState.Config)
-		blocked, reasonCode, reasonLabel := antiSpamViolation(msg, cfg)
-		decisionSource := "rule"
+		// 在反垃圾主流程里优先判断 ExceptionKeywords，命中时直接跳过后续反垃圾规则和 AI 判定。
+		if !antiSpamExceptionMatched(msg, cfg.ExceptionKeywords) {
+			blocked, reasonCode, reasonLabel := antiSpamViolation(msg, cfg)
+			decisionSource := "rule"
 
-		// 规则先判定；未命中规则且开启 AI 时，使用 AI 二分类补充判断。
-		if !blocked && cfg.AIEnabled {
-			aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg, cfg.AIStrictness)
-			if aiErr != nil {
-				decisionSource = "rule_fallback"
-				if s.logger != nil {
-					s.logger.Printf("anti spam ai fallback chat=%d msg=%d err=%v", msg.Chat.ID, msg.MessageID, aiErr)
+			// 规则先判定；未命中规则且开启 AI 时，使用 AI 二分类补充判断。
+			if !blocked && cfg.AIEnabled {
+				aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg, cfg.AIStrictness)
+				if aiErr != nil {
+					decisionSource = "rule_fallback"
+					if s.logger != nil {
+						s.logger.Printf("anti spam ai fallback chat=%d msg=%d err=%v", msg.Chat.ID, msg.MessageID, aiErr)
+					}
+				} else if aiResult.IsSpamBy(cfg.AISpamScore) {
+					blocked = true
+					reasonCode = "ai"
+					decisionSource = "ai"
+					if fromCache {
+						decisionSource = "ai_cache"
+					}
+					reasonLabel = fmt.Sprintf("AI:%d分 %s", aiResult.Score, strings.TrimSpace(aiResult.Reason))
 				}
-			} else if aiResult.IsSpamBy(cfg.AISpamScore) {
-				blocked = true
-				reasonCode = "ai"
-				decisionSource = "ai"
-				if fromCache {
-					decisionSource = "ai_cache"
-				}
-				reasonLabel = fmt.Sprintf("AI:%d分 %s", aiResult.Score, strings.TrimSpace(aiResult.Reason))
 			}
-		}
 
-		if blocked {
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			appliedPenalty := cfg.Penalty
-			actionLabel := moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
-			targetID := uint(0)
-			if msg.From != nil {
-				if u, upsertErr := s.repo.UpsertUserFromTG(msg.From); upsertErr == nil {
-					targetID = u.ID
-				}
-			}
-			if msg.From == nil && (cfg.Penalty == antiFloodPenaltyWarn || cfg.Penalty == antiFloodPenaltyMute || cfg.Penalty == antiFloodPenaltyKick || cfg.Penalty == antiFloodPenaltyKickBan) {
-				appliedPenalty = antiFloodPenaltyDeleteOnly
-				actionLabel = moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
-			} else if msg.From != nil {
-				muteMinutes := cfg.MuteMinutes
-				banMinutes := cfg.BanMinutes
-				if targetID > 0 {
-					appliedPenalty, actionLabel, muteMinutes, banMinutes = s.resolveWarnablePenalty(
-						group.ID,
-						targetID,
-						moderationPenaltyConfig{
-							Penalty:               cfg.Penalty,
-							WarnThreshold:         cfg.WarnThreshold,
-							WarnAction:            cfg.WarnAction,
-							WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
-							WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
-							MuteMinutes:           cfg.MuteMinutes,
-							BanMinutes:            cfg.BanMinutes,
-						},
-						s.repo.CountAntiSpamWarnsSinceLastAction,
-						"anti_spam_warn",
-						"anti_spam_warn_action_applied",
-					)
-				}
-				if appliedPenalty != antiFloodPenaltyWarn {
-					applyPenaltyToMember(bot, msg.Chat.ID, msg.From.ID, appliedPenalty, muteMinutes, banMinutes)
-				}
-			}
-			if cfg.WarnDeleteSec != -1 {
-				reasonText := strings.TrimSpace(reasonLabel)
-				if reasonText == "" {
-					reasonText = "规则判定"
-				}
-				alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n处理：%s", antiSpamActorDisplayName(msg), reasonText, actionLabel)
-				var alertEntities []tgbotapi.MessageEntity
+			if blocked {
+				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+				appliedPenalty := cfg.Penalty
+				actionLabel := moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
+				targetID := uint(0)
 				if msg.From != nil {
-					alertText, alertEntities = composeAntiSpamAlertWithMention(msg.From, reasonLabel, actionLabel)
+					if u, upsertErr := s.repo.UpsertUserFromTG(msg.From); upsertErr == nil {
+						targetID = u.ID
+					}
 				}
-				alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
-				alert.Entities = alertEntities
-				if msg.From != nil {
-					alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-						tgbotapi.NewInlineKeyboardRow(
-							tgbotapi.NewInlineKeyboardButtonData("管理员解禁", fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)),
-						),
-					)
+				if msg.From == nil && (cfg.Penalty == antiFloodPenaltyWarn || cfg.Penalty == antiFloodPenaltyMute || cfg.Penalty == antiFloodPenaltyKick || cfg.Penalty == antiFloodPenaltyKickBan) {
+					appliedPenalty = antiFloodPenaltyDeleteOnly
+					actionLabel = moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
+				} else if msg.From != nil {
+					muteMinutes := cfg.MuteMinutes
+					banMinutes := cfg.BanMinutes
+					if targetID > 0 {
+						appliedPenalty, actionLabel, muteMinutes, banMinutes = s.resolveWarnablePenalty(
+							group.ID,
+							targetID,
+							moderationPenaltyConfig{
+								Penalty:               cfg.Penalty,
+								WarnThreshold:         cfg.WarnThreshold,
+								WarnAction:            cfg.WarnAction,
+								WarnActionMuteMinutes: cfg.WarnActionMuteMinutes,
+								WarnActionBanMinutes:  cfg.WarnActionBanMinutes,
+								MuteMinutes:           cfg.MuteMinutes,
+								BanMinutes:            cfg.BanMinutes,
+							},
+							s.repo.CountAntiSpamWarnsSinceLastAction,
+							"anti_spam_warn",
+							"anti_spam_warn_action_applied",
+						)
+					}
+					if appliedPenalty != antiFloodPenaltyWarn {
+						applyPenaltyToMember(bot, msg.Chat.ID, msg.From.ID, appliedPenalty, muteMinutes, banMinutes)
+					}
 				}
-				alertMsg, sendErr := bot.Send(alert)
-				if sendErr == nil && cfg.WarnDeleteSec > 0 {
-					s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+				if cfg.WarnDeleteSec != -1 {
+					reasonText := strings.TrimSpace(reasonLabel)
+					if reasonText == "" {
+						reasonText = "规则判定"
+					}
+					alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n处理：%s", antiSpamActorDisplayName(msg), reasonText, actionLabel)
+					var alertEntities []tgbotapi.MessageEntity
+					if msg.From != nil {
+						alertText, alertEntities = composeAntiSpamAlertWithMention(msg.From, reasonLabel, actionLabel)
+					}
+					alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+					alert.Entities = alertEntities
+					if msg.From != nil {
+						alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+							tgbotapi.NewInlineKeyboardRow(
+								tgbotapi.NewInlineKeyboardButtonData("管理员解禁", fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)),
+							),
+						)
+					}
+					alertMsg, sendErr := bot.Send(alert)
+					if sendErr == nil && cfg.WarnDeleteSec > 0 {
+						s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+					}
 				}
+				logReason := safeActionToken(reasonCode)
+				if logReason == "" {
+					logReason = "unknown"
+				}
+				logSource := safeActionToken(decisionSource)
+				if logSource == "" {
+					logSource = "rule"
+				}
+				_ = s.repo.CreateLog(group.ID, fmt.Sprintf("anti_spam_%s_%s_%s", appliedPenalty, logSource, logReason), 0, targetID)
+				return true, nil
 			}
-			logReason := safeActionToken(reasonCode)
-			if logReason == "" {
-				logReason = "unknown"
-			}
-			logSource := safeActionToken(decisionSource)
-			if logSource == "" {
-				logSource = "rule"
-			}
-			_ = s.repo.CreateLog(group.ID, fmt.Sprintf("anti_spam_%s_%s_%s", appliedPenalty, logSource, logReason), 0, targetID)
-			return true, nil
 		}
 	}
 
@@ -501,13 +504,17 @@ func antiSpamExceptionHit(content string, keywords []string) bool {
 	return false
 }
 
+func antiSpamExceptionMatched(msg *tgbotapi.Message, keywords []string) bool {
+	return antiSpamExceptionHit(antiSpamMessageContent(msg), keywords)
+}
+
 func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string, string) {
 	content := antiSpamMessageContent(msg)
-	if antiSpamExceptionHit(content, cfg.ExceptionKeywords) {
-		return false, "", ""
-	}
 	if cfg.BlockPhoto && len(msg.Photo) > 0 {
 		return true, "photo", "图片"
+	}
+	if cfg.BlockContactShare && msg.Contact != nil {
+		return true, "contact_share", "联系人分享"
 	}
 	if cfg.BlockChannelAlias && msg.SenderChat != nil {
 		return true, "channel_alias", "频道马甲发言"
@@ -598,6 +605,7 @@ func antiSpamContentHash(msg *tgbotapi.Message, strictness string) string {
 		fmt.Sprintf("sticker:%t", msg.Sticker != nil),
 		fmt.Sprintf("voice:%t", msg.Voice != nil),
 		fmt.Sprintf("audio:%t", msg.Audio != nil),
+		fmt.Sprintf("contact:%t", msg.Contact != nil),
 		fmt.Sprintf("sender_chat:%d", antiSpamChatID(msg.SenderChat)),
 		fmt.Sprintf("forward_chat:%d", antiSpamChatID(msg.ForwardFromChat)),
 		fmt.Sprintf("auto_forward:%t", msg.IsAutomaticForward),

@@ -22,6 +22,7 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 	return &AntiSpamView{
 		Enabled:               state.Enabled,
 		BlockPhoto:            cfg.BlockPhoto,
+		BlockContactShare:     cfg.BlockContactShare,
 		BlockLink:             cfg.BlockLink,
 		BlockChannelAlias:     cfg.BlockChannelAlias,
 		BlockForwardFromChan:  cfg.BlockForwardFromChannel,
@@ -240,6 +241,10 @@ func (s *Service) ToggleAntiSpamOptionByTGGroupID(tgGroupID int64, option string
 		cfg.BlockPhoto = !cfg.BlockPhoto
 		next = cfg.BlockPhoto
 		log = "set_anti_spam_photo"
+	case "contact":
+		cfg.BlockContactShare = !cfg.BlockContactShare
+		next = cfg.BlockContactShare
+		log = "set_anti_spam_contact"
 	case "link":
 		cfg.BlockLink = !cfg.BlockLink
 		next = cfg.BlockLink

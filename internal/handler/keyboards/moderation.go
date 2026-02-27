@@ -142,6 +142,9 @@ func AntiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.Inli
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽@群组ID "+onOffWithEmoji(view.BlockAtGroupID), fmt.Sprintf("feat:mod:spamopt:%s:atgroup", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("屏蔽联系人分享 "+onOffWithEmoji(view.BlockContactShare), fmt.Sprintf("feat:mod:spamopt:%s:contact", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽@用户ID "+onOffWithEmoji(view.BlockAtUserID), fmt.Sprintf("feat:mod:spamopt:%s:atuser", gid)),
 			tgbotapi.NewInlineKeyboardButtonData("屏蔽ETH地址 "+onOffWithEmoji(view.BlockEthAddress), fmt.Sprintf("feat:mod:spamopt:%s:eth", gid)),
 		),

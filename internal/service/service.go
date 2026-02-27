@@ -75,6 +75,7 @@ type welcomeButton struct {
 
 type antiSpamConfig struct {
 	BlockPhoto              bool     `json:"block_photo"`
+	BlockContactShare       bool     `json:"block_contact_share"`
 	BlockLink               bool     `json:"block_link"`
 	BlockChannelAlias       bool     `json:"block_channel_alias"`
 	BlockForwardFromChannel bool     `json:"block_forward_channel"`
@@ -344,6 +345,7 @@ type AntiFloodView struct {
 type AntiSpamView struct {
 	Enabled               bool
 	BlockPhoto            bool
+	BlockContactShare     bool
 	BlockLink             bool
 	BlockChannelAlias     bool
 	BlockForwardFromChan  bool
