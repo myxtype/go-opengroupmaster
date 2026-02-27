@@ -29,6 +29,8 @@ type renderTarget struct {
 type pendingInput struct {
 	Kind        string
 	TGGroupID   int64
+	TargetTGUID int64
+	TargetLabel string
 	RuleID      uint
 	Page        int
 	CronExpr    string

@@ -314,11 +314,11 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "add":
 			h.answerCallback(bot, cb.ID, "请输入目标用户")
 			h.setPending(userID, pendingInput{Kind: "points_admin_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "增加积分\n👉 请输入用户名，用户ID，或转发成员消息到这里", keyboards.PendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "增加积分\n第1步：请输入用户名，用户ID，或转发成员消息到这里\n第2步：再输入要增加的积分数值（正整数）", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "sub":
 			h.answerCallback(bot, cb.ID, "请输入目标用户")
 			h.setPending(userID, pendingInput{Kind: "points_admin_sub", TGGroupID: tgGroupID})
-			h.render(bot, target, "扣除积分\n👉 请输入用户名，用户ID，或转发成员消息到这里", keyboards.PendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "扣除积分\n第1步：请输入用户名，用户ID，或转发成员消息到这里\n第2步：再输入要扣除的积分数值（正整数）", keyboards.PendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -1872,7 +1872,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz", "night_start_hour", "night_end_hour":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
-	case "points_checkin_keyword", "points_message_daily", "points_message_min_len", "points_invite_reward", "points_invite_daily", "points_balance_alias", "points_rank_alias", "points_admin_add", "points_admin_sub":
+	case "points_checkin_keyword", "points_message_daily", "points_message_min_len", "points_invite_reward", "points_invite_daily", "points_balance_alias", "points_rank_alias", "points_admin_add", "points_admin_sub", "points_admin_add_value", "points_admin_sub_value":
 		h.sendPointsPanel(bot, target, userID, pending.TGGroupID)
 	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":
 		h.sendInvitePanel(bot, target, userID, pending.TGGroupID)

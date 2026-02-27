@@ -1025,25 +1025,61 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
 			return
 		}
-		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, targetTGUserID, 1)
-		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "增加积分失败"))
-			return
-		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 增加积分：%d\n当前积分：%d", display, applied, current)))
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:        "points_admin_add_value",
+			TGGroupID:   pending.TGGroupID,
+			TargetTGUID: targetTGUserID,
+			TargetLabel: display,
+		})
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要增加的积分数值（正整数）", display)))
+		return
 	case "points_admin_sub":
 		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
 			return
 		}
-		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, targetTGUserID, -1)
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:        "points_admin_sub_value",
+			TGGroupID:   pending.TGGroupID,
+			TargetTGUID: targetTGUserID,
+			TargetLabel: display,
+		})
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要扣除的积分数值（正整数）", display)))
+		return
+	case "points_admin_add_value":
+		if pending.TargetTGUID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“增加积分”"))
+			return
+		}
+		value, err := strconv.Atoi(text)
+		if err != nil || value <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, pending.TargetTGUID, value)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "增加积分失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 增加积分：%d\n当前积分：%d", pending.TargetLabel, applied, current)))
+		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_admin_sub_value":
+		if pending.TargetTGUID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“扣除积分”"))
+			return
+		}
+		value, err := strconv.Atoi(text)
+		if err != nil || value <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, pending.TargetTGUID, -value)
 		if err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "扣除积分失败"))
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 扣除积分：%d\n当前积分：%d", display, -applied, current)))
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 扣除积分：%d\n当前积分：%d", pending.TargetLabel, -applied, current)))
 		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)

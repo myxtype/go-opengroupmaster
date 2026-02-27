@@ -218,8 +218,8 @@ func PointsKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.Inl
 			tgbotapi.NewInlineKeyboardButtonData("排行别名："+view.Config.RankAlias, fmt.Sprintf("feat:points:aliasrank:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("增加积分(+1)", fmt.Sprintf("feat:points:add:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("扣除积分(-1)", fmt.Sprintf("feat:points:sub:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("增加积分(自定义)", fmt.Sprintf("feat:points:add:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("扣除积分(自定义)", fmt.Sprintf("feat:points:sub:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:points:view:%s", gid)),
 	)
