@@ -11,13 +11,14 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 type Repository struct {
 	db *gorm.DB
 }
 
-func New(dbPath string) (*Repository, error) {
+func New(dbPath string, gormLogSilent bool) (*Repository, error) {
 	dsn := strings.TrimSpace(dbPath)
 	if dsn == "" {
 		return nil, fmt.Errorf("db dsn is empty")
@@ -30,7 +31,12 @@ func New(dbPath string) (*Repository, error) {
 		}
 	}
 
-	db, err := gorm.Open(dialector, &gorm.Config{})
+	gormCfg := &gorm.Config{}
+	if gormLogSilent {
+		gormCfg.Logger = gormlogger.Default.LogMode(gormlogger.Silent)
+	}
+
+	db, err := gorm.Open(dialector, gormCfg)
 	if err != nil {
 		if isPostgres {
 			return nil, fmt.Errorf("open postgres: %w", err)

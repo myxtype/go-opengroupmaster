@@ -22,7 +22,7 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	repo, err := repository.New(cfg.DBPath)
+	repo, err := repository.New(cfg.DBPath, cfg.GormLogSilent)
 	if err != nil {
 		log.Fatalf("init repository: %v", err)
 	}

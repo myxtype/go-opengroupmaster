@@ -13,6 +13,7 @@ type Config struct {
 	BotToken              string
 	DBPath                string
 	BotDebug              bool
+	GormLogSilent         bool
 	UpdateWorkers         int
 	AdminSyncIntervalSecs int
 	AntiSpamAIModel       string
@@ -27,6 +28,7 @@ func Load() (*Config, error) {
 		BotToken:              os.Getenv("BOT_TOKEN"),
 		DBPath:                envOrDefault("DB_PATH", "./data/bot.db"),
 		BotDebug:              parseBool(os.Getenv("BOT_DEBUG")),
+		GormLogSilent:         parseBool(os.Getenv("GORM_LOG_SILENT")),
 		UpdateWorkers:         parseIntDefault(os.Getenv("UPDATE_WORKERS"), 8),
 		AdminSyncIntervalSecs: parseIntDefault(os.Getenv("ADMIN_SYNC_INTERVAL_SECS"), 300),
 		AntiSpamAIModel:       envOrDefault("ANTI_SPAM_AI_MODEL", "qwen2.5:1.5b"),
