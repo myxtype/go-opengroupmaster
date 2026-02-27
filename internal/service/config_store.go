@@ -374,6 +374,8 @@ func defaultNightModeConfig() nightModeConfig {
 	return nightModeConfig{
 		TimezoneOffsetMinutes: 8 * 60,
 		Mode:                  "delete_media",
+		StartHour:             nightDefaultStartHour,
+		EndHour:               nightDefaultEndHour,
 	}
 }
 
@@ -388,6 +390,12 @@ func normalizeNightModeConfig(cfg nightModeConfig) nightModeConfig {
 	case "delete_media", "global_mute":
 	default:
 		cfg.Mode = "delete_media"
+	}
+	if cfg.StartHour < 0 || cfg.StartHour > 23 {
+		cfg.StartHour = nightDefaultStartHour
+	}
+	if cfg.EndHour < 0 || cfg.EndHour > 23 {
+		cfg.EndHour = nightDefaultEndHour
 	}
 	return cfg
 }
@@ -416,6 +424,15 @@ func (s *Service) getNightModeState(groupID uint) (nightModeState, error) {
 	rawCfg := cfg
 	if setting.Config != "" {
 		_ = json.Unmarshal([]byte(setting.Config), &rawCfg)
+		fields := map[string]json.RawMessage{}
+		if err := json.Unmarshal([]byte(setting.Config), &fields); err == nil {
+			if _, ok := fields["start_hour"]; !ok {
+				rawCfg.StartHour = cfg.StartHour
+			}
+			if _, ok := fields["end_hour"]; !ok {
+				rawCfg.EndHour = cfg.EndHour
+			}
+		}
 	}
 	cfg = normalizeNightModeConfig(rawCfg)
 	state = nightModeState{

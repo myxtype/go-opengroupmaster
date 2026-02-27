@@ -131,7 +131,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 	}
 	if nightState.Enabled {
 		cfg := normalizeNightModeConfig(nightState.Config)
-		if isNightWindowNow(cfg.TimezoneOffsetMinutes, time.Now()) {
+		if isNightWindowNow(cfg.TimezoneOffsetMinutes, cfg.StartHour, cfg.EndHour, time.Now()) {
 			switch cfg.Mode {
 			case nightModeGlobalMute:
 				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))

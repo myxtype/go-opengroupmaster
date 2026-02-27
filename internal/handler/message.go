@@ -885,6 +885,23 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "夜间模式时区已设置为 "+tz))
 		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "night_start_hour":
+		hour, err := h.service.SetNightModeStartHourByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开始小时格式错误，请输入 0-23 的整数"))
+			return
+		}
+		h.setPending(msg.From.ID, pendingInput{Kind: "night_end_hour", TGGroupID: pending.TGGroupID})
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("开始小时已设置为 %02d:00\n请继续输入结束小时（0-23）", hour)))
+		return
+	case "night_end_hour":
+		hour, err := h.service.SetNightModeEndHourByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "结束小时格式错误，请输入 0-23 的整数"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("结束小时已设置为 %02d:00", hour)))
+		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {

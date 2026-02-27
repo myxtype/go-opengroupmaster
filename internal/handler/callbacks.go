@@ -1507,6 +1507,16 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.setPending(userID, pendingInput{Kind: "night_tz", TGGroupID: tgGroupID})
 		h.render(bot, target, fmt.Sprintf("当前时区:%s\n请输入时区（示例：+8、-5、+8:30、UTC+8）", view.TimezoneText), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
+	case "nightwindow":
+		view, err := h.service.NightModeViewByTGGroupID(tgGroupID)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "加载失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "请先输入开始小时")
+		h.setPending(userID, pendingInput{Kind: "night_start_hour", TGGroupID: tgGroupID})
+		h.render(bot, target, fmt.Sprintf("当前夜间时段:%s\n请输入开始小时（0-23）\n例如:22", view.NightWindow), keyboards.PendingCancelKeyboard(tgGroupID))
+		return
 	case "nightmode":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -1800,7 +1810,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendAntiFloodPenaltyPanel(bot, target, userID, pending.TGGroupID)
 	case "spam_ai_spam_score":
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
-	case "night_tz":
+	case "night_tz", "night_start_hour", "night_end_hour":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
 	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":
 		h.sendInvitePanel(bot, target, userID, pending.TGGroupID)

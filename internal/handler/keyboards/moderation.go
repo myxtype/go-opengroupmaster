@@ -371,6 +371,9 @@ func NightModeKeyboard(tgGroupID int64, view *service.NightModeView) tgbotapi.In
 			tgbotapi.NewInlineKeyboardButtonData("时区："+view.TimezoneText, fmt.Sprintf("feat:mod:nighttz:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("夜间时段："+view.NightWindow, fmt.Sprintf("feat:mod:nightwindow:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("处理方式：", fmt.Sprintf("feat:mod:noop:%s", gid)),
 			tgbotapi.NewInlineKeyboardButtonData(deleteMediaLabel, fmt.Sprintf("feat:mod:nightmode:%s:delete_media", gid)),
 			tgbotapi.NewInlineKeyboardButtonData(globalMuteLabel, fmt.Sprintf("feat:mod:nightmode:%s:global_mute", gid)),

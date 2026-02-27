@@ -14,8 +14,8 @@ const (
 	nightModeDeleteMedia = "delete_media"
 	nightModeGlobalMute  = "global_mute"
 
-	nightWindowStartMinutes = 0
-	nightWindowEndMinutes   = 8 * 60
+	nightDefaultStartHour = 0
+	nightDefaultEndHour   = 8
 )
 
 func (s *Service) NightModeViewByTGGroupID(tgGroupID int64) (*NightModeView, error) {
@@ -32,7 +32,9 @@ func (s *Service) NightModeViewByTGGroupID(tgGroupID int64) (*NightModeView, err
 		Enabled:      state.Enabled,
 		TimezoneText: formatUTCOffset(cfg.TimezoneOffsetMinutes),
 		Mode:         cfg.Mode,
-		NightWindow:  "00:00-08:00",
+		StartHour:    cfg.StartHour,
+		EndHour:      cfg.EndHour,
+		NightWindow:  formatNightWindow(cfg.StartHour, cfg.EndHour),
 	}, nil
 }
 
@@ -101,6 +103,55 @@ func (s *Service) SetNightModeTimezoneByTGGroupID(tgGroupID int64, raw string) (
 	return tz, nil
 }
 
+func (s *Service) SetNightModeStartHourByTGGroupID(tgGroupID int64, raw string) (int, error) {
+	hour, err := parseNightHour(raw)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.setNightModeHourByTGGroupID(tgGroupID, true, hour); err != nil {
+		return 0, err
+	}
+	return hour, nil
+}
+
+func (s *Service) SetNightModeEndHourByTGGroupID(tgGroupID int64, raw string) (int, error) {
+	hour, err := parseNightHour(raw)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.setNightModeHourByTGGroupID(tgGroupID, false, hour); err != nil {
+		return 0, err
+	}
+	return hour, nil
+}
+
+func (s *Service) setNightModeHourByTGGroupID(tgGroupID int64, isStart bool, hour int) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	state, err := s.getNightModeState(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg := normalizeNightModeConfig(state.Config)
+	if isStart {
+		cfg.StartHour = hour
+	} else {
+		cfg.EndHour = hour
+	}
+	state.Config = cfg
+	if err := s.saveNightModeState(group.ID, state); err != nil {
+		return err
+	}
+	if isStart {
+		_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_night_mode_start_hour_%d", hour), 0, 0)
+		return nil
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_night_mode_end_hour_%d", hour), 0, 0)
+	return nil
+}
+
 func parseUTCOffset(raw string) (int, error) {
 	txt := strings.TrimSpace(strings.ToUpper(raw))
 	txt = strings.TrimPrefix(txt, "UTC")
@@ -150,6 +201,21 @@ func parseUTCOffset(raw string) (int, error) {
 	return total, nil
 }
 
+func parseNightHour(raw string) (int, error) {
+	txt := strings.TrimSpace(raw)
+	if txt == "" {
+		return 0, errors.New("hour is empty")
+	}
+	hour, err := strconv.Atoi(txt)
+	if err != nil {
+		return 0, errors.New("invalid hour")
+	}
+	if hour < 0 || hour > 23 {
+		return 0, errors.New("hour out of range")
+	}
+	return hour, nil
+}
+
 func formatUTCOffset(offsetMinutes int) string {
 	sign := "+"
 	if offsetMinutes < 0 {
@@ -164,13 +230,22 @@ func formatUTCOffset(offsetMinutes int) string {
 	return fmt.Sprintf("UTC%s%d:%02d", sign, h, m)
 }
 
-func isNightWindowNow(offsetMinutes int, now time.Time) bool {
+func formatNightWindow(startHour, endHour int) string {
+	return fmt.Sprintf("%02d:00-%02d:00", startHour, endHour)
+}
+
+func isNightWindowNow(offsetMinutes, startHour, endHour int, now time.Time) bool {
 	local := now.UTC().Add(time.Duration(offsetMinutes) * time.Minute)
 	minuteOfDay := local.Hour()*60 + local.Minute()
-	if nightWindowStartMinutes <= nightWindowEndMinutes {
-		return minuteOfDay >= nightWindowStartMinutes && minuteOfDay < nightWindowEndMinutes
+	startMinutes := startHour * 60
+	endMinutes := endHour * 60
+	if startMinutes == endMinutes {
+		return true
 	}
-	return minuteOfDay >= nightWindowStartMinutes || minuteOfDay < nightWindowEndMinutes
+	if startMinutes < endMinutes {
+		return minuteOfDay >= startMinutes && minuteOfDay < endMinutes
+	}
+	return minuteOfDay >= startMinutes || minuteOfDay < endMinutes
 }
 
 func isNightMediaMessage(msg *tgbotapi.Message) bool {

@@ -121,7 +121,7 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	newbieText := onOff(newbieEnabled)
 	nightCfg := normalizeNightModeConfig(nightState.Config)
 	nightText := onOff(nightState.Enabled)
-	nightDesc := fmt.Sprintf("%s，%s", formatUTCOffset(nightCfg.TimezoneOffsetMinutes), nightModeLabelForSummary(nightCfg.Mode))
+	nightDesc := fmt.Sprintf("%s，%s，%s", formatUTCOffset(nightCfg.TimezoneOffsetMinutes), formatNightWindow(nightCfg.StartHour, nightCfg.EndHour), nightModeLabelForSummary(nightCfg.Mode))
 	lines := []string{
 		fmt.Sprintf("🏠 %s", group.Title),
 		fmt.Sprintf("🆔 群ID: %d", group.TGGroupID),
