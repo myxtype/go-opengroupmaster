@@ -135,6 +135,7 @@ func defaultAntiSpamConfig() antiSpamConfig {
 		ExceptionKeywords:       []string{},
 		AIEnabled:               false,
 		AISpamScore:             70,
+		AIStrictness:            antiSpamAIStrictnessMedium,
 		Penalty:                 antiFloodPenaltyDeleteOnly,
 		WarnThreshold:           3,
 		WarnAction:              antiFloodPenaltyMute,
@@ -160,6 +161,7 @@ func normalizeAntiSpamConfig(cfg antiSpamConfig) antiSpamConfig {
 	if cfg.AISpamScore > 100 {
 		cfg.AISpamScore = 100
 	}
+	cfg.AIStrictness = normalizeAntiSpamAIStrictness(cfg.AIStrictness)
 	if cfg.WarnDeleteSec < -1 {
 		cfg.WarnDeleteSec = -1
 	}

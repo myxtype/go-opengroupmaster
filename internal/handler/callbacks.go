@@ -1306,6 +1306,19 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 		h.setPending(userID, pendingInput{Kind: "spam_ai_spam_score", TGGroupID: tgGroupID})
 		h.render(bot, target, fmt.Sprintf("当 AI 返回 score >= 该值时，判定为垃圾。\n当前阈值:%d\n👉 输入 1~100 的整数：", view.AISpamScore), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
+	case "spamaistrict":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		strictness, err := h.service.SetAntiSpamAIStrictnessByTGGroupID(tgGroupID, parts[4])
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "AI严格度已设为 "+antiSpamAIStrictnessText(strictness))
+		h.sendAntiSpamAIPanel(bot, target, userID, tgGroupID)
+		return
 	case "spammsglen":
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 		if err != nil {

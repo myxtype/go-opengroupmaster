@@ -434,6 +434,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 		fmt.Sprintf("惩罚:%s", antiFloodPenaltyText(view.Penalty, view.WarnThreshold, view.WarnAction, view.WarnActionMuteMinutes, view.WarnActionBanMinutes, view.MuteMinutes, view.BanMinutes)),
 		fmt.Sprintf("AI判定:%s", onOffWithEmoji(view.AIEnabled)),
 		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
+		fmt.Sprintf("AI严格度:%s", antiSpamAIStrictnessText(view.AIStrictness)),
 		"",
 		fmt.Sprintf("1. 屏蔽图片: %s", onOffWithEmoji(view.BlockPhoto)),
 		fmt.Sprintf("2. 屏蔽链接: %s", onOffWithEmoji(view.BlockLink)),
@@ -509,10 +510,22 @@ func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget,
 		"",
 		fmt.Sprintf("状态:%s", status),
 		fmt.Sprintf("AI判定垃圾分:%d", view.AISpamScore),
+		fmt.Sprintf("严格度:%s", antiSpamAIStrictnessText(view.AIStrictness)),
 		"",
-		"说明：命中基础规则会直接按规则处理；规则未命中但可疑时，AI会做二分类判断。",
+		"说明：命中基础规则会直接按规则处理；规则未命中但可疑时，AI会按所选严格度做二分类判断。",
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamAIKeyboard(tgGroupID, view))
+}
+
+func antiSpamAIStrictnessText(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "low":
+		return "低（更宽松，减少误杀）"
+	case "high":
+		return "高（更严格，减少漏判）"
+	default:
+		return "中（平衡）"
+	}
 }
 
 func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {

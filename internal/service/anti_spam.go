@@ -37,6 +37,7 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		ExceptionKeywords:     keywords,
 		AIEnabled:             cfg.AIEnabled,
 		AISpamScore:           cfg.AISpamScore,
+		AIStrictness:          cfg.AIStrictness,
 		Penalty:               cfg.Penalty,
 		WarnThreshold:         cfg.WarnThreshold,
 		WarnAction:            cfg.WarnAction,
@@ -449,6 +450,28 @@ func (s *Service) SetAntiSpamAISpamScoreByTGGroupID(tgGroupID int64, spamScore i
 	return cfg.AISpamScore, nil
 }
 
+func (s *Service) SetAntiSpamAIStrictnessByTGGroupID(tgGroupID int64, strictness string) (string, error) {
+	if !isAllowedAntiSpamAIStrictness(strictness) {
+		return "", errors.New("invalid ai strictness")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return "", err
+	}
+	state, err := s.getAntiSpamState(group.ID)
+	if err != nil {
+		return "", err
+	}
+	cfg := normalizeAntiSpamConfig(state.Config)
+	cfg.AIStrictness = normalizeAntiSpamAIStrictness(strictness)
+	state.Config = cfg
+	if err := s.saveAntiSpamState(group.ID, state); err != nil {
+		return "", err
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_anti_spam_ai_strictness_%s", cfg.AIStrictness), 0, 0)
+	return cfg.AIStrictness, nil
+}
+
 func (s *Service) ReleaseAntiSpamPenaltyByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64) error {
 	if bot == nil {
 		return errors.New("nil bot")
@@ -483,4 +506,13 @@ func isAllowedAntiSpamWarnThreshold(v int) bool {
 
 func isAllowedAntiSpamDurationMinutes(v int) bool {
 	return isAllowedModerationDurationMinutes(v)
+}
+
+func isAllowedAntiSpamAIStrictness(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "low", "medium", "high", "低", "中", "高":
+		return true
+	default:
+		return false
+	}
 }

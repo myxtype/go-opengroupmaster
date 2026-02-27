@@ -16,7 +16,47 @@ import (
 )
 
 type spamAIInput struct {
-	Content string
+	Content    string
+	Strictness string
+}
+
+const (
+	antiSpamAIStrictnessLow    = "low"
+	antiSpamAIStrictnessMedium = "medium"
+	antiSpamAIStrictnessHigh   = "high"
+)
+
+func normalizeAntiSpamAIStrictness(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case antiSpamAIStrictnessLow, "loose", "lenient", "低":
+		return antiSpamAIStrictnessLow
+	case antiSpamAIStrictnessHigh, "strict", "高":
+		return antiSpamAIStrictnessHigh
+	default:
+		return antiSpamAIStrictnessMedium
+	}
+}
+
+func antiSpamAIStrictnessLabel(v string) string {
+	switch normalizeAntiSpamAIStrictness(v) {
+	case antiSpamAIStrictnessLow:
+		return "低"
+	case antiSpamAIStrictnessHigh:
+		return "高"
+	default:
+		return "中"
+	}
+}
+
+func antiSpamAIStrictnessRule(v string) string {
+	switch normalizeAntiSpamAIStrictness(v) {
+	case antiSpamAIStrictnessLow:
+		return "低严格度：仅在明显广告、诈骗、色情、外链引流、批量营销话术时判 spam；普通聊天、一般推广、轻微可疑内容优先判 ham。"
+	case antiSpamAIStrictnessHigh:
+		return "高严格度：对广告、引流、博彩、色情、诈骗、政治拉群、可疑联系方式、异常营销语气从严判定，边界内容可判 spam。"
+	default:
+		return "中严格度：平衡误杀与漏判；明显违规判 spam，边界内容优先结合上下文，证据不足时判 ham。"
+	}
 }
 
 type spamAIResult struct {
@@ -153,15 +193,23 @@ func buildSpamAIPrompt(input spamAIInput) string {
 	if content == "" {
 		content = "(empty)"
 	}
+	strictness := normalizeAntiSpamAIStrictness(input.Strictness)
 	var b strings.Builder
 	b.WriteString("你是群聊反垃圾二分类器，主要识别广告、诱导、诈骗、色情、政治等垃圾信息。")
 	b.WriteString("\n仅输出 JSON，不要输出 Markdown、解释、代码块。")
 	b.WriteString("\n字段固定: {\"label\":\"spam|ham\",\"score\":0-100,\"reason\":\"短原因\"}")
+	b.WriteString("\n当前严格度: ")
+	b.WriteString(antiSpamAIStrictnessLabel(strictness))
+	b.WriteString(" (")
+	b.WriteString(strictness)
+	b.WriteString(")")
 	b.WriteString("\n规则：")
 	b.WriteString("\n1) label 只能是 spam 或 ham")
 	b.WriteString("\n2) score 必须是整数")
 	b.WriteString("\n3) reason 要短，不超过 20 个字")
 	b.WriteString("\n4) 严禁输出任何多余字段")
+	b.WriteString("\n5) ")
+	b.WriteString(antiSpamAIStrictnessRule(strictness))
 	b.WriteString("\n")
 	b.WriteString("\n消息内容如下：")
 	b.WriteString("\n<<<")

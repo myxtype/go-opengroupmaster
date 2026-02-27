@@ -88,6 +88,7 @@ type antiSpamConfig struct {
 	ExceptionKeywords       []string `json:"exception_keywords"`
 	AIEnabled               bool     `json:"ai_enabled"`
 	AISpamScore             int      `json:"ai_spam_score"`
+	AIStrictness            string   `json:"ai_strictness"`
 	Penalty                 string   `json:"penalty"`
 	WarnThreshold           int      `json:"warn_threshold"`
 	WarnAction              string   `json:"warn_action"`
@@ -344,6 +345,7 @@ type AntiSpamView struct {
 	ExceptionKeywords     []string
 	AIEnabled             bool
 	AISpamScore           int
+	AIStrictness          string
 	Penalty               string
 	WarnThreshold         int
 	WarnAction            string

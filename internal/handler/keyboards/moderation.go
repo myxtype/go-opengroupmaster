@@ -224,6 +224,10 @@ func AntiSpamAlertDeleteKeyboard(tgGroupID int64, currentSec int) tgbotapi.Inlin
 
 func AntiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
+	strictness := view.AIStrictness
+	lowLabel := selectedLabel("低", strictness == "low")
+	mediumLabel := selectedLabel("中", strictness == "medium")
+	highLabel := selectedLabel("高", strictness == "high")
 	return tgbotapi.NewInlineKeyboardMarkup(
 		statusControlRow(
 			view.AIEnabled,
@@ -233,6 +237,14 @@ func AntiSpamAIKeyboard(tgGroupID int64, view *service.AntiSpamView) tgbotapi.In
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("AI垃圾分:%d", view.AISpamScore), fmt.Sprintf("feat:mod:spamaiscore:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("严格度", fmt.Sprintf("feat:mod:noop:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(lowLabel, fmt.Sprintf("feat:mod:spamaistrict:%s:low", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(mediumLabel, fmt.Sprintf("feat:mod:spamaistrict:%s:medium", gid)),
+			tgbotapi.NewInlineKeyboardButtonData(highLabel, fmt.Sprintf("feat:mod:spamaistrict:%s:high", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:mod:spamaicfg:%s", gid)),

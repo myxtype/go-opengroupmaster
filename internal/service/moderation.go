@@ -168,7 +168,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 
 		// 规则先判定；未命中规则且开启 AI 时，使用 AI 二分类补充判断。
 		if !blocked && cfg.AIEnabled {
-			aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg)
+			aiResult, fromCache, aiErr := s.classifyAntiSpamWithAI(msg, cfg.AIStrictness)
 			if aiErr != nil {
 				decisionSource = "rule_fallback"
 				if s.logger != nil {
@@ -525,16 +525,17 @@ func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string,
 	return false, "", ""
 }
 
-func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message) (spamAIResult, bool, error) {
+func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message, strictness string) (spamAIResult, bool, error) {
 	if s.spamAI == nil {
 		return spamAIResult{}, false, errors.New("nil ai classifier")
 	}
+	strictness = normalizeAntiSpamAIStrictness(strictness)
 	cacheTTL := s.spamAICacheTTL
 	if cacheTTL <= 0 {
 		cacheTTL = 7 * 24 * time.Hour
 	}
 	now := time.Now()
-	hash := antiSpamContentHash(msg)
+	hash := antiSpamContentHash(msg, strictness)
 	if hash == "" {
 		return spamAIResult{}, false, errors.New("empty content hash")
 	}
@@ -547,7 +548,10 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message) (spamAIResult, b
 		}
 	}
 
-	result, err := s.spamAI.Classify(context.Background(), spamAIInput{Content: antiSpamMessageContent(msg)})
+	result, err := s.spamAI.Classify(context.Background(), spamAIInput{
+		Content:    antiSpamMessageContent(msg),
+		Strictness: strictness,
+	})
 	if err != nil {
 		return spamAIResult{}, false, err
 	}
@@ -565,10 +569,11 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message) (spamAIResult, b
 	return normalized, false, nil
 }
 
-func antiSpamContentHash(msg *tgbotapi.Message) string {
+func antiSpamContentHash(msg *tgbotapi.Message, strictness string) string {
 	if msg == nil {
 		return ""
 	}
+	strictness = normalizeAntiSpamAIStrictness(strictness)
 	content := normalizeSpamText(antiSpamMessageContent(msg))
 	parts := []string{
 		content,
@@ -582,6 +587,7 @@ func antiSpamContentHash(msg *tgbotapi.Message) string {
 		fmt.Sprintf("sender_chat:%d", antiSpamChatID(msg.SenderChat)),
 		fmt.Sprintf("forward_chat:%d", antiSpamChatID(msg.ForwardFromChat)),
 		fmt.Sprintf("auto_forward:%t", msg.IsAutomaticForward),
+		fmt.Sprintf("ai_strictness:%s", strictness),
 	}
 	raw := strings.Join(parts, "|")
 	sum := sha256.Sum256([]byte(raw))
