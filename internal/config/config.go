@@ -26,7 +26,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		BotToken:              os.Getenv("BOT_TOKEN"),
-		DBPath:                envOrDefault("DB_PATH", "./data/bot.db"),
+		DBPath:                envOrDefault("DB_PATH", "sqlite://./data/bot.db"),
 		BotDebug:              parseBool(os.Getenv("BOT_DEBUG")),
 		GormLogSilent:         parseBool(os.Getenv("GORM_LOG_SILENT")),
 		UpdateWorkers:         parseIntDefault(os.Getenv("UPDATE_WORKERS"), 8),

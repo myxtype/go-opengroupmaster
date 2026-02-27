@@ -22,8 +22,9 @@ cp .env.example .env
 
 2. 设置 `BOT_TOKEN`（可选调优项：`DB_PATH`、`GORM_LOG_SILENT`、`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`、`ANTI_SPAM_AI_*`）
 
-   - `DB_PATH`：数据库连接配置（默认 `./data/bot.db`，即 SQLite 文件）
-   - 支持 SQLite 路径：如 `./data/bot.db`
+   - `DB_PATH`：数据库连接配置（默认 `sqlite://./data/bot.db`）
+   - 支持 SQLite 前缀：`sqlite://...` / `sqlite3://...`（推荐）
+   - 示例：`sqlite://./data/bot.db`、`sqlite:///tmp/groupmaster.db`、`sqlite://:memory:`
    - 支持 PostgreSQL DSN：如 `postgres://user:password@127.0.0.1:5432/groupmaster?sslmode=disable`
    - 也支持 `postgresql://...` 与 `pgsql://...` 前缀
    - `GORM_LOG_SILENT`：是否关闭 GORM SQL 日志（默认 `false`，设为 `true` 则静默）

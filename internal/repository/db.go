@@ -24,9 +24,12 @@ func New(dbPath string, gormLogSilent bool) (*Repository, error) {
 		return nil, fmt.Errorf("db dsn is empty")
 	}
 
-	dialector, isPostgres := openDialector(dsn)
+	dialector, isPostgres, sqliteDSN, err := openDialector(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse db dsn: %w", err)
+	}
 	if !isPostgres {
-		if err := ensureSQLiteDir(dsn); err != nil {
+		if err := ensureSQLiteDir(sqliteDSN); err != nil {
 			return nil, fmt.Errorf("create db dir: %w", err)
 		}
 	}
@@ -68,18 +71,30 @@ func (r *Repository) DB() *gorm.DB {
 	return r.db
 }
 
-func openDialector(dsn string) (gorm.Dialector, bool) {
+func openDialector(dsn string) (gorm.Dialector, bool, string, error) {
 	lower := strings.ToLower(dsn)
 	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
-		return postgres.Open(dsn), true
+		return postgres.Open(dsn), true, "", nil
 	}
 	if strings.HasPrefix(lower, "pgsql://") {
-		return postgres.Open("postgres://" + dsn[len("pgsql://"):]), true
+		return postgres.Open("postgres://" + dsn[len("pgsql://"):]), true, "", nil
 	}
-	return sqlite.Open(dsn), false
+	if strings.HasPrefix(lower, "sqlite://") {
+		sqliteDSN := dsn[len("sqlite://"):]
+		return sqlite.Open(sqliteDSN), false, sqliteDSN, nil
+	}
+	if strings.HasPrefix(lower, "sqlite3://") {
+		sqliteDSN := dsn[len("sqlite3://"):]
+		return sqlite.Open(sqliteDSN), false, sqliteDSN, nil
+	}
+	return nil, false, "", fmt.Errorf("unsupported db dsn format, must start with sqlite://, sqlite3://, postgres://, postgresql:// or pgsql://")
 }
 
 func ensureSQLiteDir(dsn string) error {
+	if strings.TrimSpace(dsn) == "" {
+		return fmt.Errorf("sqlite dsn is empty")
+	}
+
 	lower := strings.ToLower(dsn)
 	if dsn == ":memory:" || strings.HasPrefix(lower, "file:") {
 		return nil
