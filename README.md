@@ -1,8 +1,32 @@
-# GroupMaster Bot (Go + SQLite/PostgreSQL)
+# OpenGroupMaster
 
-基于 Telegram Bot API 的群管理机器人，按 PRD 拆分为 `handler/service/repository` 分层，默认可运行 MVP。
+[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
+[![Database](https://img.shields.io/badge/DB-SQLite%20%7C%20PostgreSQL-blue)](https://www.sqlite.org/)
+[![Telegram](https://img.shields.io/badge/Platform-Telegram-2CA5E0?logo=telegram)](https://telegram.org/)
 
-## 已实现 MVP
+开源 Telegram 群管理机器人，基于 Go 构建，采用 `handler/service/repository` 分层架构。支持 SQLite 和 PostgreSQL，开箱可跑，适合个人群运营和中小社区自动化管理。
+
+- GitHub: <https://github.com/myxtype/go-opengroupmaster>
+- Issue 反馈: <https://github.com/myxtype/go-opengroupmaster/issues>
+
+## 目录
+
+- 核心特性
+- 环境要求
+- 快速开始
+- 配置说明
+- 启用 AI 智能反垃圾（可选）
+- 构建与发布
+- 项目结构
+- 命令示例
+- Inline Keyboard 操作流
+- 开发与调试
+- 贡献指南
+- 文档维护约定
+- 注意事项
+- PRD 对照清单（当前代码）
+
+## 核心特性
 
 - 群/用户入库与管理员同步（通过 `getChatAdministrators`）
 - 私聊 `/start`、`/groups` + Inline Keyboard 管理流
@@ -11,44 +35,116 @@
 - 自动回复（关键词匹配）
 - 积分系统（签到/发言/邀请积分、抽奖消耗积分、手动加减积分）
 - 抽奖流程：`/lottery_create`、关键词参与、`/lottery_draw`
+- 反垃圾规则引擎 + 可选 AI 判定（Ollama）
 
-## 运行
+## 环境要求
 
-1. 复制配置
+- Go `1.26`（见 [go.mod](go.mod)）
+- Telegram Bot Token（通过 `@BotFather` 获取）
+- 数据库：
+  - 默认 SQLite（本地文件）
+  - 或 PostgreSQL（生产建议）
+
+## 快速开始
+
+适合第一次跑项目的小白用户，按下面步骤照做即可。
+
+1. 克隆仓库
+
+```bash
+git clone https://github.com/myxtype/go-opengroupmaster.git
+cd go-opengroupmaster
+```
+
+2. 复制配置
 
 ```bash
 cp .env.example .env
 ```
 
-2. 设置 `BOT_TOKEN`（可选调优项：`DB_PATH`、`GORM_LOG_SILENT`、`UPDATE_WORKERS`、`ADMIN_SYNC_INTERVAL_SECS`、`ANTI_SPAM_AI_*`）
+3. 编辑 `.env`，至少填写 `BOT_TOKEN`
 
-   - `DB_PATH`：数据库连接配置（默认 `sqlite://./data/bot.db`）
-   - 支持 SQLite 前缀：`sqlite://...` / `sqlite3://...`（推荐）
-   - 示例：`sqlite://./data/bot.db`、`sqlite:///tmp/groupmaster.db`、`sqlite://:memory:`
-   - 支持 PostgreSQL DSN：如 `postgres://user:password@127.0.0.1:5432/groupmaster?sslmode=disable`
-   - 也支持 `postgresql://...` 与 `pgsql://...` 前缀
-   - `GORM_LOG_SILENT`：是否关闭 GORM SQL 日志（默认 `false`，设为 `true` 则静默）
-   - `UPDATE_WORKERS`：Update 并发 worker 数（默认 `8`，同一会话按 chat/user 分片后保持有序）
-   - `ADMIN_SYNC_INTERVAL_SECS`：同一群管理员同步最小间隔秒数（默认 `300`，避免每条消息都请求管理员列表）
-   - `ANTI_SPAM_AI_MODEL`：本地 Ollama 模型名（可选；未配置则隐藏 AI 反垃圾面板且不能开启 AI 反垃圾）
-   - `ANTI_SPAM_AI_SERVER_URL`：Ollama 服务地址（默认 `http://127.0.0.1:11434`）
-   - `ANTI_SPAM_AI_TIMEOUT_SECS`：单次 AI 判定超时秒数（默认 `8`）
+```env
+BOT_TOKEN=123456:replace-with-your-bot-token
+DB_PATH=sqlite://./data/bot.db
+```
 
-3. 安装依赖并运行
+4. 安装依赖并启动
 
 ```bash
 go mod tidy
 go run ./cmd
 ```
 
-本地模型建议：
+启动后默认使用 SQLite（`./data/bot.db`），首次运行会自动建表。
+
+## 配置说明
+
+| 变量名 | 必填 | 说明 | 默认值 |
+| --- | --- | --- | --- |
+| `BOT_TOKEN` | 是 | Telegram 机器人 Token | 无 |
+| `DB_PATH` | 否 | 数据库连接串（支持 SQLite/PostgreSQL） | `sqlite://./data/bot.db` |
+| `GORM_LOG_SILENT` | 否 | 是否关闭 SQL 日志 | `false` |
+| `UPDATE_WORKERS` | 否 | Update 并发 worker 数 | `8` |
+| `ADMIN_SYNC_INTERVAL_SECS` | 否 | 管理员同步最小间隔秒数 | `300` |
+| `ANTI_SPAM_AI_MODEL` | 否 | AI 反垃圾模型名（为空即禁用 AI） | 空 |
+| `ANTI_SPAM_AI_SERVER_URL` | 否 | Ollama 服务地址 | `http://127.0.0.1:11434` |
+| `ANTI_SPAM_AI_TIMEOUT_SECS` | 否 | 单次 AI 判定超时秒数 | `8` |
+
+数据库连接示例：
+
+- SQLite：`sqlite://./data/bot.db`
+- SQLite 内存：`sqlite://:memory:`
+- PostgreSQL：`postgres://user:password@127.0.0.1:5432/groupmaster?sslmode=disable`
+- 也支持：`postgresql://...`、`pgsql://...`
+
+## 启用 AI 智能反垃圾（可选）
+
+如果你想使用“AI 智能反垃圾”，需要先安装并启动 Ollama，然后配置 `ANTI_SPAM_AI_MODEL`。
+
+### 1. 安装 Ollama
+
+- macOS（Homebrew）：
 
 ```bash
-ollama pull qwen2.5:1.5b
+brew install ollama
+```
+
+- Linux：
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+- Windows：
+  - 打开 <https://ollama.com/download> 下载并安装
+
+### 2. 启动 Ollama 服务
+
+```bash
 ollama serve
 ```
 
-## 构建
+### 3. 拉取一个可用模型（示例）
+
+```bash
+ollama pull qwen2.5:1.5b
+```
+
+### 4. 配置 `.env`
+
+```env
+ANTI_SPAM_AI_MODEL=qwen2.5:1.5b
+ANTI_SPAM_AI_SERVER_URL=http://127.0.0.1:11434
+ANTI_SPAM_AI_TIMEOUT_SECS=8
+```
+
+### 5. 重启机器人后生效
+
+- 配置了 `ANTI_SPAM_AI_MODEL`：反垃圾面板会显示“AI 智能反垃圾设置”
+- 没配置 `ANTI_SPAM_AI_MODEL`：AI 面板不显示，且不能开启 AI 反垃圾
+
+## 构建与发布
 
 项目已提供构建脚本：
 
@@ -63,15 +159,24 @@ ollama serve
 ./scripts/build.sh all
 ```
 
-支持目标：
+支持目标：`local`（默认）、`linux-amd64`、`linux-arm64`、`darwin-amd64`、`darwin-arm64`、`windows-amd64`、`all`
 
-- `local`（默认）
-- `linux-amd64`
-- `linux-arm64`
-- `darwin-amd64`
-- `darwin-arm64`
-- `windows-amd64`
-- `all`
+## 项目结构
+
+```text
+.
+├── cmd/                 # 程序入口
+├── internal/
+│   ├── handler/         # Telegram Update 处理与面板交互
+│   ├── service/         # 核心业务逻辑
+│   ├── repository/      # 数据访问层（GORM）
+│   ├── model/           # 数据模型
+│   ├── config/          # 配置读取
+│   └── scheduler/       # 定时调度
+├── pkg/                 # 通用组件
+├── scripts/             # 构建脚本等
+└── README.md
+```
 
 ## 命令示例
 
@@ -237,6 +342,42 @@ ollama serve
   - 置顶: 关闭❌
   - 修改头像: 关闭❌
   - 修改名称: 关闭❌
+
+## 开发与调试
+
+常用本地命令：
+
+```bash
+# 启动
+go run ./cmd
+
+# 测试
+go test ./...
+
+# 格式化
+gofmt -w ./...
+```
+
+建议开发流程：
+
+1. 从 `main` 拉取最新代码并创建分支
+2. 完成功能后运行 `go test ./...`
+3. 同步更新 README 与相关注释
+4. 提交 PR 并在描述中说明变更点与影响范围
+
+## 贡献指南
+
+欢迎提交 Issue 和 Pull Request：
+
+- Bug 反馈：请附复现步骤、日志和运行环境
+- 功能建议：请写明使用场景、预期行为和兼容性影响
+- PR 建议：尽量保持单一主题，避免混入无关改动
+
+仓库地址：<https://github.com/myxtype/go-opengroupmaster>
+
+## 许可证
+
+当前仓库尚未附带 `LICENSE` 文件。若你准备对外发布，请先补充明确的开源许可证。
 
 ## 文档维护约定
 
