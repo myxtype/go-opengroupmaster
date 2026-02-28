@@ -745,6 +745,8 @@ func (s *Service) saveInviteConfig(groupID uint, cfg inviteConfig) error {
 func defaultPointsConfig() pointsConfig {
 	return pointsConfig{
 		CheckinKeyword: "签到",
+		CheckinReward:  1,
+		MessageReward:  1,
 		MessageDaily:   0,
 		MessageMinLen:  0,
 		InviteReward:   1,
@@ -760,6 +762,18 @@ func normalizePointsConfig(cfg pointsConfig) pointsConfig {
 		cfg.CheckinKeyword = "签到"
 	}
 	cfg.CheckinKeyword = strings.TrimSpace(cfg.CheckinKeyword)
+	if cfg.CheckinReward <= 0 {
+		cfg.CheckinReward = 1
+	}
+	if cfg.CheckinReward > 100000 {
+		cfg.CheckinReward = 100000
+	}
+	if cfg.MessageReward <= 0 {
+		cfg.MessageReward = 1
+	}
+	if cfg.MessageReward > 100000 {
+		cfg.MessageReward = 100000
+	}
 	if cfg.MessageDaily < 0 {
 		cfg.MessageDaily = 0
 	}

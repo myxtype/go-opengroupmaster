@@ -269,6 +269,15 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		case "view":
 			h.answerCallback(bot, cb.ID, "加载积分设置")
 			h.sendPointsPanel(bot, target, userID, tgGroupID)
+		case "checkin":
+			h.answerCallback(bot, cb.ID, "加载签到规则")
+			h.sendPointsCheckinPanel(bot, target, userID, tgGroupID)
+		case "message":
+			h.answerCallback(bot, cb.ID, "加载发言规则")
+			h.sendPointsMessagePanel(bot, target, userID, tgGroupID)
+		case "invite":
+			h.answerCallback(bot, cb.ID, "加载邀请规则")
+			h.sendPointsInvitePanel(bot, target, userID, tgGroupID)
 		case "on":
 			if _, err := h.service.SetPointsEnabledByTGGroupID(tgGroupID, true); err != nil {
 				h.answerCallback(bot, cb.ID, "设置失败")
@@ -287,6 +296,14 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "请输入签到口令")
 			h.setPending(userID, pendingInput{Kind: "points_checkin_keyword", TGGroupID: tgGroupID})
 			h.render(bot, target, "请输入签到口令（例如：签到）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "checkinreward":
+			h.answerCallback(bot, cb.ID, "请输入签到奖励")
+			h.setPending(userID, pendingInput{Kind: "points_checkin_reward", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入签到奖励积分（大于 0 的整数）", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "msgreward":
+			h.answerCallback(bot, cb.ID, "请输入发言奖励")
+			h.setPending(userID, pendingInput{Kind: "points_message_reward", TGGroupID: tgGroupID})
+			h.render(bot, target, "请输入每条发言奖励积分（大于 0 的整数）", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "msgdaily":
 			h.answerCallback(bot, cb.ID, "请输入发言每日上限")
 			h.setPending(userID, pendingInput{Kind: "points_message_daily", TGGroupID: tgGroupID})
@@ -902,9 +919,9 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		h.answerCallback(bot, cb.ID, "加载抽奖")
 		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	case "create":
-		h.answerCallback(bot, cb.ID, "请发送抽奖配置")
-		h.setPending(cb.From.ID, pendingInput{Kind: "lottery_create", TGGroupID: tgGroupID})
-		h.render(bot, target, "请发送：抽奖标题|中奖人数|参与关键词\n示例：周末福利|3|参加", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.answerCallback(bot, cb.ID, "开始创建抽奖")
+		h.setPending(cb.From.ID, pendingInput{Kind: "lottery_create_title", TGGroupID: tgGroupID})
+		h.render(bot, target, "第1步：请输入抽奖标题\n示例：周末福利", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "draw":
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(tgGroupID)
 		if err != nil {
@@ -1862,7 +1879,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 			page = 1
 		}
 		h.sendBannedWordList(bot, target, userID, pending.TGGroupID, page)
-	case "lottery_create":
+	case "lottery_create", "lottery_create_title", "lottery_create_winners", "lottery_create_keyword":
 		h.sendLotteryPanel(bot, target, userID, pending.TGGroupID)
 	case "sched_add_cron", "sched_add_content", "sched_add_buttons", "sched_add_pin":
 		page := pending.Page
@@ -1898,7 +1915,13 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
 	case "night_tz", "night_start_hour", "night_end_hour":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
-	case "points_checkin_keyword", "points_message_daily", "points_message_min_len", "points_invite_reward", "points_invite_daily", "points_balance_alias", "points_rank_alias", "points_admin_add", "points_admin_sub", "points_admin_add_value", "points_admin_sub_value":
+	case "points_checkin_keyword", "points_checkin_reward":
+		h.sendPointsCheckinPanel(bot, target, userID, pending.TGGroupID)
+	case "points_message_reward", "points_message_daily", "points_message_min_len":
+		h.sendPointsMessagePanel(bot, target, userID, pending.TGGroupID)
+	case "points_invite_reward", "points_invite_daily":
+		h.sendPointsInvitePanel(bot, target, userID, pending.TGGroupID)
+	case "points_balance_alias", "points_rank_alias", "points_admin_add", "points_admin_sub", "points_admin_add_value", "points_admin_sub_value":
 		h.sendPointsPanel(bot, target, userID, pending.TGGroupID)
 	case "invite_set_expire", "invite_set_member_limit", "invite_set_generate_limit":
 		h.sendInvitePanel(bot, target, userID, pending.TGGroupID)

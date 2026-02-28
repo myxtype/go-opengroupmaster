@@ -27,24 +27,26 @@ type renderTarget struct {
 }
 
 type pendingInput struct {
-	Kind        string
-	TGGroupID   int64
-	TargetTGUID int64
-	TargetLabel string
-	RuleID      uint
-	Page        int
-	CronExpr    string
-	Keyword     string
-	MatchType   string
-	Content     string
-	RawButtons  string
-	MediaType   string
-	MediaFileID string
-	Pin         bool
-	ChainMode   string
-	ChainID     uint
-	Count       int
-	Deadline    int64
+	Kind           string
+	TGGroupID      int64
+	TargetTGUID    int64
+	TargetLabel    string
+	RuleID         uint
+	Page           int
+	CronExpr       string
+	Keyword        string
+	MatchType      string
+	Content        string
+	RawButtons     string
+	MediaType      string
+	MediaFileID    string
+	Pin            bool
+	ChainMode      string
+	ChainID        uint
+	Count          int
+	Deadline       int64
+	LotteryTitle   string
+	LotteryWinners int
 }
 
 type Handler struct {

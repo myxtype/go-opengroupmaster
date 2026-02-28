@@ -203,15 +203,11 @@ func PointsKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.Inl
 			fmt.Sprintf("feat:points:off:%s", gid),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("签到口令："+view.Config.CheckinKeyword, fmt.Sprintf("feat:points:checkinkey:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("签到规则", fmt.Sprintf("feat:points:checkin:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("发言规则", fmt.Sprintf("feat:points:message:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("发言上限："+pointsLimitText(view.Config.MessageDaily), fmt.Sprintf("feat:points:msgdaily:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("最小字数："+pointsLimitText(view.Config.MessageMinLen), fmt.Sprintf("feat:points:msgmin:%s", gid)),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("邀请奖励：%d", view.Config.InviteReward), fmt.Sprintf("feat:points:invitereward:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("邀请上限："+pointsLimitText(view.Config.InviteDaily), fmt.Sprintf("feat:points:invitedaily:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("邀请规则", fmt.Sprintf("feat:points:invite:%s", gid)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("积分别名："+view.Config.BalanceAlias, fmt.Sprintf("feat:points:aliasbalance:%s", gid)),
@@ -222,6 +218,53 @@ func PointsKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.Inl
 			tgbotapi.NewInlineKeyboardButtonData("扣除积分(自定义)", fmt.Sprintf("feat:points:sub:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:points:view:%s", gid)),
+	)
+}
+
+func PointsCheckinKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("签到口令："+view.Config.CheckinKeyword, fmt.Sprintf("feat:points:checkinkey:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("签到奖励：%d", view.Config.CheckinReward), fmt.Sprintf("feat:points:checkinreward:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:points:checkin:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回积分面板", fmt.Sprintf("feat:points:view:%s", gid)),
+		),
+	)
+}
+
+func PointsMessageKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("单次奖励：%d", view.Config.MessageReward), fmt.Sprintf("feat:points:msgreward:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("发言上限："+pointsLimitText(view.Config.MessageDaily), fmt.Sprintf("feat:points:msgdaily:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("最小字数："+pointsLimitText(view.Config.MessageMinLen), fmt.Sprintf("feat:points:msgmin:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:points:message:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回积分面板", fmt.Sprintf("feat:points:view:%s", gid)),
+		),
+	)
+}
+
+func PointsInviteKeyboard(tgGroupID int64, view *service.PointsPanelView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("邀请奖励：%d", view.Config.InviteReward), fmt.Sprintf("feat:points:invitereward:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("邀请上限："+pointsLimitText(view.Config.InviteDaily), fmt.Sprintf("feat:points:invitedaily:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:points:invite:%s", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("◀ 返回积分面板", fmt.Sprintf("feat:points:view:%s", gid)),
+		),
 	)
 }
 

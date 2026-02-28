@@ -21,11 +21,6 @@ const (
 	pointsEventAdminSub = "admin_sub"
 )
 
-const (
-	pointsCheckinReward = 1
-	pointsMessageReward = 1
-)
-
 var ErrInsufficientPoints = errors.New("insufficient points")
 
 func pointsDayKey(now time.Time) string {
@@ -189,6 +184,34 @@ func (s *Service) SetPointsCheckinKeywordByTGGroupID(tgGroupID int64, keyword st
 	return cfg.CheckinKeyword, nil
 }
 
+func (s *Service) SetPointsCheckinRewardByTGGroupID(tgGroupID int64, reward int) (int, error) {
+	if reward <= 0 {
+		return 0, errors.New("invalid checkin reward")
+	}
+	cfg, err := s.setPointsConfigByTGGroupID(tgGroupID, func(in pointsConfig) (pointsConfig, error) {
+		in.CheckinReward = reward
+		return in, nil
+	}, fmt.Sprintf("set_points_checkin_reward_%d", reward))
+	if err != nil {
+		return 0, err
+	}
+	return cfg.CheckinReward, nil
+}
+
+func (s *Service) SetPointsMessageRewardByTGGroupID(tgGroupID int64, reward int) (int, error) {
+	if reward <= 0 {
+		return 0, errors.New("invalid message reward")
+	}
+	cfg, err := s.setPointsConfigByTGGroupID(tgGroupID, func(in pointsConfig) (pointsConfig, error) {
+		in.MessageReward = reward
+		return in, nil
+	}, fmt.Sprintf("set_points_message_reward_%d", reward))
+	if err != nil {
+		return 0, err
+	}
+	return cfg.MessageReward, nil
+}
+
 func (s *Service) SetPointsMessageDailyLimitByTGGroupID(tgGroupID int64, limit int) (int, error) {
 	if limit < 0 {
 		return 0, errors.New("invalid message daily limit")
@@ -343,7 +366,7 @@ func (s *Service) rewardMessagePoints(group *model.Group, msg *tgbotapi.Message)
 	if err != nil {
 		return nil
 	}
-	_, _, err = s.awardPointsWithDailyLimit(group.ID, u.ID, pointsEventMessage, pointsMessageReward, cfg.MessageDaily, time.Now())
+	_, _, err = s.awardPointsWithDailyLimit(group.ID, u.ID, pointsEventMessage, cfg.MessageReward, cfg.MessageDaily, time.Now())
 	return err
 }
 
@@ -398,7 +421,7 @@ func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Gro
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("今天已经签到过了，当前积分：%d", current)))
 			return true, nil
 		}
-		got, current, err := s.awardPointsWithDailyLimit(group.ID, u.ID, pointsEventCheckin, pointsCheckinReward, pointsCheckinReward, time.Now())
+		got, current, err := s.awardPointsWithDailyLimit(group.ID, u.ID, pointsEventCheckin, cfg.CheckinReward, cfg.CheckinReward, time.Now())
 		if err != nil {
 			return true, err
 		}

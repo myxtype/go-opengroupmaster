@@ -178,6 +178,8 @@ type inviteConfig struct {
 
 type pointsConfig struct {
 	CheckinKeyword string `json:"checkin_keyword"`
+	CheckinReward  int    `json:"checkin_reward"`
+	MessageReward  int    `json:"message_reward"`
 	MessageDaily   int    `json:"message_daily_limit"`
 	MessageMinLen  int    `json:"message_min_length"`
 	InviteReward   int    `json:"invite_reward"`

@@ -527,27 +527,83 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "lottery_create":
-		title := "默认抽奖"
-		winners := 1
-		keyword := "参加"
 		parts := strings.Split(text, "|")
-		if strings.TrimSpace(parts[0]) != "" {
-			title = strings.TrimSpace(parts[0])
+		if len(parts) != 3 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：抽奖标题|中奖人数|参与关键词"))
+			return
 		}
-		if len(parts) > 1 {
-			n, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err == nil && n > 0 {
-				winners = n
-			}
+		title := strings.TrimSpace(parts[0])
+		winners, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		keyword := strings.TrimSpace(parts[2])
+		if title == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题不能为空"))
+			return
 		}
-		if len(parts) > 2 && strings.TrimSpace(parts[2]) != "" {
-			keyword = strings.TrimSpace(parts[2])
+		if err != nil || winners <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "中奖人数需为大于 0 的整数"))
+			return
+		}
+		if keyword == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与关键词不能为空"))
+			return
 		}
 		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, title, winners, keyword); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
 			return
 		}
 		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(pending.TGGroupID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", title, winners, keyword)))
+		if sendErr == nil {
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
+		}
+		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "lottery_create_title":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题不能为空，请重新输入"))
+			return
+		}
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:         "lottery_create_winners",
+			TGGroupID:    pending.TGGroupID,
+			LotteryTitle: text,
+		})
+		h.render(bot, target, "第2步：请输入中奖人数（大于 0 的整数）\n示例：3", keyboards.PendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "lottery_create_winners":
+		winners, err := strconv.Atoi(text)
+		if err != nil || winners <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "中奖人数需为大于 0 的整数，请重新输入"))
+			return
+		}
+		if strings.TrimSpace(pending.LotteryTitle) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题已丢失，请重新创建抽奖"))
+			return
+		}
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:           "lottery_create_keyword",
+			TGGroupID:      pending.TGGroupID,
+			LotteryTitle:   pending.LotteryTitle,
+			LotteryWinners: winners,
+		})
+		h.render(bot, target, "第3步：请输入参与关键词\n示例：参加", keyboards.PendingCancelKeyboard(pending.TGGroupID))
+		return
+	case "lottery_create_keyword":
+		if strings.TrimSpace(pending.LotteryTitle) == "" || pending.LotteryWinners <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖配置已丢失，请重新创建抽奖"))
+			return
+		}
+		keyword := text
+		if keyword == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与关键词不能为空，请重新输入"))
+			return
+		}
+		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, pending.LotteryTitle, pending.LotteryWinners, keyword); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
+			return
+		}
+		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(
+			pending.TGGroupID,
+			fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", pending.LotteryTitle, pending.LotteryWinners, keyword),
+		))
 		if sendErr == nil {
 			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
 		}
@@ -949,7 +1005,33 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "签到口令已设置为："+keyword))
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendPointsCheckinPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_checkin_reward":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		reward, err := h.service.SetPointsCheckinRewardByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置签到奖励失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("签到奖励已设置为：%d", reward)))
+		h.sendPointsCheckinPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "points_message_reward":
+		v, err := strconv.Atoi(text)
+		if err != nil || v <= 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			return
+		}
+		reward, err := h.service.SetPointsMessageRewardByTGGroupID(pending.TGGroupID, v)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置发言奖励失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("发言奖励已设置为：%d", reward)))
+		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_message_daily":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
@@ -966,7 +1048,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		} else {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("发言每日上限已设置为：%d", limit)))
 		}
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_message_min_len":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
@@ -983,7 +1065,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		} else {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("最小字数长度已设置为：%d", minLen)))
 		}
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_invite_reward":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
@@ -996,7 +1078,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请奖励已设置为：%d", reward)))
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendPointsInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_invite_daily":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
@@ -1013,7 +1095,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		} else {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请每日上限已设置为：%d", limit)))
 		}
-		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.sendPointsInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_balance_alias":
 		alias, err := h.service.SetPointsBalanceAliasByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
