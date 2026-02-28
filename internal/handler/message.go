@@ -49,6 +49,17 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 	h.handlePrivatePendingInput(bot, msg)
 }
 
+func (h *Handler) handleEditedMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+	if msg == nil || msg.From == nil || msg.From.IsBot {
+		return
+	}
+	if !msg.Chat.IsGroup() && !msg.Chat.IsSuperGroup() {
+		return
+	}
+	// 编辑消息只做风控检测，避免重复触发命令/积分/自动回复等流程。
+	_ = h.service.CheckEditedMessageAndModerate(bot, msg)
+}
+
 func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 	target := renderTarget{ChatID: msg.Chat.ID}
 	switch msg.Command() {

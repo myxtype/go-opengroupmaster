@@ -30,21 +30,12 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		}
 		return err
 	}
-	if msg.From != nil {
-		blacklisted, err := s.repo.IsGroupBlacklisted(group.ID, msg.From.ID)
-		if err == nil && blacklisted {
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-			_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-				UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
-			})
-			alertText, entities := composeTextWithUserMention("", msg.From, " 命中本群黑名单，已移出群组")
-			alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
-			alert.Entities = entities
-			_, _ = bot.Send(alert)
-			_ = s.repo.CreateLog(group.ID, "group_blacklist_kick", 0, 0)
-			return nil
-		}
+	blacklistedHandled, err := s.handleGroupBlacklistModeration(bot, msg, group)
+	if err != nil {
+		return err
+	}
+	if blacklistedHandled {
+		return nil
 	}
 
 	handled, err := s.applyModeration(bot, msg, group)
@@ -121,6 +112,51 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 	}
 
 	return nil
+}
+
+// CheckEditedMessageAndModerate 统一处理编辑消息的违规检查和处理
+func (s *Service) CheckEditedMessageAndModerate(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
+	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	blacklistedHandled, err := s.handleGroupBlacklistModeration(bot, msg, group)
+	if err != nil {
+		return err
+	}
+	if blacklistedHandled {
+		return nil
+	}
+	_, err = s.applyModeration(bot, msg, group)
+	return err
+}
+
+// handleGroupBlacklistModeration 处理群组黑名单消息
+func (s *Service) handleGroupBlacklistModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
+	if msg == nil || group == nil || msg.From == nil {
+		return false, nil
+	}
+	blacklisted, err := s.repo.IsGroupBlacklisted(group.ID, msg.From.ID)
+	if err != nil {
+		return false, nil
+	}
+	if !blacklisted {
+		return false, nil
+	}
+	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+	_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
+		UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
+	})
+	alertText, entities := composeTextWithUserMention("", msg.From, " 命中本群黑名单，已移出群组")
+	alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+	alert.Entities = entities
+	_, _ = bot.Send(alert)
+	_ = s.repo.CreateLog(group.ID, "group_blacklist_kick", 0, 0)
+	return true, nil
 }
 
 // applyModeration 统一处理消息的违规检查和处理

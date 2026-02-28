@@ -59,6 +59,9 @@ func updateRouteKey(update tgbotapi.Update) uint64 {
 	if update.Message != nil {
 		return uint64(update.Message.Chat.ID)
 	}
+	if update.EditedMessage != nil {
+		return uint64(update.EditedMessage.Chat.ID)
+	}
 	if update.CallbackQuery != nil {
 		if update.CallbackQuery.Message != nil {
 			return uint64(update.CallbackQuery.Message.Chat.ID)
