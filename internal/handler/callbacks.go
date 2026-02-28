@@ -396,13 +396,13 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "加载黑名单")
 			h.sendBlacklistPanel(bot, target, userID, tgGroupID)
 		case "add":
-			h.answerCallback(bot, cb.ID, "请输入用户ID")
+			h.answerCallback(bot, cb.ID, "请输入目标用户")
 			h.setPending(userID, pendingInput{Kind: "black_add", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：tg_user_id|原因(可选)\n将只加入当前群黑名单", keyboards.PendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "添加黑名单\n第1步：请输入用户名，用户ID，或转发成员消息到这里\n第2步：再输入加入原因（可选，可发送“跳过”）", keyboards.PendingCancelKeyboard(tgGroupID))
 		case "remove":
-			h.answerCallback(bot, cb.ID, "请输入用户ID")
+			h.answerCallback(bot, cb.ID, "请输入目标用户")
 			h.setPending(userID, pendingInput{Kind: "black_remove", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入要移除的 tg_user_id\n将只影响当前群黑名单", keyboards.PendingCancelKeyboard(tgGroupID))
+			h.render(bot, target, "移除黑名单\n请输入用户名，用户ID，或转发成员消息到这里", keyboards.PendingCancelKeyboard(tgGroupID))
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
@@ -1901,7 +1901,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendMonitorPanel(bot, target, userID, pending.TGGroupID)
 	case "rbac_set_role", "rbac_set_acl":
 		h.sendRBACPanel(bot, target, userID, pending.TGGroupID)
-	case "black_add", "black_remove":
+	case "black_add", "black_add_reason", "black_remove":
 		h.sendBlacklistPanel(bot, target, userID, pending.TGGroupID)
 	case "welcome_edit", "welcome_edit_media", "welcome_edit_button":
 		h.sendWelcomePanel(bot, target, userID, pending.TGGroupID)

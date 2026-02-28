@@ -1018,6 +1018,7 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 		return
 	}
 	lines := []string{"本群黑名单"}
+	lines = append(lines, "支持按用户名、用户ID，或转发成员消息来添加/移除")
 	if len(items) == 0 {
 		lines = append(lines, "暂无黑名单用户")
 	} else {

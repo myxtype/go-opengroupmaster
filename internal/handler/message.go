@@ -214,7 +214,147 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 			return
 		}
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除本群黑名单：%d", tgUserID)))
+	case "mute":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, arg, err := h.resolveModerationTargetAndArg(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/mute @用户名 [分钟]\n也可回复对方消息使用：/mute [分钟]\n默认 60 分钟"))
+			return
+		}
+		minutes := 60
+		if strings.TrimSpace(arg) != "" {
+			v, pErr := strconv.Atoi(strings.TrimSpace(arg))
+			if pErr != nil || v <= 0 {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "禁言分钟数需为大于 0 的整数"))
+				return
+			}
+			minutes = v
+		}
+		if err := h.service.MuteMemberByTGGroupID(bot, msg.Chat.ID, tgUserID, minutes); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "禁言失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已禁言用户：%d（%d 分钟）", tgUserID, minutes)))
+	case "unmute":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/unmute @用户名\n也可回复对方消息使用：/unmute"))
+			return
+		}
+		if err := h.service.UnmuteMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "解除禁言失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已解除禁言：%d", tgUserID)))
+	case "ban":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, arg, err := h.resolveModerationTargetAndArg(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/ban @用户名 [分钟]\n也可回复对方消息使用：/ban [分钟]\n不填分钟为永久封禁"))
+			return
+		}
+		minutes := 0
+		if strings.TrimSpace(arg) != "" {
+			v, pErr := strconv.Atoi(strings.TrimSpace(arg))
+			if pErr != nil || v <= 0 {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "封禁分钟数需为大于 0 的整数"))
+				return
+			}
+			minutes = v
+		}
+		if err := h.service.BanMemberByTGGroupID(bot, msg.Chat.ID, tgUserID, minutes); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "封禁失败"))
+			return
+		}
+		if minutes > 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已封禁用户：%d（%d 分钟）", tgUserID, minutes)))
+		} else {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已永久封禁用户：%d", tgUserID)))
+		}
+	case "unban":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/unban @用户名\n也可回复对方消息使用：/unban"))
+			return
+		}
+		if err := h.service.UnbanMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "解除封禁失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已解除封禁：%d", tgUserID)))
+	case "kick":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/kick @用户名\n也可回复对方消息使用：/kick"))
+			return
+		}
+		if err := h.service.KickMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "踢出失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已踢出用户：%d", tgUserID)))
 	}
+}
+
+func (h *Handler) resolveModerationTargetAndArg(msg *tgbotapi.Message) (int64, string, error) {
+	if msg == nil {
+		return 0, "", fmt.Errorf("invalid message")
+	}
+	args := strings.TrimSpace(msg.CommandArguments())
+	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil {
+		return msg.ReplyToMessage.From.ID, args, nil
+	}
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return 0, "", fmt.Errorf("missing target")
+	}
+	first := strings.TrimSpace(fields[0])
+	var target int64
+	if strings.HasPrefix(first, "@") {
+		username := strings.TrimSpace(strings.TrimPrefix(first, "@"))
+		if username == "" {
+			return 0, "", fmt.Errorf("invalid username")
+		}
+		u, err := h.service.Repo().FindUserByUsername(username)
+		if err != nil {
+			return 0, "", err
+		}
+		target = u.TGUserID
+	} else {
+		id, err := strconv.ParseInt(first, 10, 64)
+		if err != nil {
+			return 0, "", fmt.Errorf("invalid target")
+		}
+		target = id
+	}
+	extra := ""
+	if len(fields) > 1 {
+		extra = strings.TrimSpace(strings.Join(fields[1:], " "))
+	}
+	return target, extra, nil
 }
 
 func (h *Handler) resolveBlacklistTargetAndReason(msg *tgbotapi.Message) (int64, string, error) {
@@ -1205,31 +1345,45 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		}
 		h.sendRBACPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "black_add":
-		parts := strings.SplitN(text, "|", 2)
-		tgUID, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
 			return
 		}
-		reason := ""
-		if len(parts) == 2 {
-			reason = strings.TrimSpace(parts[1])
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:        "black_add_reason",
+			TGGroupID:   pending.TGGroupID,
+			TargetTGUID: targetTGUserID,
+			TargetLabel: display,
+		})
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入加入黑名单原因（可选，发送“跳过”使用默认原因）", display)))
+		return
+	case "black_add_reason":
+		if pending.TargetTGUID == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“添加”"))
+			return
 		}
-		if err := h.service.AddBlacklistByTGGroupID(pending.TGGroupID, tgUID, reason); err != nil {
+		reason := strings.TrimSpace(msg.Text)
+		if reason == "" || reason == "跳过" {
+			reason = "panel_manual_add"
+		}
+		if err := h.service.AddBlacklistByTGGroupID(pending.TGGroupID, pending.TargetTGUID, reason); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
 			return
 		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入黑名单：%s", pending.TargetLabel)))
 		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "black_remove":
-		tgUID, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
+		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
 			return
 		}
-		if err := h.service.RemoveBlacklistByTGGroupID(pending.TGGroupID, tgUID); err != nil {
+		if err := h.service.RemoveBlacklistByTGGroupID(pending.TGGroupID, targetTGUserID); err != nil {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
 			return
 		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除黑名单：%s", display)))
 		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "welcome_edit":
 		if text == "" {
@@ -1319,6 +1473,14 @@ func privateHelpText() string {
 		"/link - 生成专属邀请链接并查看邀请统计",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
+		"/mute @用户名 [分钟] - 禁言用户（管理员，默认60分钟）",
+		"/unmute @用户名 - 解除禁言（管理员）",
+		"/ban @用户名 [分钟] - 封禁用户（管理员，不填为永久）",
+		"/unban @用户名 - 解除封禁（管理员）",
+		"/kick @用户名 - 踢出用户（管理员）",
+		"回复用户消息发送 /black_add - 直接拉黑该用户（管理员）",
+		"回复用户消息发送 /black_remove - 直接移除该用户黑名单（管理员）",
+		"回复用户消息发送 /mute [分钟] / /ban [分钟] / /kick（管理员）",
 		"",
 		"提示：也可以通过私聊面板按钮进行大多数管理操作。",
 	}
@@ -1337,6 +1499,14 @@ func groupHelpText() string {
 		"发送“积分排行” - 查询积分排行（可配置）",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
+		"/mute @用户名 [分钟] - 禁言用户（管理员，默认60分钟）",
+		"/unmute @用户名 - 解除禁言（管理员）",
+		"/ban @用户名 [分钟] - 封禁用户（管理员，不填为永久）",
+		"/unban @用户名 - 解除封禁（管理员）",
+		"/kick @用户名 - 踢出用户（管理员）",
+		"回复用户消息发送 /black_add - 直接拉黑该用户（管理员）",
+		"回复用户消息发送 /black_remove - 直接移除该用户黑名单（管理员）",
+		"回复用户消息发送 /mute [分钟] / /ban [分钟] / /kick（管理员）",
 		"",
 		"更多功能可私聊机器人后通过按钮面板管理：/start、/groups。",
 	}

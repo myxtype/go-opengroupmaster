@@ -246,6 +246,141 @@ func (s *Service) SetWelcomeTextByTGGroupID(tgGroupID int64, text string) error 
 	return s.repo.CreateLog(group.ID, "set_welcome_text", 0, 0)
 }
 
+func (s *Service) MuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64, minutes int) error {
+	if bot == nil || targetTGUserID == 0 || minutes <= 0 {
+		return errors.New("invalid mute params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	permissions := tgbotapi.ChatPermissions{}
+	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+		UntilDate:        time.Now().Add(time.Duration(minutes) * time.Minute).Unix(),
+		Permissions:      &permissions,
+	})
+	if err != nil {
+		return err
+	}
+	targetID := uint(0)
+	if u, uErr := s.repo.EnsureUserByTGUserID(targetTGUserID); uErr == nil {
+		targetID = u.ID
+	}
+	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("cmd_mute_%d", minutes), 0, targetID)
+	return nil
+}
+
+func (s *Service) UnmuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+	if bot == nil || targetTGUserID == 0 {
+		return errors.New("invalid unmute params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	permissions := tgbotapi.ChatPermissions{
+		CanSendMessages:       true,
+		CanSendMediaMessages:  true,
+		CanSendPolls:          true,
+		CanSendOtherMessages:  true,
+		CanAddWebPagePreviews: true,
+	}
+	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+		Permissions:      &permissions,
+	})
+	if err != nil {
+		return err
+	}
+	targetID := uint(0)
+	if u, uErr := s.repo.EnsureUserByTGUserID(targetTGUserID); uErr == nil {
+		targetID = u.ID
+	}
+	_ = s.repo.CreateLog(group.ID, "cmd_unmute", 0, targetID)
+	return nil
+}
+
+func (s *Service) BanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64, minutes int) error {
+	if bot == nil || targetTGUserID == 0 {
+		return errors.New("invalid ban params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	req := tgbotapi.BanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	}
+	if minutes > 0 {
+		req.UntilDate = time.Now().Add(time.Duration(minutes) * time.Minute).Unix()
+	}
+	_, err = bot.Request(req)
+	if err != nil {
+		return err
+	}
+	targetID := uint(0)
+	if u, uErr := s.repo.EnsureUserByTGUserID(targetTGUserID); uErr == nil {
+		targetID = u.ID
+	}
+	action := "cmd_ban_perm"
+	if minutes > 0 {
+		action = fmt.Sprintf("cmd_ban_%d", minutes)
+	}
+	_ = s.repo.CreateLog(group.ID, action, 0, targetID)
+	return nil
+}
+
+func (s *Service) UnbanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+	if bot == nil || targetTGUserID == 0 {
+		return errors.New("invalid unban params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	_, err = bot.Request(tgbotapi.UnbanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	})
+	if err != nil {
+		return err
+	}
+	targetID := uint(0)
+	if u, uErr := s.repo.EnsureUserByTGUserID(targetTGUserID); uErr == nil {
+		targetID = u.ID
+	}
+	_ = s.repo.CreateLog(group.ID, "cmd_unban", 0, targetID)
+	return nil
+}
+
+func (s *Service) KickMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+	if bot == nil || targetTGUserID == 0 {
+		return errors.New("invalid kick params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	_, err = bot.Request(tgbotapi.BanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = bot.Request(tgbotapi.UnbanChatMemberConfig{
+		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	})
+	if err != nil {
+		return err
+	}
+	targetID := uint(0)
+	if u, uErr := s.repo.EnsureUserByTGUserID(targetTGUserID); uErr == nil {
+		targetID = u.ID
+	}
+	_ = s.repo.CreateLog(group.ID, "cmd_kick", 0, targetID)
+	return nil
+}
+
 func (s *Service) WelcomeViewByTGGroupID(tgGroupID int64) (*welcomeConfig, bool, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
