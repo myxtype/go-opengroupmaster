@@ -84,8 +84,9 @@ func (r *Repository) ExistsPointEventByDayAndType(groupID, userID uint, dayKey, 
 	return total > 0, err
 }
 
-// DeletePointEventsWithCreatedAtBefore deletes PointEvent records older than the given cutoff time.
-// Returns the number of deleted records.
+// DeletePointEventsWithCreatedAtBefore 删除指定时间前的积分变动流水记录
+// 涉及表：PointEvent - 积分变动流水（签到/发言/邀请/抽奖消耗/手动加减）
+// 返回删除的记录数
 func (r *Repository) DeletePointEventsWithCreatedAtBefore(cutoffTime time.Time) (int64, error) {
 	result := r.db.Where("created_at < ?", cutoffTime).Delete(&model.PointEvent{})
 	if result.Error != nil {

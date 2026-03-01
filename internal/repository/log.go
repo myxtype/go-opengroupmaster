@@ -93,8 +93,9 @@ func applyLogActionFilter(q *gorm.DB, action string) *gorm.DB {
 	return q.Where("action = ?", action)
 }
 
-// DeleteLogsWithCreatedAtBefore deletes Log records older than the given cutoff time.
-// Returns the number of deleted records.
+// DeleteLogsWithCreatedAtBefore 删除指定时间前的操作审计日志
+// 涉及表：Log - 群组操作审计日志
+// 返回删除的记录数
 func (r *Repository) DeleteLogsWithCreatedAtBefore(cutoffTime time.Time) (int64, error) {
 	result := r.db.Where("created_at < ?", cutoffTime).Delete(&model.Log{})
 	if result.Error != nil {

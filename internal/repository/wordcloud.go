@@ -172,20 +172,23 @@ func (r *Repository) ListWordCloudEnabledGroups() ([]model.Group, error) {
 	return out, err
 }
 
-// DeleteWordCloudDataOlderThan deletes WordCloudToken and WordCloudDailyUserStat records older than the given date.
-// Returns the total number of deleted records.
+// DeleteWordCloudDataOlderThan 删除指定日期前的词云统计数据
+// 涉及表：
+//   - WordCloudToken: 按群/日期/用户/词语的分词聚合记录
+//   - WordCloudDailyUserStat: 按群/日期/用户的每日统计（发言数、贡献词数）
+// 返回删除的总记录数
 func (r *Repository) DeleteWordCloudDataOlderThan(cutoffDate time.Time) (int64, error) {
 	dayKey := cutoffDate.In(time.Local).Format("2006-01-02")
 	var totalDeleted int64
 
-	// Delete from WordCloudToken first (no foreign key, but logically child table)
+	// 先删除子表 WordCloudToken
 	result := r.db.Where("day_key < ?", dayKey).Delete(&model.WordCloudToken{})
 	if result.Error != nil {
 		return 0, result.Error
 	}
 	totalDeleted += result.RowsAffected
 
-	// Then delete from WordCloudDailyUserStat
+	// 再删除父表 WordCloudDailyUserStat
 	result = r.db.Where("day_key < ?", dayKey).Delete(&model.WordCloudDailyUserStat{})
 	if result.Error != nil {
 		return totalDeleted, result.Error
