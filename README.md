@@ -1,13 +1,11 @@
 # OpenGroupMaster
 
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
-[![Database](https://img.shields.io/badge/DB-SQLite%20%7C%20PostgreSQL-blue)](https://www.sqlite.org/)
+[![Database](https://img.shields.io/badge/DB-SQLite-blue)](https://www.sqlite.org/)
+[![Database](https://img.shields.io/badge/PostgreSQL-blue)](https://www.postgresql.org/)
 [![Telegram](https://img.shields.io/badge/Platform-Telegram-2CA5E0?logo=telegram)](https://telegram.org/)
 
 开源 Telegram 群管理机器人，基于 Go 构建，采用 `handler/service/repository` 分层架构。支持 SQLite 和 PostgreSQL，开箱可跑，适合个人群运营和中小社区自动化管理。
-
-- GitHub: <https://github.com/myxtype/go-opengroupmaster>
-- Issue 反馈: <https://github.com/myxtype/go-opengroupmaster/issues>
 
 ## 目录
 
