@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 	"supervisor/internal/model"
@@ -90,4 +91,14 @@ func applyLogActionFilter(q *gorm.DB, action string) *gorm.DB {
 		return q.Where("action LIKE ?", prefix+"%")
 	}
 	return q.Where("action = ?", action)
+}
+
+// DeleteLogsWithCreatedAtBefore deletes Log records older than the given cutoff time.
+// Returns the number of deleted records.
+func (r *Repository) DeleteLogsWithCreatedAtBefore(cutoffTime time.Time) (int64, error) {
+	result := r.db.Where("created_at < ?", cutoffTime).Delete(&model.Log{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

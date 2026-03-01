@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"supervisor/internal/model"
 
 	"gorm.io/gorm"
@@ -80,4 +82,14 @@ func (r *Repository) ExistsPointEventByDayAndType(groupID, userID uint, dayKey, 
 		Where("group_id = ? and user_id = ? and day_key = ? and type = ?", groupID, userID, dayKey, eventType).
 		Count(&total).Error
 	return total > 0, err
+}
+
+// DeletePointEventsWithCreatedAtBefore deletes PointEvent records older than the given cutoff time.
+// Returns the number of deleted records.
+func (r *Repository) DeletePointEventsWithCreatedAtBefore(cutoffTime time.Time) (int64, error) {
+	result := r.db.Where("created_at < ?", cutoffTime).Delete(&model.PointEvent{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

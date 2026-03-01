@@ -38,6 +38,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 		return nil
 	}
 
+	// 违规处理
 	handled, err := s.applyModeration(bot, msg, group)
 	if err != nil {
 		return err

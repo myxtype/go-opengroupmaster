@@ -45,6 +45,11 @@ func (s *Scheduler) Start() error {
 	if _, err := s.cron.AddFunc("@every 30s", s.runMaintenanceTick); err != nil {
 		return err
 	}
+	// Run daily maintenance tasks once on startup, then daily at 3:00 AM.
+	s.runDailyMaintenanceTasks()
+	if _, err := s.cron.AddFunc("0 3 * * *", s.runDailyMaintenanceTasks); err != nil {
+		return err
+	}
 	s.cron.Start()
 	return nil
 }
@@ -130,4 +135,11 @@ func (s *Scheduler) runMaintenanceTick() {
 	s.service.RunAutoDeleteTick(s.bot)
 	s.service.RunJoinVerifyTick(s.bot)
 	s.service.RunWordCloudTick(s.bot)
+}
+
+// runDailyMaintenanceTasks executes daily maintenance tasks.
+func (s *Scheduler) runDailyMaintenanceTasks() {
+	s.service.CleanupWordCloudOldData()
+	s.service.CleanupLogOldData()
+	s.service.CleanupPointEventOldData()
 }
