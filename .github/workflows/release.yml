@@ -43,9 +43,22 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           bin="groupmasterbot-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          pkg="groupmasterbot-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "dist/${pkg}"
+
+          # Use project-local dict directory.
+          dict_src="./dict"
+          if [ ! -d "${dict_src}" ]; then
+            echo "project dict directory not found: ${dict_src}" >&2
+            exit 1
+          fi
+
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-            go build -trimpath -o "dist/${bin}" ./cmd
-          tar -C dist -czf "dist/${bin}.tar.gz" "${bin}"
+            go build -trimpath -o "dist/${pkg}/${bin}" ./cmd
+
+          # Package binary + project dict/.
+          cp -R "${dict_src}" "dist/${pkg}/dict"
+          tar -C dist -czf "dist/${bin}.tar.gz" "${pkg}"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
