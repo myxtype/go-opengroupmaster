@@ -53,8 +53,13 @@ func GroupsKeyboard(groups []model.Group, page, totalPages int) tgbotapi.InlineK
 }
 
 func GroupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+	return GroupPanelKeyboardWithWordCloud(tgGroupID, true)
+}
+
+func GroupPanelKeyboardWithWordCloud(tgGroupID int64, wordCloudAvailable bool) tgbotapi.InlineKeyboardMarkup {
 	id := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, 16)
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🤖 自动回复", fmt.Sprintf("feat:auto:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("🚫 违禁词", fmt.Sprintf("feat:bw:view:%s", id)),
@@ -75,6 +80,13 @@ func GroupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("💰 积分系统", fmt.Sprintf("feat:points:view:%s", id)),
 			tgbotapi.NewInlineKeyboardButtonData("📊 数据统计", fmt.Sprintf("feat:stats:show:%s", id)),
 		),
+	)
+	if wordCloudAvailable {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("☁️ 词云", fmt.Sprintf("feat:wc:view:%s", id)),
+		))
+	}
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📜 管理日志", fmt.Sprintf("feat:logs:list:%s:1:all", id)),
 			tgbotapi.NewInlineKeyboardButtonData("📨 邀请链接", fmt.Sprintf("feat:invite:view:%s", id)),
@@ -101,6 +113,7 @@ func GroupPanelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群组列表", cbMenuGroups),
 		),
 	)
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 func PendingCancelKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {

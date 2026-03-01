@@ -30,6 +30,62 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.MonitorKeyboard(tgGroupID))
 }
 
+func (h *Handler) sendWordCloudPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.WordCloudPanelViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载词云面板失败", keyboards.GroupPanelKeyboard(tgGroupID))
+		return
+	}
+	status := "❌ 关闭"
+	if view.Enabled {
+		status = "✅ 开启"
+	}
+	lines := []string{
+		"☁️ 词云统计",
+		"",
+		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("定时推送时间:%02d:%02d", view.PushHour, view.PushMinute),
+		fmt.Sprintf("黑名单词语:%d 个", view.BlacklistCount),
+		"",
+		"说明：",
+		"1) 开启后，机器人会对群内消息分词并持久化词频",
+		"2) 到达推送时间会自动发送今日词云统计",
+		"3) 管理员可在群内使用 /wordcloud 立即生成",
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendWordCloudBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	data, err := h.service.ListWordCloudBlacklistByTGGroupID(tgGroupID, page, rulesPageSize)
+	if err != nil {
+		h.render(bot, target, "加载词云黑名单失败", keyboards.GroupPanelKeyboard(tgGroupID))
+		return
+	}
+	totalPages := maxPages(data.Total, rulesPageSize)
+	if data.Page < 1 {
+		data.Page = 1
+	}
+	if data.Page > totalPages {
+		data.Page = totalPages
+	}
+	lines := []string{fmt.Sprintf("词云黑名单（第 %d/%d 页，总 %d 条）", data.Page, totalPages, data.Total)}
+	if len(data.Items) == 0 {
+		lines = append(lines, "暂无黑名单词")
+	} else {
+		for _, item := range data.Items {
+			lines = append(lines, fmt.Sprintf("#%d %s", item.ID, item.Word))
+		}
+	}
+	lines = append(lines, "", "新增/移除时请输入单个词语（建议小写）")
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudBlacklistKeyboard(tgGroupID, data.Page, totalPages))
+}
+
 func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return

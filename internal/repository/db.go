@@ -60,6 +60,7 @@ func New(dbPath string, gormLogSilent bool) (*Repository, error) {
 		&model.GroupBlacklist{}, &model.AutoDeleteTask{}, &model.JoinVerifyPending{},
 		&model.InviteLink{}, &model.InviteEvent{}, &model.GroupMemberJoin{},
 		&model.AISpamCache{},
+		&model.WordCloudToken{}, &model.WordCloudDailyUserStat{}, &model.WordCloudBlacklistWord{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

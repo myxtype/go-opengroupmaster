@@ -16,6 +16,8 @@ type Config struct {
 	GormLogSilent         bool
 	UpdateWorkers         int
 	AdminSyncIntervalSecs int
+	WordCloudFontPath     string
+	WordCloudJiebaDictDir string
 	AntiSpamAIModel       string
 	AntiSpamAIServerURL   string
 	AntiSpamAITimeoutSecs int
@@ -31,6 +33,8 @@ func Load() (*Config, error) {
 		GormLogSilent:         parseBool(os.Getenv("GORM_LOG_SILENT")),
 		UpdateWorkers:         parseIntDefault(os.Getenv("UPDATE_WORKERS"), 8),
 		AdminSyncIntervalSecs: parseIntDefault(os.Getenv("ADMIN_SYNC_INTERVAL_SECS"), 300),
+		WordCloudFontPath:     strings.TrimSpace(os.Getenv("WORDCLOUD_FONT_PATH")),
+		WordCloudJiebaDictDir: strings.TrimSpace(os.Getenv("WORDCLOUD_JIEBA_DICT_DIR")),
 		AntiSpamAIModel:       strings.TrimSpace(os.Getenv("ANTI_SPAM_AI_MODEL")),
 		AntiSpamAIServerURL:   envOrDefault("ANTI_SPAM_AI_SERVER_URL", "http://127.0.0.1:11434"),
 		AntiSpamAITimeoutSecs: parseIntDefault(os.Getenv("ANTI_SPAM_AI_TIMEOUT_SECS"), 8),

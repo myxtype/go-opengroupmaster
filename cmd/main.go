@@ -39,6 +39,8 @@ func main() {
 	defer svc.StopAutoDeleteWorker()
 	svc.StartJoinVerifyWorker(botAPI)
 	defer svc.StopJoinVerifyWorker()
+	svc.StartWordCloudWorker(botAPI)
+	defer svc.StopWordCloudWorker()
 	h := handler.New(svc, l)
 
 	sch := scheduler.New(svc, botAPI, l)

@@ -101,6 +101,20 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 	switch msg.Command() {
 	case "help":
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, groupHelpText()))
+	case "wordcloud":
+		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
+		if err != nil || !ok {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			return
+		}
+		if !h.service.WordCloudAvailable() {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词云分词器未就绪，请检查 WORDCLOUD_JIEBA_DICT_DIR"))
+			return
+		}
+		if err := h.service.SendWordCloudReportByTGGroupID(bot, msg.Chat.ID, true); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "生成词云失败（可能暂无数据，或未配置字体 WORDCLOUD_FONT_PATH）"))
+			return
+		}
 	case "lottery_create":
 		args := strings.TrimSpace(msg.CommandArguments())
 		title := "默认抽奖"
@@ -1098,6 +1112,36 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "wc_set_push_time":
+		hour, minute, err := h.service.SetWordCloudPushTimeByTGGroupID(pending.TGGroupID, text)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制）"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute)))
+		h.sendWordCloudPanel(bot, target, msg.From.ID, pending.TGGroupID)
+	case "wc_black_add":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词语不能为空"))
+			return
+		}
+		if err := h.service.AddWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "添加词云黑名单失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "已添加词云黑名单词语"))
+		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)
+	case "wc_black_remove":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词语不能为空"))
+			return
+		}
+		if err := h.service.RemoveWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除词云黑名单失败"))
+			return
+		}
+		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "已移除词云黑名单词语"))
+		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "spam_msg_len":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
@@ -1636,6 +1680,7 @@ func privateHelpText() string {
 		"/help - 查看群内命令列表",
 		"/lottery_create 标题|人数|口令 - 创建抽奖",
 		"/lottery_draw - 立即开奖",
+		"/wordcloud - 立即生成今日词云（管理员）",
 		"/link - 生成专属邀请链接并查看邀请统计",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
@@ -1659,6 +1704,7 @@ func groupHelpText() string {
 		"/help - 显示帮助",
 		"/lottery_create 标题|人数|口令 - 创建抽奖（口令可省略，默认“参加”）",
 		"/lottery_draw - 立即开奖",
+		"/wordcloud - 立即生成今日词云（管理员）",
 		"/link - 生成专属邀请链接并查看邀请统计",
 		"发送“签到” - 每日签到获取积分（可配置）",
 		"发送“积分” - 查询个人积分（可配置）",

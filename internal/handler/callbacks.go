@@ -654,6 +654,13 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		default:
 			h.answerCallback(bot, cb.ID, "未知操作")
 		}
+	case "wc":
+		if !h.service.WordCloudAvailable() {
+			h.answerCallback(bot, cb.ID, "词云分词器未就绪，请检查 WORDCLOUD_JIEBA_DICT_DIR")
+			h.sendGroupPanel(bot, target, userID, tgGroupID)
+			return
+		}
+		h.handleWordCloudFeature(bot, cb, target, userID, tgGroupID, action, parts)
 	case "sys":
 		switch action {
 		case "view":

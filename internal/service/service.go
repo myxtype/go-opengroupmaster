@@ -8,6 +8,8 @@ import (
 	"supervisor/internal/config"
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
+
+	"github.com/yanyiwu/gojieba"
 )
 
 const featureWelcome = "welcome"
@@ -24,6 +26,7 @@ const featureLottery = "lottery"
 const featureInvite = "invite"
 const featureBannedWords = "banned_words"
 const featurePoints = "points"
+const featureWordCloud = "word_cloud"
 
 const (
 	antiFloodPenaltyWarn       = "warn"
@@ -200,6 +203,12 @@ type bannedWordConfig struct {
 	WarnDeleteMinutes     int    `json:"warn_delete_minutes"`
 }
 
+type wordCloudConfig struct {
+	PushHour    int    `json:"push_hour"`
+	PushMinute  int    `json:"push_minute"`
+	LastPushDay string `json:"last_push_day"`
+}
+
 type rbacConfig struct {
 	Roles      map[string]string   `json:"roles"`
 	FeatureACL map[string][]string `json:"feature_acl"`
@@ -231,7 +240,14 @@ type Service struct {
 	antiFloodCache  map[uint]antiFloodState
 	nightModeMu     sync.RWMutex
 	nightModeCache  map[uint]nightModeState
+	wordCloudMu     sync.Mutex
+	wordCloudWake   chan struct{}
+	wordCloudStop   chan struct{}
+	wordCloudDone   chan struct{}
 	flood           map[string][]floodEvent
+	jieba           *gojieba.Jieba
+	wordCloudFont   string
+	wordCloudDict   string
 }
 
 type AutoReplyPage struct {
@@ -243,6 +259,13 @@ type AutoReplyPage struct {
 
 type BannedWordPage struct {
 	Items    []model.BannedWord
+	Page     int
+	PageSize int
+	Total    int64
+}
+
+type WordCloudBlacklistPage struct {
+	Items    []model.WordCloudBlacklistWord
 	Page     int
 	PageSize int
 	Total    int64
@@ -442,8 +465,15 @@ type PointsPanelView struct {
 	Config  pointsConfig
 }
 
+type WordCloudPanelView struct {
+	Enabled        bool
+	PushHour       int
+	PushMinute     int
+	BlacklistCount int64
+}
+
 func New(repo *repository.Repository, logger *log.Logger, cfg *config.Config) *Service {
-	return &Service{
+	s := &Service{
 		repo:           repo,
 		logger:         logger,
 		spamAI:         newSpamAIClassifier(cfg, logger),
@@ -455,7 +485,13 @@ func New(repo *repository.Repository, logger *log.Logger, cfg *config.Config) *S
 		flood:          make(map[string][]floodEvent),
 		adminSyncAt:    make(map[int64]time.Time),
 		adminSyncEvery: 3 * time.Minute,
+		wordCloudFont:  cfg.WordCloudFontPath,
+		wordCloudDict:  cfg.WordCloudJiebaDictDir,
 	}
+	if err := s.preInitWordCloudJieba(); err != nil && logger != nil {
+		logger.Printf("word cloud jieba disabled: %v", err)
+	}
+	return s
 }
 
 type ScheduleRuntime interface {

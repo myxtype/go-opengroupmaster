@@ -110,6 +110,8 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 	if msg.From != nil {
 		_ = s.rewardMessagePoints(group, msg)
 	}
+	// 词云统计（仅在功能开启时生效）
+	s.collectWordCloudMessage(msg, group)
 
 	return nil
 }

@@ -213,3 +213,35 @@ type AISpamCache struct {
 	ResultJSON  string    `gorm:"type:text;not null"`
 	CreatedAt   time.Time `gorm:"index:idx_ai_spam_cache_created,priority:1;autoCreateTime"`
 }
+
+// WordCloudToken 表示词云分词结果的按天聚合记录（按群、用户、词语维度累计）。
+type WordCloudToken struct {
+	ID        uint      `gorm:"primaryKey"`
+	GroupID   uint      `gorm:"uniqueIndex:idx_wc_token_group_day_user_word,priority:1;index:idx_wc_token_group_day,priority:1;not null"`
+	DayKey    string    `gorm:"size:10;uniqueIndex:idx_wc_token_group_day_user_word,priority:2;index:idx_wc_token_group_day,priority:2;not null"`
+	UserID    uint      `gorm:"uniqueIndex:idx_wc_token_group_day_user_word,priority:3;not null"`
+	Word      string    `gorm:"size:64;uniqueIndex:idx_wc_token_group_day_user_word,priority:4;not null"`
+	Count     int       `gorm:"not null;default:0"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
+
+// WordCloudDailyUserStat 表示词云按天的用户活跃聚合（发言数、贡献词数）。
+type WordCloudDailyUserStat struct {
+	ID           uint      `gorm:"primaryKey"`
+	GroupID      uint      `gorm:"uniqueIndex:idx_wc_daily_group_day_user,priority:1;index:idx_wc_daily_group_day,priority:1;not null"`
+	DayKey       string    `gorm:"size:10;uniqueIndex:idx_wc_daily_group_day_user,priority:2;index:idx_wc_daily_group_day,priority:2;not null"`
+	UserID       uint      `gorm:"uniqueIndex:idx_wc_daily_group_day_user,priority:3;not null"`
+	MessageCount int       `gorm:"not null;default:0"`
+	TokenCount   int       `gorm:"not null;default:0"`
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
+}
+
+// WordCloudBlacklistWord 表示词云统计黑名单词语（生成词云时忽略）。
+type WordCloudBlacklistWord struct {
+	ID        uint      `gorm:"primaryKey"`
+	GroupID   uint      `gorm:"uniqueIndex:idx_wc_blacklist_group_word,priority:1;index;not null"`
+	Word      string    `gorm:"size:64;uniqueIndex:idx_wc_blacklist_group_word,priority:2;index;not null"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}

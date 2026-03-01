@@ -931,6 +931,60 @@ func (s *Service) saveNewbieLimitMinutes(groupID uint, minutes int) error {
 	}
 	return s.saveFeatureConfigEntry(groupID, featureNewbieLimit, string(b))
 }
+
+func defaultWordCloudConfig() wordCloudConfig {
+	return wordCloudConfig{
+		PushHour:    18,
+		PushMinute:  0,
+		LastPushDay: "",
+	}
+}
+
+func normalizeWordCloudConfig(cfg wordCloudConfig) wordCloudConfig {
+	if cfg.PushHour < 0 || cfg.PushHour > 23 {
+		cfg.PushHour = 18
+	}
+	if cfg.PushMinute < 0 || cfg.PushMinute > 59 {
+		cfg.PushMinute = 0
+	}
+	cfg.LastPushDay = strings.TrimSpace(cfg.LastPushDay)
+	return cfg
+}
+
+func (s *Service) getWordCloudConfig(groupID uint) (wordCloudConfig, error) {
+	cfg := defaultWordCloudConfig()
+	entry, err := s.readFeatureConfigEntry(groupID, featureWordCloud)
+	if err != nil {
+		return cfg, err
+	}
+	if !entry.Exists {
+		if saveErr := s.saveWordCloudConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+		return cfg, nil
+	}
+	rawCfg := cfg
+	if entry.Config != "" {
+		_ = json.Unmarshal([]byte(entry.Config), &rawCfg)
+	}
+	cfg = normalizeWordCloudConfig(rawCfg)
+	if entry.Config == "" || !reflect.DeepEqual(rawCfg, cfg) {
+		if saveErr := s.saveWordCloudConfig(groupID, cfg); saveErr != nil {
+			return cfg, saveErr
+		}
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveWordCloudConfig(groupID uint, cfg wordCloudConfig) error {
+	cfg = normalizeWordCloudConfig(cfg)
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.saveFeatureConfigEntry(groupID, featureWordCloud, string(b))
+}
+
 func onOff(v bool) string {
 	if v {
 		return "开启"

@@ -36,6 +36,8 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendPollPanel(bot, target, userID, pending.TGGroupID)
 	case "monitor_add", "monitor_remove":
 		h.sendMonitorPanel(bot, target, userID, pending.TGGroupID)
+	case "wc_set_push_time", "wc_black_add", "wc_black_remove":
+		h.sendWordCloudPanel(bot, target, userID, pending.TGGroupID)
 	case "rbac_set_role", "rbac_set_acl":
 		h.sendRBACPanel(bot, target, userID, pending.TGGroupID)
 	case "black_add", "black_add_reason", "black_remove":

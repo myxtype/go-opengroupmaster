@@ -44,7 +44,7 @@ func (h *Handler) sendGroupPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 		h.render(bot, target, "加载群面板失败", keyboards.MainMenuKeyboard(bot.Self.UserName))
 		return
 	}
-	h.render(bot, target, summary, keyboards.GroupPanelKeyboard(tgGroupID))
+	h.render(bot, target, summary, keyboards.GroupPanelKeyboardWithWordCloud(tgGroupID, h.service.WordCloudAvailable()))
 }
 
 func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {

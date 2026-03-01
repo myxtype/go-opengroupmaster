@@ -101,6 +101,59 @@ func MonitorKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
+func WordCloudKeyboard(tgGroupID int64, view *service.WordCloudPanelView) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	pushText := fmt.Sprintf("%02d:%02d", view.PushHour, view.PushMinute)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		statusControlRow(
+			view.Enabled,
+			fmt.Sprintf("feat:wc:noop:%s", gid),
+			fmt.Sprintf("feat:wc:on:%s", gid),
+			fmt.Sprintf("feat:wc:off:%s", gid),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("立即生成词云", fmt.Sprintf("feat:wc:gen:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("推送时间："+pushText, fmt.Sprintf("feat:wc:settimeinput:%s", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("09:00", fmt.Sprintf("feat:wc:settime:%s:0900", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("12:00", fmt.Sprintf("feat:wc:settime:%s:1200", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("18:00", fmt.Sprintf("feat:wc:settime:%s:1800", gid)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("22:00", fmt.Sprintf("feat:wc:settime:%s:2200", gid)),
+			tgbotapi.NewInlineKeyboardButtonData("黑名单词语", fmt.Sprintf("feat:wc:blacklist:%s:1", gid)),
+		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:wc:view:%s", gid)),
+	)
+}
+
+func WordCloudBlacklistKeyboard(tgGroupID int64, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, 5)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("新增黑名单词", fmt.Sprintf("feat:wc:blackadd:%s", gid)),
+		tgbotapi.NewInlineKeyboardButtonData("移除黑名单词", fmt.Sprintf("feat:wc:blackremove:%s", gid)),
+	))
+	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
+	if page > 1 {
+		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:wc:blacklist:%s:%d", gid, page-1)))
+	}
+	if page < totalPages {
+		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:wc:blacklist:%s:%d", gid, page+1)))
+	}
+	if len(nav) > 0 {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(nav...))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", fmt.Sprintf("feat:wc:blacklist:%s:%d", gid, page)),
+		tgbotapi.NewInlineKeyboardButtonData("◀ 返回词云面板", fmt.Sprintf("feat:wc:view:%s", gid)),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
 func PollKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	return tgbotapi.NewInlineKeyboardMarkup(
