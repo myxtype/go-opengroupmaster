@@ -85,9 +85,6 @@ func (s *Service) SetWordCloudEnabledByTGGroupID(tgGroupID int64, enabled bool) 
 	if err := s.repo.UpsertFeatureEnabled(group.ID, featureWordCloud, enabled); err != nil {
 		return false, err
 	}
-	if enabled {
-		s.wakeWordCloudWorker()
-	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_word_cloud_enabled_%t", enabled), 0, 0)
 	return enabled, nil
 }
@@ -116,7 +113,6 @@ func (s *Service) SetWordCloudPushTimeByTGGroupID(tgGroupID int64, raw string) (
 	if err := s.saveWordCloudConfig(group.ID, cfg); err != nil {
 		return 0, 0, err
 	}
-	s.wakeWordCloudWorker()
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_word_cloud_push_time_%02d_%02d", hour, minute), 0, 0)
 	return hour, minute, nil
 }

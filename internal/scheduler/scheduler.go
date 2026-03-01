@@ -40,6 +40,11 @@ func (s *Scheduler) Start() error {
 			s.logger.Printf("invalid cron expr %s: %v", job.CronExpr, err)
 		}
 	}
+	// Run once on startup, then every 30 seconds.
+	s.runMaintenanceTick()
+	if _, err := s.cron.AddFunc("@every 30s", s.runMaintenanceTick); err != nil {
+		return err
+	}
 	s.cron.Start()
 	return nil
 }
@@ -118,4 +123,11 @@ func (s *Scheduler) AddJob(job model.ScheduledMessage) error {
 
 func (s *Scheduler) Stop() {
 	s.cron.Stop()
+}
+
+// 内部维护任务，包括自动删除、群组验证、词云生成等。
+func (s *Scheduler) runMaintenanceTick() {
+	s.service.RunAutoDeleteTick(s.bot)
+	s.service.RunJoinVerifyTick(s.bot)
+	s.service.RunWordCloudTick(s.bot)
 }

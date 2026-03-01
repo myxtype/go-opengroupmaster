@@ -301,7 +301,6 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 				continue
 			}
 			_ = s.repo.CreateLog(group.ID, "join_verify_pending", 0, 0)
-			s.wakeJoinVerifyWorker()
 		}
 	}
 

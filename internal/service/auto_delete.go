@@ -8,49 +8,9 @@ import (
 
 const (
 	autoDeleteBatchSize   = 100
-	autoDeleteIdleWait    = time.Minute
 	autoDeleteRetryDelay  = time.Minute
 	autoDeleteMaxAttempts = 5
 )
-
-func (s *Service) StartAutoDeleteWorker(bot *tgbotapi.BotAPI) {
-	if bot == nil {
-		return
-	}
-
-	s.autoDeleteMu.Lock()
-	if s.autoDeleteStop != nil {
-		s.autoDeleteMu.Unlock()
-		return
-	}
-	wake := make(chan struct{}, 1)
-	stop := make(chan struct{})
-	done := make(chan struct{})
-	s.autoDeleteWake = wake
-	s.autoDeleteStop = stop
-	s.autoDeleteDone = done
-	s.autoDeleteMu.Unlock()
-
-	go s.runAutoDeleteWorker(bot, wake, stop, done)
-	s.wakeAutoDeleteWorker()
-}
-
-func (s *Service) StopAutoDeleteWorker() {
-	s.autoDeleteMu.Lock()
-	stop := s.autoDeleteStop
-	done := s.autoDeleteDone
-	if stop == nil {
-		s.autoDeleteMu.Unlock()
-		return
-	}
-	s.autoDeleteWake = nil
-	s.autoDeleteStop = nil
-	s.autoDeleteDone = nil
-	s.autoDeleteMu.Unlock()
-
-	close(stop)
-	<-done
-}
 
 func (s *Service) ScheduleMessageDelete(chatID int64, messageID int, delay time.Duration) {
 	if messageID <= 0 || delay <= 0 {
@@ -60,35 +20,6 @@ func (s *Service) ScheduleMessageDelete(chatID int64, messageID int, delay time.
 	if err := s.repo.CreateAutoDeleteTask(chatID, messageID, time.Now().Add(delay)); err != nil {
 		s.logger.Printf("create auto delete task failed chat=%d msg=%d: %v", chatID, messageID, err)
 		return
-	}
-	s.wakeAutoDeleteWorker()
-}
-
-func (s *Service) runAutoDeleteWorker(bot *tgbotapi.BotAPI, wake <-chan struct{}, stop <-chan struct{}, done chan<- struct{}) {
-	defer close(done)
-
-	for {
-		s.processDueAutoDeleteTasks(bot)
-		wait := s.nextAutoDeleteWait()
-		timer := time.NewTimer(wait)
-		select {
-		case <-stop:
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			return
-		case <-wake:
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-		case <-timer.C:
-		}
 	}
 }
 
@@ -134,31 +65,10 @@ func (s *Service) processDueAutoDeleteTasks(bot *tgbotapi.BotAPI) {
 	}
 }
 
-func (s *Service) nextAutoDeleteWait() time.Duration {
-	nextAt, ok, err := s.repo.NextAutoDeleteTaskTime()
-	if err != nil {
-		s.logger.Printf("query next auto delete task failed: %v", err)
-		return autoDeleteIdleWait
-	}
-	if !ok {
-		return autoDeleteIdleWait
-	}
-	wait := time.Until(nextAt)
-	if wait < 0 {
-		return 0
-	}
-	return wait
-}
-
-func (s *Service) wakeAutoDeleteWorker() {
-	s.autoDeleteMu.Lock()
-	wake := s.autoDeleteWake
-	s.autoDeleteMu.Unlock()
-	if wake == nil {
+// RunAutoDeleteTick executes one auto-delete maintenance cycle.
+func (s *Service) RunAutoDeleteTick(bot *tgbotapi.BotAPI) {
+	if bot == nil {
 		return
 	}
-	select {
-	case wake <- struct{}{}:
-	default:
-	}
+	s.processDueAutoDeleteTasks(bot)
 }

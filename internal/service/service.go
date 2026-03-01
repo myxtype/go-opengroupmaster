@@ -220,14 +220,6 @@ type Service struct {
 	spamAI          spamAIClassifier
 	spamAICacheTTL  time.Duration
 	scheduleRuntime ScheduleRuntime
-	autoDeleteMu    sync.Mutex
-	autoDeleteWake  chan struct{}
-	autoDeleteStop  chan struct{}
-	autoDeleteDone  chan struct{}
-	joinVerifyMu    sync.Mutex
-	joinVerifyWake  chan struct{}
-	joinVerifyStop  chan struct{}
-	joinVerifyDone  chan struct{}
 	mu              sync.Mutex
 	adminSyncMu     sync.Mutex
 	adminSyncAt     map[int64]time.Time
@@ -240,10 +232,6 @@ type Service struct {
 	antiFloodCache  map[uint]antiFloodState
 	nightModeMu     sync.RWMutex
 	nightModeCache  map[uint]nightModeState
-	wordCloudMu     sync.Mutex
-	wordCloudWake   chan struct{}
-	wordCloudStop   chan struct{}
-	wordCloudDone   chan struct{}
 	flood           map[string][]floodEvent
 	jieba           *gojieba.Jieba
 	wordCloudFont   string
