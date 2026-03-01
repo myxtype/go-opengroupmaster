@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var urlPattern = regexp.MustCompile(`(?i)\b(?:https?://|www\.|t\.me/|telegram\.me/)[^\s]+`)
+var urlPattern = regexp.MustCompile(`(?i)(?:\b(?:https?|ftp)://[^\s]+|\btg://[^\s]+|\bwww\.[^\s]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:/[^\s]*)?)`)
 var ethAddressPattern = regexp.MustCompile(`(?i)\b0x[a-f0-9]{40}\b`)
 var mentionPattern = regexp.MustCompile(`@[A-Za-z0-9_]{2,}`)
 
@@ -512,8 +512,23 @@ func applyPenaltyToMember(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, penal
 	}
 }
 
-func containsLink(text string) bool {
-	return urlPattern.MatchString(strings.ToLower(text))
+func containsLink(msg *tgbotapi.Message, content string) bool {
+	if msg != nil {
+		if containsLinkEntity(msg.Entities) || containsLinkEntity(msg.CaptionEntities) {
+			return true
+		}
+	}
+	return urlPattern.MatchString(strings.ToLower(content))
+}
+
+func containsLinkEntity(entities []tgbotapi.MessageEntity) bool {
+	for _, entity := range entities {
+		entityType := strings.ToLower(strings.TrimSpace(entity.Type))
+		if entityType == "url" || entityType == "text_link" {
+			return true
+		}
+	}
+	return false
 }
 
 func antiSpamMessageContent(msg *tgbotapi.Message) string {
@@ -561,7 +576,7 @@ func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string,
 	if cfg.BlockForwardFromUser && (msg.ForwardFrom != nil || strings.TrimSpace(msg.ForwardSenderName) != "") {
 		return true, "forward_user", "来自用户转发"
 	}
-	if cfg.BlockLink && containsLink(content) {
+	if cfg.BlockLink && containsLink(msg, content) {
 		return true, "link", "链接"
 	}
 	if cfg.BlockAtGroupID && containsAtGroupID(content) {
