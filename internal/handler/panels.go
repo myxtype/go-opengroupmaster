@@ -833,8 +833,12 @@ func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 	}
 	text := strings.Join([]string{
 		"投票管理",
-		"创建格式：问题|选项1,选项2,...",
-		"示例：今天开会吗？|开,不开,待定",
+		"创建流程：",
+		"第1步：输入投票问题",
+		"第2步：逐条或批量输入选项（每条消息可输入1个或多个）",
+		"第3步：点击“完成创建”发布",
+		"",
+		"兼容快捷格式：问题|选项1,选项2,...",
 	}, "\n")
 	h.render(bot, target, text, keyboards.PollKeyboard(tgGroupID))
 }

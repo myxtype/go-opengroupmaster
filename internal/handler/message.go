@@ -997,29 +997,87 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙成功！"))
 		h.setPending(msg.From.ID, pending)
 		return
-	case "poll_create":
-		parts := strings.SplitN(text, "|", 2)
-		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：问题|选项1,选项2,..."))
+	case "poll_create", "poll_create_question":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能为空，请重新输入"))
 			return
 		}
-		question := strings.TrimSpace(parts[0])
-		optTexts := strings.Split(parts[1], ",")
-		options := make([]string, 0, len(optTexts))
-		for _, o := range optTexts {
-			if t := strings.TrimSpace(o); t != "" {
-				options = append(options, t)
+		if legacyQuestion, legacyOptions, ok := parsePollInlineInput(text); ok {
+			if len([]rune(legacyQuestion)) > 300 {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能超过 300 字"))
+				return
 			}
-		}
-		if question == "" || len(options) < 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "至少需要 1 个问题和 2 个选项"))
+			if err := validatePollOptions(legacyOptions); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+				return
+			}
+			if _, err := h.service.CreatePollByTGGroupID(bot, pending.TGGroupID, legacyQuestion, legacyOptions); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败："+err.Error()))
+				return
+			}
+			h.clearPending(msg.From.ID)
+			h.sendPollPanel(bot, target, msg.From.ID, pending.TGGroupID)
 			return
 		}
-		if _, err := h.service.CreatePollByTGGroupID(bot, pending.TGGroupID, question, options); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败"))
+		if len([]rune(text)) > 300 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能超过 300 字"))
 			return
 		}
-		h.sendPollPanel(bot, target, msg.From.ID, pending.TGGroupID)
+		h.setPending(msg.From.ID, pendingInput{
+			Kind:         "poll_create_option",
+			TGGroupID:    pending.TGGroupID,
+			PollQuestion: text,
+			PollOptions:  nil,
+		})
+		h.render(bot, target, pollDraftText(text, nil), keyboards.PollCreateDraftKeyboard(pending.TGGroupID))
+		return
+	case "poll_create_option":
+		if text == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入选项内容，或发送“完成”发布投票"))
+			return
+		}
+		if strings.TrimSpace(pending.PollQuestion) == "" {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题已丢失，请重新创建"))
+			return
+		}
+		switch text {
+		case "完成":
+			if err := validatePollOptions(pending.PollOptions); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+				return
+			}
+			if _, err := h.service.CreatePollByTGGroupID(bot, pending.TGGroupID, pending.PollQuestion, pending.PollOptions); err != nil {
+				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败："+err.Error()))
+				return
+			}
+			h.clearPending(msg.From.ID)
+			h.sendPollPanel(bot, target, msg.From.ID, pending.TGGroupID)
+			return
+		case "重置", "清空":
+			pending.PollOptions = nil
+			h.setPending(msg.From.ID, pending)
+			h.render(bot, target, pollDraftText(pending.PollQuestion, pending.PollOptions), keyboards.PollCreateDraftKeyboard(pending.TGGroupID))
+			return
+		}
+
+		additions := parsePollOptionInput(text)
+		if len(additions) == 0 {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "未识别到有效选项，请重新输入"))
+			return
+		}
+		next, err := mergePollOptions(pending.PollOptions, additions, 10)
+		if err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+			return
+		}
+		if err := validatePollOptionItems(next); err != nil {
+			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+			return
+		}
+		pending.PollOptions = next
+		h.setPending(msg.From.ID, pending)
+		h.render(bot, target, pollDraftText(pending.PollQuestion, pending.PollOptions), keyboards.PollCreateDraftKeyboard(pending.TGGroupID))
+		return
 	case "monitor_add":
 		if text == "" {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
@@ -1434,6 +1492,114 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	}
 
 	h.clearPending(msg.From.ID)
+}
+
+func parsePollInlineInput(text string) (string, []string, bool) {
+	parts := strings.SplitN(text, "|", 2)
+	if len(parts) != 2 {
+		return "", nil, false
+	}
+	question := strings.TrimSpace(parts[0])
+	if question == "" {
+		return "", nil, false
+	}
+	options := parsePollOptionInput(parts[1])
+	return question, options, true
+}
+
+func parsePollOptionInput(text string) []string {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	normalized := strings.NewReplacer("，", ",", "、", ",", "\n", ",", "\r", ",", ";", ",", "；", ",").Replace(text)
+	parts := strings.Split(normalized, ",")
+	options := make([]string, 0, len(parts))
+	for _, part := range parts {
+		option := strings.TrimSpace(part)
+		if option == "" {
+			continue
+		}
+		options = append(options, option)
+	}
+	return options
+}
+
+func mergePollOptions(existing, additions []string, max int) ([]string, error) {
+	seen := make(map[string]struct{}, len(existing)+len(additions))
+	merged := make([]string, 0, len(existing)+len(additions))
+	for _, option := range existing {
+		key := strings.ToLower(strings.TrimSpace(option))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, option)
+	}
+	for _, option := range additions {
+		option = strings.TrimSpace(option)
+		if option == "" {
+			continue
+		}
+		key := strings.ToLower(option)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		if max > 0 && len(merged) >= max {
+			return merged, fmt.Errorf("选项数量不能超过 %d 个", max)
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, option)
+	}
+	return merged, nil
+}
+
+func validatePollOptions(options []string) error {
+	if err := validatePollOptionItems(options); err != nil {
+		return err
+	}
+	if len(options) < 2 {
+		return errors.New("至少需要 2 个选项")
+	}
+	return nil
+}
+
+func validatePollOptionItems(options []string) error {
+	if len(options) > 10 {
+		return errors.New("选项数量不能超过 10 个")
+	}
+	for _, option := range options {
+		if strings.TrimSpace(option) == "" {
+			return errors.New("选项不能为空")
+		}
+		if len([]rune(option)) > 100 {
+			return fmt.Errorf("选项“%s”超过 100 字", option)
+		}
+	}
+	return nil
+}
+
+func pollDraftText(question string, options []string) string {
+	lines := []string{
+		"第2步：请输入投票选项",
+		"支持一次输入一个选项，或用逗号/换行一次输入多个选项。",
+		"输入“完成”发布投票，输入“重置”清空选项。",
+		"",
+		"当前问题：",
+		question,
+		"",
+	}
+	if len(options) == 0 {
+		lines = append(lines, "当前选项：暂无（至少需要 2 个）")
+	} else {
+		lines = append(lines, fmt.Sprintf("当前选项（%d/10）：", len(options)))
+		for i, option := range options {
+			lines = append(lines, fmt.Sprintf("%d. %s", i+1, option))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (h *Handler) handleModerationDurationInput(

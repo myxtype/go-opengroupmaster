@@ -131,7 +131,9 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			return
 		}
 	}
-	keepPending := (feature == "chain" && (action == "limmode" || action == "setdur")) || (feature == "sched" && action == "pinset")
+	keepPending := (feature == "chain" && (action == "limmode" || action == "setdur")) ||
+		(feature == "sched" && action == "pinset") ||
+		(feature == "poll" && (action == "submit" || action == "reset"))
 	if feature != "pending" && action != "add" && action != "edit" && !keepPending {
 		h.clearPending(userID)
 	}
@@ -592,9 +594,40 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			h.answerCallback(bot, cb.ID, "加载投票")
 			h.sendPollPanel(bot, target, userID, tgGroupID)
 		case "create":
-			h.answerCallback(bot, cb.ID, "请输入投票内容")
-			h.setPending(userID, pendingInput{Kind: "poll_create", TGGroupID: tgGroupID})
-			h.render(bot, target, "请输入：问题|选项1,选项2,选项3", keyboards.PendingCancelKeyboard(tgGroupID))
+			h.answerCallback(bot, cb.ID, "开始创建投票")
+			h.setPending(userID, pendingInput{Kind: "poll_create_question", TGGroupID: tgGroupID})
+			h.render(bot, target, "第1步：请输入投票问题（1-300字）\n示例：今天开会吗？\n\n兼容写法：也可直接发送\n问题|选项1,选项2,选项3", keyboards.PendingCancelKeyboard(tgGroupID))
+		case "submit":
+			pending, ok := h.getPending(userID)
+			if !ok || pending.TGGroupID != tgGroupID || pending.Kind != "poll_create_option" {
+				h.answerCallback(bot, cb.ID, "请先开始创建投票")
+				return
+			}
+			if strings.TrimSpace(pending.PollQuestion) == "" {
+				h.answerCallback(bot, cb.ID, "缺少投票问题")
+				return
+			}
+			if err := validatePollOptions(pending.PollOptions); err != nil {
+				h.answerCallback(bot, cb.ID, err.Error())
+				return
+			}
+			if _, err := h.service.CreatePollByTGGroupID(bot, tgGroupID, pending.PollQuestion, pending.PollOptions); err != nil {
+				h.answerCallback(bot, cb.ID, "创建投票失败")
+				return
+			}
+			h.clearPending(userID)
+			h.answerCallback(bot, cb.ID, "投票已创建")
+			h.sendPollPanel(bot, target, userID, tgGroupID)
+		case "reset":
+			pending, ok := h.getPending(userID)
+			if !ok || pending.TGGroupID != tgGroupID || pending.Kind != "poll_create_option" {
+				h.answerCallback(bot, cb.ID, "暂无可清空的投票草稿")
+				return
+			}
+			pending.PollOptions = nil
+			h.setPending(userID, pending)
+			h.answerCallback(bot, cb.ID, "选项已清空")
+			h.render(bot, target, pollDraftText(pending.PollQuestion, pending.PollOptions), keyboards.PollCreateDraftKeyboard(tgGroupID))
 		case "stop":
 			if err := h.service.StopPollByTGGroupID(bot, tgGroupID); err != nil {
 				h.answerCallback(bot, cb.ID, "结束投票失败")
@@ -1895,7 +1928,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarg
 		h.sendScheduledEditPanel(bot, target, userID, pending.TGGroupID, pending.RuleID, page)
 	case "chain_create_mode", "chain_create_count", "chain_create_duration", "chain_create_intro":
 		h.sendChainPanel(bot, target, userID, pending.TGGroupID)
-	case "poll_create":
+	case "poll_create", "poll_create_question", "poll_create_option":
 		h.sendPollPanel(bot, target, userID, pending.TGGroupID)
 	case "monitor_add", "monitor_remove":
 		h.sendMonitorPanel(bot, target, userID, pending.TGGroupID)

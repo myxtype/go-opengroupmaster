@@ -45,6 +45,8 @@ type pendingInput struct {
 	ChainID        uint
 	Count          int
 	Deadline       int64
+	PollQuestion   string
+	PollOptions    []string
 	LotteryTitle   string
 	LotteryWinners int
 }
