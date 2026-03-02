@@ -18,7 +18,7 @@ type UserRef struct {
 
 const (
 	maxDisplayNameRunes = 16
-	nameMaskSuffix      = "░"
+	nameMaskRune        = '░'
 )
 
 func UTF16Len(s string) int {
@@ -27,15 +27,18 @@ func UTF16Len(s string) int {
 
 func maskLongName(name string) string {
 	runes := []rune(strings.TrimSpace(name))
-	if len(runes) <= maxDisplayNameRunes {
-		return string(runes)
+	if len(runes) == 0 {
+		return ""
 	}
-	suffixRunes := []rune(nameMaskSuffix)
-	visibleRunes := maxDisplayNameRunes - len(suffixRunes)
-	if visibleRunes < 1 {
-		visibleRunes = 1
+
+	if len(runes) > maxDisplayNameRunes {
+		runes = runes[:maxDisplayNameRunes]
 	}
-	return string(runes[:visibleRunes]) + nameMaskSuffix
+
+	for i := 1; i < len(runes); i += 2 {
+		runes[i] = nameMaskRune
+	}
+	return string(runes)
 }
 
 func UserLabel(u UserRef) string {
@@ -44,7 +47,7 @@ func UserLabel(u UserRef) string {
 		return maskLongName(name)
 	}
 	if username := strings.TrimSpace(u.Username); username != "" {
-		return "@" + username
+		return "@" + maskLongName(username)
 	}
 	if fallback := strings.TrimSpace(u.Fallback); fallback != "" {
 		return fallback
