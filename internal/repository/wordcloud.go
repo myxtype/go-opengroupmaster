@@ -35,8 +35,8 @@ func (r *Repository) AddWordCloudMessageAndTokens(groupID, userID uint, dayKey s
 		if err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "group_id"}, {Name: "day_key"}, {Name: "user_id"}},
 			DoUpdates: clause.Assignments(map[string]interface{}{
-				"message_count": gorm.Expr("message_count + ?", 1),
-				"token_count":   gorm.Expr("token_count + ?", tokenTotal),
+				"message_count": gorm.Expr("word_cloud_daily_user_stats.message_count + ?", 1),
+				"token_count":   gorm.Expr("word_cloud_daily_user_stats.token_count + ?", tokenTotal),
 				"updated_at":    now,
 			}),
 		}).Create(&model.WordCloudDailyUserStat{
@@ -56,7 +56,7 @@ func (r *Repository) AddWordCloudMessageAndTokens(groupID, userID uint, dayKey s
 			if err := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "group_id"}, {Name: "day_key"}, {Name: "user_id"}, {Name: "word"}},
 				DoUpdates: clause.Assignments(map[string]interface{}{
-					"count":      gorm.Expr("count + ?", count),
+					"count":      gorm.Expr("word_cloud_tokens.count + ?", count),
 					"updated_at": now,
 				}),
 			}).Create(&model.WordCloudToken{
@@ -176,6 +176,7 @@ func (r *Repository) ListWordCloudEnabledGroups() ([]model.Group, error) {
 // 涉及表：
 //   - WordCloudToken: 按群/日期/用户/词语的分词聚合记录
 //   - WordCloudDailyUserStat: 按群/日期/用户的每日统计（发言数、贡献词数）
+//
 // 返回删除的总记录数
 func (r *Repository) DeleteWordCloudDataOlderThan(cutoffDate time.Time) (int64, error) {
 	dayKey := cutoffDate.In(time.Local).Format("2006-01-02")
