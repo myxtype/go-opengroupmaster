@@ -27,24 +27,3 @@ func (r *Repository) UpsertFeatureConfig(groupID uint, featureKey string, config
 	setting.Config = config
 	return r.db.Save(setting).Error
 }
-
-func (r *Repository) CreateDefaultDataIfEmpty(groupID uint) error {
-	var count int64
-	if err := r.db.Model(&model.AutoReply{}).Where("group_id = ?", groupID).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		if err := r.db.Create(&model.AutoReply{GroupID: groupID, Keyword: "你好", Reply: "你好，我是 GroupMaster Bot", MatchType: "exact", ButtonRows: ""}).Error; err != nil {
-			return err
-		}
-	}
-	if err := r.db.Model(&model.BannedWord{}).Where("group_id = ?", groupID).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		if err := r.db.Create(&model.BannedWord{GroupID: groupID, Word: "spam"}).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}

@@ -51,10 +51,6 @@ func (s *Service) SyncGroupAdmins(bot *tgbotapi.BotAPI, group *model.Group) erro
 		s.finishAdminSync(group.TGGroupID, false)
 		return err
 	}
-	if err := s.repo.CreateDefaultDataIfEmpty(group.ID); err != nil {
-		s.finishAdminSync(group.TGGroupID, false)
-		return err
-	}
 	s.finishAdminSync(group.TGGroupID, true)
 	return nil
 }
@@ -62,6 +58,7 @@ func (s *Service) SyncGroupAdmins(bot *tgbotapi.BotAPI, group *model.Group) erro
 func (s *Service) ListManageableGroups(tgUserID int64) ([]model.Group, error) {
 	return s.repo.ListGroupsByAdminTGUserID(tgUserID)
 }
+
 func (s *Service) Repo() *repository.Repository {
 	return s.repo
 }
