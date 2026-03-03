@@ -6,40 +6,40 @@ import (
 
 	"supervisor/pkg/tgmention"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 func utf16TextLen(s string) int {
 	return tgmention.UTF16Len(s)
 }
 
-func userMentionLabel(u *tgbotapi.User) string {
+func userMentionLabel(u *models.User) string {
 	if u == nil {
 		return "该用户"
 	}
 	return tgmention.UserLabel(tgmention.UserRef{
 		ID:        u.ID,
-		Username:  u.UserName,
+		Username:  u.Username,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,
 		Fallback:  "该用户",
 	})
 }
 
-func composeTextWithUserMention(prefix string, user *tgbotapi.User, suffix string) (string, []tgbotapi.MessageEntity) {
+func composeTextWithUserMention(prefix string, user *models.User, suffix string) (string, []models.MessageEntity) {
 	if user == nil {
 		return tgmention.ComposeTextWithMention(prefix, tgmention.UserRef{Fallback: "该用户"}, suffix)
 	}
 	return tgmention.ComposeTextWithMention(prefix, tgmention.UserRef{
 		ID:        user.ID,
-		Username:  user.UserName,
+		Username:  user.Username,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Fallback:  "该用户",
 	}, suffix)
 }
 
-func composeAntiSpamAlertWithMention(user *tgbotapi.User, reasonLabel string, actionLabel string) (string, []tgbotapi.MessageEntity) {
+func composeAntiSpamAlertWithMention(user *models.User, reasonLabel string, actionLabel string) (string, []models.MessageEntity) {
 	reason := strings.TrimSpace(reasonLabel)
 	if reason == "" {
 		reason = "规则判定"
@@ -51,12 +51,12 @@ func composeAntiSpamAlertWithMention(user *tgbotapi.User, reasonLabel string, ac
 	return composeTextWithUserMention("", user, fmt.Sprintf(" 正在发送垃圾消息。\n原因：%s\n处理：%s", reason, action))
 }
 
-func formatWelcomeMentions(users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {
+func formatWelcomeMentions(users []models.User) (string, []models.MessageEntity) {
 	refs := make([]tgmention.UserRef, 0, len(users))
 	for _, u := range users {
 		refs = append(refs, tgmention.UserRef{
 			ID:        u.ID,
-			Username:  u.UserName,
+			Username:  u.Username,
 			FirstName: u.FirstName,
 			LastName:  u.LastName,
 		})
@@ -64,11 +64,11 @@ func formatWelcomeMentions(users []tgbotapi.User) (string, []tgbotapi.MessageEnt
 	return tgmention.JoinMentions(refs, " ")
 }
 
-func shiftMentionEntities(entities []tgbotapi.MessageEntity, offset int) []tgbotapi.MessageEntity {
+func shiftMentionEntities(entities []models.MessageEntity, offset int) []models.MessageEntity {
 	return tgmention.ShiftEntities(entities, offset)
 }
 
-func buildWelcomeTextWithMentions(template string, users []tgbotapi.User) (string, []tgbotapi.MessageEntity) {
+func buildWelcomeTextWithMentions(template string, users []models.User) (string, []models.MessageEntity) {
 	mentionsText, mentionsEntities := formatWelcomeMentions(users)
 	if strings.TrimSpace(mentionsText) == "" {
 		return template, nil
@@ -76,7 +76,7 @@ func buildWelcomeTextWithMentions(template string, users []tgbotapi.User) (strin
 	if strings.Contains(template, "{user}") {
 		parts := strings.Split(template, "{user}")
 		var textBuilder strings.Builder
-		entities := make([]tgbotapi.MessageEntity, 0, len(mentionsEntities)*(len(parts)-1))
+		entities := make([]models.MessageEntity, 0, len(mentionsEntities)*(len(parts)-1))
 		offset := 0
 		for i, part := range parts {
 			textBuilder.WriteString(part)

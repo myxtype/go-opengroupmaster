@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -248,7 +248,7 @@ func isNightWindowNow(offsetMinutes, startHour, endHour int, now time.Time) bool
 	return minuteOfDay >= startMinutes || minuteOfDay < endMinutes
 }
 
-func isNightMediaMessage(msg *tgbotapi.Message) bool {
+func isNightMediaMessage(msg *models.Message) bool {
 	if msg == nil {
 		return false
 	}

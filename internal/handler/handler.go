@@ -6,7 +6,8 @@ import (
 
 	"supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -52,8 +53,9 @@ type pendingInput struct {
 }
 
 type Handler struct {
-	service *service.Service
-	logger  *log.Logger
+	service     *service.Service
+	logger      *log.Logger
+	botUsername string
 
 	mu      sync.Mutex
 	pending map[int64]pendingInput
@@ -63,7 +65,11 @@ func New(svc *service.Service, logger *log.Logger) *Handler {
 	return &Handler{service: svc, logger: logger, pending: make(map[int64]pendingInput)}
 }
 
-func (h *Handler) HandleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func (h *Handler) SetBotUsername(username string) {
+	h.botUsername = username
+}
+
+func (h *Handler) HandleUpdate(bot *tgbot.Bot, update *models.Update) {
 	if update.Message != nil {
 		h.handleMessage(bot, update.Message)
 	}

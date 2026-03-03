@@ -5,10 +5,10 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendMonitorPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -30,7 +30,7 @@ func (h *Handler) sendMonitorPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.MonitorKeyboard(tgGroupID))
 }
 
-func (h *Handler) sendWordCloudPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendWordCloudPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -58,7 +58,7 @@ func (h *Handler) sendWordCloudPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendWordCloudBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+func (h *Handler) sendWordCloudBlacklistPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -86,7 +86,7 @@ func (h *Handler) sendWordCloudBlacklistPanel(bot *tgbotapi.BotAPI, target rende
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudBlacklistKeyboard(tgGroupID, data.Page, totalPages))
 }
 
-func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendPollPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -102,7 +102,7 @@ func (h *Handler) sendPollPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 	h.render(bot, target, text, keyboards.PollKeyboard(tgGroupID))
 }
 
-func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendLotteryPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -147,7 +147,7 @@ func (h *Handler) sendLotteryPanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LotteryKeyboard(tgGroupID, view.PublishPin, view.ResultPin, view.DeleteKeywordMins))
 }
 
-func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+func (h *Handler) sendLotteryRecordsPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -179,7 +179,7 @@ func (h *Handler) sendLotteryRecordsPanel(bot *tgbotapi.BotAPI, target renderTar
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LotteryRecordsKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
-func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendLotteryDeleteMinutesPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}

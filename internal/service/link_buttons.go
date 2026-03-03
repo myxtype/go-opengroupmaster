@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 func parseAndEncodeButtonRows(raw string) (string, error) {
@@ -52,30 +52,30 @@ func decodeButtonRows(raw string) [][]welcomeButton {
 	return normalizeWelcomeButtonRows(rows)
 }
 
-func inlineKeyboardFromButtonRows(rows [][]welcomeButton) (tgbotapi.InlineKeyboardMarkup, bool) {
+func inlineKeyboardFromButtonRows(rows [][]welcomeButton) (models.InlineKeyboardMarkup, bool) {
 	rows = normalizeWelcomeButtonRows(rows)
 	if len(rows) == 0 {
-		return tgbotapi.InlineKeyboardMarkup{}, false
+		return models.InlineKeyboardMarkup{}, false
 	}
-	keyboardRows := make([][]tgbotapi.InlineKeyboardButton, 0, len(rows))
+	keyboardRows := make([][]models.InlineKeyboardButton, 0, len(rows))
 	for _, rowCfg := range rows {
-		row := make([]tgbotapi.InlineKeyboardButton, 0, len(rowCfg))
+		row := make([]models.InlineKeyboardButton, 0, len(rowCfg))
 		for _, btn := range rowCfg {
 			if strings.TrimSpace(btn.Text) == "" || strings.TrimSpace(btn.URL) == "" {
 				continue
 			}
-			row = append(row, tgbotapi.NewInlineKeyboardButtonURL(btn.Text, btn.URL))
+			row = append(row, models.InlineKeyboardButton{Text: btn.Text, URL: btn.URL})
 		}
 		if len(row) > 0 {
 			keyboardRows = append(keyboardRows, row)
 		}
 	}
 	if len(keyboardRows) == 0 {
-		return tgbotapi.InlineKeyboardMarkup{}, false
+		return models.InlineKeyboardMarkup{}, false
 	}
-	return tgbotapi.NewInlineKeyboardMarkup(keyboardRows...), true
+	return models.InlineKeyboardMarkup{InlineKeyboard: keyboardRows}, true
 }
 
-func InlineKeyboardFromButtonRowsJSON(raw string) (tgbotapi.InlineKeyboardMarkup, bool) {
+func InlineKeyboardFromButtonRowsJSON(raw string) (models.InlineKeyboardMarkup, bool) {
 	return inlineKeyboardFromButtonRows(decodeButtonRows(raw))
 }

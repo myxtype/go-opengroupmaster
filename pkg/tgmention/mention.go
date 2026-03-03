@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 type UserRef struct {
@@ -58,19 +58,19 @@ func UserLabel(u UserRef) string {
 	return "某用户"
 }
 
-func ComposeTextWithMention(prefix string, user UserRef, suffix string) (string, []tgbotapi.MessageEntity) {
+func ComposeTextWithMention(prefix string, user UserRef, suffix string) (string, []models.MessageEntity) {
 	mentionText := UserLabel(user)
 	text := prefix + mentionText + suffix
 	if user.ID == 0 {
 		return text, nil
 	}
-	entityUser := tgbotapi.User{
+	entityUser := models.User{
 		ID:        user.ID,
-		UserName:  user.Username,
+		Username:  user.Username,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 	}
-	return text, []tgbotapi.MessageEntity{
+	return text, []models.MessageEntity{
 		{
 			Type:   "text_mention",
 			Offset: UTF16Len(prefix),
@@ -80,12 +80,12 @@ func ComposeTextWithMention(prefix string, user UserRef, suffix string) (string,
 	}
 }
 
-func JoinMentions(users []UserRef, sep string) (string, []tgbotapi.MessageEntity) {
+func JoinMentions(users []UserRef, sep string) (string, []models.MessageEntity) {
 	if len(users) == 0 {
 		return "", nil
 	}
 	var textBuilder strings.Builder
-	entities := make([]tgbotapi.MessageEntity, 0, len(users))
+	entities := make([]models.MessageEntity, 0, len(users))
 	offset := 0
 	sepLen := UTF16Len(sep)
 	for _, user := range users {
@@ -102,13 +102,13 @@ func JoinMentions(users []UserRef, sep string) (string, []tgbotapi.MessageEntity
 		labelLen := UTF16Len(label)
 		offset += labelLen
 		if user.ID != 0 {
-			entityUser := tgbotapi.User{
+			entityUser := models.User{
 				ID:        user.ID,
-				UserName:  user.Username,
+				Username:  user.Username,
 				FirstName: user.FirstName,
 				LastName:  user.LastName,
 			}
-			entities = append(entities, tgbotapi.MessageEntity{
+			entities = append(entities, models.MessageEntity{
 				Type:   "text_mention",
 				Offset: start,
 				Length: labelLen,
@@ -119,11 +119,11 @@ func JoinMentions(users []UserRef, sep string) (string, []tgbotapi.MessageEntity
 	return textBuilder.String(), entities
 }
 
-func ShiftEntities(entities []tgbotapi.MessageEntity, offset int) []tgbotapi.MessageEntity {
+func ShiftEntities(entities []models.MessageEntity, offset int) []models.MessageEntity {
 	if len(entities) == 0 {
 		return nil
 	}
-	shifted := make([]tgbotapi.MessageEntity, 0, len(entities))
+	shifted := make([]models.MessageEntity, 0, len(entities))
 	for _, entity := range entities {
 		item := entity
 		item.Offset += offset

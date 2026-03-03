@@ -5,11 +5,11 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 	"gorm.io/gorm"
 )
 
-func (r *Repository) UpsertUserFromTG(u *tgbotapi.User) (*model.User, error) {
+func (r *Repository) UpsertUserFromTG(u *models.User) (*model.User, error) {
 	if u == nil {
 		return nil, errors.New("nil user")
 	}
@@ -17,7 +17,7 @@ func (r *Repository) UpsertUserFromTG(u *tgbotapi.User) (*model.User, error) {
 	if err := r.db.Where(&model.User{TGUserID: u.ID}).FirstOrCreate(user).Error; err != nil {
 		return nil, err
 	}
-	user.Username = u.UserName
+	user.Username = u.Username
 	user.FirstName = u.FirstName
 	user.LastName = u.LastName
 	if err := r.db.Save(user).Error; err != nil {

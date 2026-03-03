@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,40 +10,45 @@ import (
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (s *Service) RegisterGroupAndUser(msg *tgbotapi.Message) (*model.Group, *model.User, error) {
+func (s *Service) RegisterGroupAndUser(msg *models.Message) (*model.Group, *model.User, error) {
 	user, err := s.repo.UpsertUserFromTG(msg.From)
 	if err != nil {
 		return nil, nil, err
 	}
-	group, err := s.repo.UpsertGroup(msg.Chat)
+	group, err := s.repo.UpsertGroup(&msg.Chat)
 	if err != nil {
 		return nil, nil, err
 	}
 	return group, user, nil
 }
 
-func (s *Service) SyncGroupAdmins(bot *tgbotapi.BotAPI, group *model.Group) error {
+func (s *Service) SyncGroupAdmins(bot *tgbot.Bot, group *model.Group) error {
 	if !s.tryBeginAdminSync(group.TGGroupID) {
 		return nil
 	}
-	admins, err := bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{ChatConfig: tgbotapi.ChatConfig{ChatID: group.TGGroupID}})
+	admins, err := bot.GetChatAdministrators(context.Background(), &tgbot.GetChatAdministratorsParams{ChatID: group.TGGroupID})
 	if err != nil {
 		s.finishAdminSync(group.TGGroupID, false)
 		return err
 	}
 	rows := make([]model.GroupAdmin, 0, len(admins))
 	for _, a := range admins {
-		u, err := s.repo.UpsertUserFromTG(a.User)
+		au := chatMemberUser(a)
+		if au == nil {
+			continue
+		}
+		u, err := s.repo.UpsertUserFromTG(au)
 		if err != nil {
 			s.finishAdminSync(group.TGGroupID, false)
 			return err
 		}
 		role := "admin"
-		if a.Status == "creator" {
+		if chatMemberStatus(a) == "creator" {
 			role = "owner"
 		}
 		rows = append(rows, model.GroupAdmin{GroupID: group.ID, UserID: u.ID, Role: role})
@@ -243,7 +249,7 @@ func (s *Service) SetWelcomeTextByTGGroupID(tgGroupID int64, text string) error 
 	return s.repo.CreateLog(group.ID, "set_welcome_text", 0, 0)
 }
 
-func (s *Service) MuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64, minutes int) error {
+func (s *Service) MuteMemberByTGGroupID(bot *tgbot.Bot, tgGroupID, targetTGUserID int64, minutes int) error {
 	if bot == nil || targetTGUserID == 0 || minutes <= 0 {
 		return errors.New("invalid mute params")
 	}
@@ -251,11 +257,12 @@ func (s *Service) MuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetT
 	if err != nil {
 		return err
 	}
-	permissions := tgbotapi.ChatPermissions{}
-	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
-		UntilDate:        time.Now().Add(time.Duration(minutes) * time.Minute).Unix(),
-		Permissions:      &permissions,
+	permissions := models.ChatPermissions{}
+	_, err = bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+		ChatID:      tgGroupID,
+		UserID:      targetTGUserID,
+		UntilDate:   int(time.Now().Add(time.Duration(minutes) * time.Minute).Unix()),
+		Permissions: &permissions,
 	})
 	if err != nil {
 		return err
@@ -268,7 +275,7 @@ func (s *Service) MuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetT
 	return nil
 }
 
-func (s *Service) UnmuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+func (s *Service) UnmuteMemberByTGGroupID(bot *tgbot.Bot, tgGroupID, targetTGUserID int64) error {
 	if bot == nil || targetTGUserID == 0 {
 		return errors.New("invalid unmute params")
 	}
@@ -276,16 +283,16 @@ func (s *Service) UnmuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targe
 	if err != nil {
 		return err
 	}
-	permissions := tgbotapi.ChatPermissions{
+	permissions := models.ChatPermissions{
 		CanSendMessages:       true,
-		CanSendMediaMessages:  true,
 		CanSendPolls:          true,
 		CanSendOtherMessages:  true,
 		CanAddWebPagePreviews: true,
 	}
-	_, err = bot.Request(tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
-		Permissions:      &permissions,
+	_, err = bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+		ChatID:      tgGroupID,
+		UserID:      targetTGUserID,
+		Permissions: &permissions,
 	})
 	if err != nil {
 		return err
@@ -298,7 +305,7 @@ func (s *Service) UnmuteMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targe
 	return nil
 }
 
-func (s *Service) BanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64, minutes int) error {
+func (s *Service) BanMemberByTGGroupID(bot *tgbot.Bot, tgGroupID, targetTGUserID int64, minutes int) error {
 	if bot == nil || targetTGUserID == 0 {
 		return errors.New("invalid ban params")
 	}
@@ -306,13 +313,11 @@ func (s *Service) BanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTG
 	if err != nil {
 		return err
 	}
-	req := tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
-	}
+	req := &tgbot.BanChatMemberParams{ChatID: tgGroupID, UserID: targetTGUserID}
 	if minutes > 0 {
-		req.UntilDate = time.Now().Add(time.Duration(minutes) * time.Minute).Unix()
+		req.UntilDate = int(time.Now().Add(time.Duration(minutes) * time.Minute).Unix())
 	}
-	_, err = bot.Request(req)
+	_, err = bot.BanChatMember(context.Background(), req)
 	if err != nil {
 		return err
 	}
@@ -328,7 +333,7 @@ func (s *Service) BanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTG
 	return nil
 }
 
-func (s *Service) UnbanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+func (s *Service) UnbanMemberByTGGroupID(bot *tgbot.Bot, tgGroupID, targetTGUserID int64) error {
 	if bot == nil || targetTGUserID == 0 {
 		return errors.New("invalid unban params")
 	}
@@ -336,8 +341,9 @@ func (s *Service) UnbanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, target
 	if err != nil {
 		return err
 	}
-	_, err = bot.Request(tgbotapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	_, err = bot.UnbanChatMember(context.Background(), &tgbot.UnbanChatMemberParams{
+		ChatID: tgGroupID,
+		UserID: targetTGUserID,
 	})
 	if err != nil {
 		return err
@@ -350,7 +356,7 @@ func (s *Service) UnbanMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, target
 	return nil
 }
 
-func (s *Service) KickMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetTGUserID int64) error {
+func (s *Service) KickMemberByTGGroupID(bot *tgbot.Bot, tgGroupID, targetTGUserID int64) error {
 	if bot == nil || targetTGUserID == 0 {
 		return errors.New("invalid kick params")
 	}
@@ -358,14 +364,16 @@ func (s *Service) KickMemberByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, targetT
 	if err != nil {
 		return err
 	}
-	_, err = bot.Request(tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	_, err = bot.BanChatMember(context.Background(), &tgbot.BanChatMemberParams{
+		ChatID: tgGroupID,
+		UserID: targetTGUserID,
 	})
 	if err != nil {
 		return err
 	}
-	_, err = bot.Request(tgbotapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: targetTGUserID},
+	_, err = bot.UnbanChatMember(context.Background(), &tgbot.UnbanChatMemberParams{
+		ChatID: tgGroupID,
+		UserID: targetTGUserID,
 	})
 	if err != nil {
 		return err
@@ -517,7 +525,7 @@ func (s *Service) ClearWelcomeButtonsByTGGroupID(tgGroupID int64) error {
 	return s.repo.CreateLog(group.ID, "clear_welcome_buttons", 0, 0)
 }
 
-func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, previewChatID, tgUserID int64) error {
+func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbot.Bot, tgGroupID, previewChatID, tgUserID int64) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
@@ -526,16 +534,54 @@ func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID,
 	if err != nil {
 		return err
 	}
-	previewUser := tgbotapi.User{
+	previewUser := models.User{
 		ID:        tgUserID,
 		FirstName: "预览用户",
 	}
-	if member, mErr := bot.GetChatMember(tgbotapi.GetChatMemberConfig{
-		ChatConfigWithUser: tgbotapi.ChatConfigWithUser{ChatID: tgGroupID, UserID: tgUserID},
-	}); mErr == nil && member.User != nil {
-		previewUser = *member.User
+	if member, mErr := bot.GetChatMember(context.Background(), &tgbot.GetChatMemberParams{
+		ChatID: tgGroupID,
+		UserID: tgUserID,
+	}); mErr == nil {
+		if u := chatMemberUser(*member); u != nil {
+			previewUser = *u
+		}
 	}
-	return s.sendWelcomePreview(bot, previewChatID, []tgbotapi.User{previewUser}, cfg)
+	return s.sendWelcomePreview(bot, previewChatID, []models.User{previewUser}, cfg)
+}
+
+func chatMemberStatus(cm models.ChatMember) string {
+	return string(cm.Type)
+}
+
+func chatMemberUser(cm models.ChatMember) *models.User {
+	switch cm.Type {
+	case models.ChatMemberTypeOwner:
+		if cm.Owner != nil {
+			return cm.Owner.User
+		}
+	case models.ChatMemberTypeAdministrator:
+		if cm.Administrator != nil {
+			u := cm.Administrator.User
+			return &u
+		}
+	case models.ChatMemberTypeMember:
+		if cm.Member != nil {
+			return cm.Member.User
+		}
+	case models.ChatMemberTypeRestricted:
+		if cm.Restricted != nil {
+			return cm.Restricted.User
+		}
+	case models.ChatMemberTypeLeft:
+		if cm.Left != nil {
+			return cm.Left.User
+		}
+	case models.ChatMemberTypeBanned:
+		if cm.Banned != nil {
+			return cm.Banned.User
+		}
+	}
+	return nil
 }
 
 func (s *Service) ToggleFeatureByTGGroupID(tgGroupID int64, featureKey string) (bool, error) {

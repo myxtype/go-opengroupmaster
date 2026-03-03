@@ -6,10 +6,11 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendStatsPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -27,16 +28,18 @@ func (h *Handler) sendStatsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 			lines = append(lines, fmt.Sprintf("%d. %s - %d", i+1, u.DisplayName, u.Points))
 		}
 	}
-	markup := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("刷新统计", fmt.Sprintf("feat:stats:show:%d", tgGroupID)),
-			tgbotapi.NewInlineKeyboardButtonData("返回群面板", cbGroupPrefix+strconv.FormatInt(tgGroupID, 10)),
-		),
-	)
+	markup := models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "刷新统计", CallbackData: fmt.Sprintf("feat:stats:show:%d", tgGroupID)},
+				{Text: "返回群面板", CallbackData: cbGroupPrefix + strconv.FormatInt(tgGroupID, 10)},
+			},
+		},
+	}
 	h.render(bot, target, strings.Join(lines, "\n"), markup)
 }
 
-func (h *Handler) sendPointsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendPointsPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -83,7 +86,7 @@ func (h *Handler) sendPointsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.PointsKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendPointsCheckinPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendPointsCheckinPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -101,7 +104,7 @@ func (h *Handler) sendPointsCheckinPanel(bot *tgbotapi.BotAPI, target renderTarg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.PointsCheckinKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendPointsMessagePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendPointsMessagePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -128,7 +131,7 @@ func (h *Handler) sendPointsMessagePanel(bot *tgbotapi.BotAPI, target renderTarg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.PointsMessageKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendPointsInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendPointsInvitePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -150,7 +153,7 @@ func (h *Handler) sendPointsInvitePanel(bot *tgbotapi.BotAPI, target renderTarge
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.PointsInviteKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendInvitePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -179,7 +182,7 @@ func (h *Handler) sendInvitePanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.InviteKeyboard(tgGroupID, view.Enabled))
 }
 
-func (h *Handler) sendLogPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int, filter string) {
+func (h *Handler) sendLogPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int, filter string) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}

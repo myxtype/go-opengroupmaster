@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,7 +10,8 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -341,7 +343,7 @@ func (s *Service) UserPointsByTGGroupAndUserID(tgGroupID, tgUserID int64) (int, 
 	return s.repo.UserPoints(group.ID, user.ID)
 }
 
-func (s *Service) rewardMessagePoints(group *model.Group, msg *tgbotapi.Message) error {
+func (s *Service) rewardMessagePoints(group *model.Group, msg *models.Message) error {
 	if group == nil || msg == nil || msg.From == nil {
 		return nil
 	}
@@ -390,7 +392,7 @@ func (s *Service) rewardInvitePoints(groupID uint, inviterTGUserID int64) error 
 	return err
 }
 
-func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Group, msg *tgbotapi.Message) (bool, error) {
+func (s *Service) handlePointsTextCommand(bot *tgbot.Bot, group *model.Group, msg *models.Message) (bool, error) {
 	if bot == nil || group == nil || msg == nil || msg.From == nil || strings.TrimSpace(msg.Text) == "" {
 		return false, nil
 	}
@@ -418,7 +420,10 @@ func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Gro
 			if cErr != nil {
 				return true, cErr
 			}
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("今天已经签到过了，当前积分：%d", current)))
+			_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+				ChatID: msg.Chat.ID,
+				Text:   fmt.Sprintf("今天已经签到过了，当前积分：%d", current),
+			})
 			return true, nil
 		}
 		got, current, err := s.awardPointsWithDailyLimit(group.ID, u.ID, pointsEventCheckin, cfg.CheckinReward, cfg.CheckinReward, time.Now())
@@ -426,7 +431,10 @@ func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Gro
 			return true, err
 		}
 		_ = s.repo.CreateLog(group.ID, "points_checkin", u.ID, 0)
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("签到成功，获得 %d 积分，当前积分：%d", got, current)))
+		_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+			ChatID: msg.Chat.ID,
+			Text:   fmt.Sprintf("签到成功，获得 %d 积分，当前积分：%d", got, current),
+		})
 		return true, nil
 	}
 
@@ -439,7 +447,10 @@ func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Gro
 		if err != nil {
 			return true, err
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("你的当前积分：%d", current)))
+		_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+			ChatID: msg.Chat.ID,
+			Text:   fmt.Sprintf("你的当前积分：%d", current),
+		})
 		return true, nil
 	}
 
@@ -461,7 +472,10 @@ func (s *Service) handlePointsTextCommand(bot *tgbotapi.BotAPI, group *model.Gro
 				lines = append(lines, fmt.Sprintf("%d. %s - %d", i+1, pointsDisplayName(u), row.Points))
 			}
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, strings.Join(lines, "\n")))
+		_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+			ChatID: msg.Chat.ID,
+			Text:   strings.Join(lines, "\n"),
+		})
 		return true, nil
 	}
 	return false, nil

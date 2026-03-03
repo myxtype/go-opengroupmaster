@@ -1,7 +1,7 @@
 package service
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -11,7 +11,8 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 func (s *Service) CanAccessFeatureByTGGroupID(tgGroupID, tgUserID int64, feature string) (bool, error) {
@@ -151,51 +152,52 @@ func (s *Service) GetUserLanguage(tgUserID int64) (string, error) {
 	return s.repo.GetUserLanguage(tgUserID)
 }
 
-func (s *Service) CreateInviteLinkByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, expireHours, memberLimit int) (string, error) {
+func (s *Service) CreateInviteLinkByTGGroupID(bot *tgbot.Bot, tgGroupID int64, expireHours, memberLimit int) (string, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return "", err
 	}
-	cfg := tgbotapi.CreateChatInviteLinkConfig{
-		ChatConfig: tgbotapi.ChatConfig{ChatID: tgGroupID},
-	}
+	cfg := &tgbot.CreateChatInviteLinkParams{ChatID: tgGroupID}
 	if expireHours > 0 {
 		cfg.ExpireDate = int(time.Now().Add(time.Duration(expireHours) * time.Hour).Unix())
 	}
 	if memberLimit > 0 {
 		cfg.MemberLimit = memberLimit
 	}
-	resp, err := bot.Request(cfg)
+	chatInvite, err := bot.CreateChatInviteLink(context.Background(), cfg)
 	if err != nil {
-		return "", err
-	}
-	var chatInvite tgbotapi.ChatInviteLink
-	if err := json.Unmarshal(resp.Result, &chatInvite); err != nil {
 		return "", err
 	}
 	_ = s.repo.CreateLog(group.ID, "create_invite_link", 0, 0)
 	return chatInvite.InviteLink, nil
 }
 
-func (s *Service) CreatePollByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, question string, options []string) (int, error) {
+func (s *Service) CreatePollByTGGroupID(bot *tgbot.Bot, tgGroupID int64, question string, options []string) (int, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return 0, err
 	}
-	p := tgbotapi.NewPoll(tgGroupID, question, options...)
-	msg, err := bot.Send(p)
+	pollOptions := make([]models.InputPollOption, 0, len(options))
+	for _, opt := range options {
+		pollOptions = append(pollOptions, models.InputPollOption{Text: opt})
+	}
+	msg, err := bot.SendPoll(context.Background(), &tgbot.SendPollParams{
+		ChatID:   tgGroupID,
+		Question: question,
+		Options:  pollOptions,
+	})
 	if err != nil {
 		return 0, err
 	}
-	meta := pollMeta{Question: question, MessageID: msg.MessageID, Active: true}
+	meta := pollMeta{Question: question, MessageID: msg.ID, Active: true}
 	if err := s.savePollMeta(group.ID, meta); err != nil {
 		return 0, err
 	}
 	_ = s.repo.CreateLog(group.ID, "poll_create", 0, 0)
-	return msg.MessageID, nil
+	return msg.ID, nil
 }
 
-func (s *Service) StopPollByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64) error {
+func (s *Service) StopPollByTGGroupID(bot *tgbot.Bot, tgGroupID int64) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
@@ -207,7 +209,10 @@ func (s *Service) StopPollByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64) err
 	if !meta.Active || meta.MessageID == 0 {
 		return errors.New("no active poll")
 	}
-	_, err = bot.StopPoll(tgbotapi.NewStopPoll(tgGroupID, meta.MessageID))
+	_, err = bot.StopPoll(context.Background(), &tgbot.StopPollParams{
+		ChatID:    tgGroupID,
+		MessageID: meta.MessageID,
+	})
 	if err != nil {
 		return err
 	}
@@ -273,7 +278,7 @@ func (s *Service) ListMonitorKeywordsByTGGroupID(tgGroupID int64) ([]string, err
 	return cfg.Keywords, nil
 }
 
-func (s *Service) notifyKeywordMonitor(bot *tgbotapi.BotAPI, group *model.Group, msg *tgbotapi.Message) error {
+func (s *Service) notifyKeywordMonitor(bot *tgbot.Bot, group *model.Group, msg *models.Message) error {
 	if msg == nil || msg.Text == "" {
 		return nil
 	}
@@ -305,9 +310,11 @@ func (s *Service) notifyKeywordMonitor(bot *tgbotapi.BotAPI, group *model.Group,
 		group.Title, group.TGGroupID, strings.Join(matched, ","))
 	notice, entities := composeTextWithUserMention(noticePrefix, msg.From, fmt.Sprintf("\n消息：%s", msg.Text))
 	for _, adminID := range adminIDs {
-		message := tgbotapi.NewMessage(adminID, notice)
-		message.Entities = entities
-		_, _ = bot.Send(message)
+		_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+			ChatID:   adminID,
+			Text:     notice,
+			Entities: entities,
+		})
 	}
 	_ = s.repo.CreateLog(group.ID, "keyword_monitor_hit", 0, 0)
 	return nil

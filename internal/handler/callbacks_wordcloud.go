@@ -7,10 +7,11 @@ import (
 
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) handleWordCloudFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleWordCloudFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "noop":
 		h.answerCallback(bot, cb.ID, "")

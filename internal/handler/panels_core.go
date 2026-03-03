@@ -5,17 +5,17 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (h *Handler) sendGroupsMenu(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64, page int) {
+func (h *Handler) sendGroupsMenu(bot *tgbot.Bot, target renderTarget, tgUserID int64, page int) {
 	groups, err := h.service.ListManageableGroups(tgUserID)
 	if err != nil {
-		h.render(bot, target, "获取群列表失败", keyboards.MainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "获取群列表失败", keyboards.MainMenuKeyboard(h.botUsername))
 		return
 	}
 	if len(groups) == 0 {
-		h.render(bot, target, "你当前没有可管理且机器人已加入的群", keyboards.MainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "你当前没有可管理且机器人已加入的群", keyboards.MainMenuKeyboard(h.botUsername))
 		return
 	}
 	totalPages := (len(groups) + groupPageSize - 1) / groupPageSize
@@ -35,19 +35,19 @@ func (h *Handler) sendGroupsMenu(bot *tgbotapi.BotAPI, target renderTarget, tgUs
 	h.render(bot, target, text, keyboards.GroupsKeyboard(current, page, totalPages))
 }
 
-func (h *Handler) sendGroupPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendGroupPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
 	summary, err := h.service.GroupPanelSummary(tgGroupID)
 	if err != nil {
-		h.render(bot, target, "加载群面板失败", keyboards.MainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "加载群面板失败", keyboards.MainMenuKeyboard(h.botUsername))
 		return
 	}
 	h.render(bot, target, summary, keyboards.GroupPanelKeyboardWithWordCloud(tgGroupID, h.service.WordCloudAvailable()))
 }
 
-func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+func (h *Handler) sendAutoReplyList(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -74,7 +74,7 @@ func (h *Handler) sendAutoReplyList(bot *tgbotapi.BotAPI, target renderTarget, t
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AutoReplyListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
-func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+func (h *Handler) sendBannedWordList(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -110,7 +110,7 @@ func (h *Handler) sendBannedWordList(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BannedWordListKeyboard(tgGroupID, view, data.Items, data.Page, totalPages))
 }
 
-func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -134,7 +134,7 @@ func (h *Handler) sendBannedWordPenaltyPanel(bot *tgbotapi.BotAPI, target render
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BannedWordPenaltyKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, page int) {
+func (h *Handler) sendScheduledList(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -169,7 +169,7 @@ func (h *Handler) sendScheduledList(bot *tgbotapi.BotAPI, target renderTarget, t
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.ScheduledListKeyboard(tgGroupID, data.Items, data.Page, totalPages))
 }
 
-func (h *Handler) sendScheduledEditPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64, id uint, page int) {
+func (h *Handler) sendScheduledEditPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64, id uint, page int) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}

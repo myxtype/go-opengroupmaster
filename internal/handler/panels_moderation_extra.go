@@ -5,10 +5,10 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendVerifyPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -33,7 +33,7 @@ func (h *Handler) sendVerifyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgU
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.VerifyKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -51,7 +51,7 @@ func (h *Handler) sendVerifyTimeoutMinutesPanel(bot *tgbotapi.BotAPI, target ren
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.VerifyTimeoutMinutesKeyboard(tgGroupID, view.TimeoutMinutes))
 }
 
-func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendNewbieLimitPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -74,7 +74,7 @@ func (h *Handler) sendNewbieLimitPanel(bot *tgbotapi.BotAPI, target renderTarget
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NewbieLimitKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -92,7 +92,7 @@ func (h *Handler) sendNewbieLimitMinutesPanel(bot *tgbotapi.BotAPI, target rende
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NewbieLimitMinutesKeyboard(tgGroupID, view.Minutes))
 }
 
-func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendNightModePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -117,7 +117,7 @@ func (h *Handler) sendNightModePanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NightModeKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendChainPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendChainPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}

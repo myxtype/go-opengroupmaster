@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -10,7 +11,8 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"gorm.io/gorm"
 )
 
@@ -31,7 +33,7 @@ func (s *Service) CreateLotteryByTGGroupID(tgGroupID int64, title string, winner
 	return s.repo.CreateLottery(group.ID, title, "参加", winners)
 }
 
-func (s *Service) JoinActiveLotteryByTGGroupID(tgGroupID int64, tgUser *tgbotapi.User) error {
+func (s *Service) JoinActiveLotteryByTGGroupID(tgGroupID int64, tgUser *models.User) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return err
@@ -300,7 +302,7 @@ func isAllowedLotteryDeleteKeywordMinutes(minutes int) bool {
 	}
 }
 
-func (s *Service) PinLotteryMessageByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, messageID int, kind string) error {
+func (s *Service) PinLotteryMessageByTGGroupID(bot *tgbot.Bot, tgGroupID int64, messageID int, kind string) error {
 	if bot == nil || messageID <= 0 {
 		return nil
 	}
@@ -324,7 +326,7 @@ func (s *Service) PinLotteryMessageByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID i
 	if !shouldPin {
 		return nil
 	}
-	_, err = bot.Request(tgbotapi.PinChatMessageConfig{
+	_, err = bot.PinChatMessage(context.Background(), &tgbot.PinChatMessageParams{
 		ChatID:              tgGroupID,
 		MessageID:           messageID,
 		DisableNotification: true,
@@ -346,7 +348,7 @@ func (s *Service) CreateLotteryByTGGroupIDWithKeyword(tgGroupID int64, title str
 	return s.repo.CreateLottery(group.ID, title, strings.TrimSpace(keyword), winners)
 }
 
-func (s *Service) TryJoinLotteryByKeyword(group *model.Group, tgUser *tgbotapi.User, text string) (bool, bool, error) {
+func (s *Service) TryJoinLotteryByKeyword(group *model.Group, tgUser *models.User, text string) (bool, bool, error) {
 	lottery, err := s.repo.GetActiveLottery(group.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

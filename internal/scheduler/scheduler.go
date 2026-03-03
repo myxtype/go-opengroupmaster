@@ -1,26 +1,28 @@
 package scheduler
 
 import (
+	"context"
 	"log"
 	"sync"
 
 	"supervisor/internal/model"
 	"supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"github.com/robfig/cron/v3"
 )
 
 type Scheduler struct {
 	cron    *cron.Cron
 	service *service.Service
-	bot     *tgbotapi.BotAPI
+	bot     *tgbot.Bot
 	logger  *log.Logger
 	mu      sync.Mutex
 	entryID map[uint]cron.EntryID
 }
 
-func New(svc *service.Service, bot *tgbotapi.BotAPI, logger *log.Logger) *Scheduler {
+func New(svc *service.Service, bot *tgbot.Bot, logger *log.Logger) *Scheduler {
 	return &Scheduler{
 		cron:    cron.New(),
 		service: svc,
@@ -40,13 +42,11 @@ func (s *Scheduler) Start() error {
 			s.logger.Printf("invalid cron expr %s: %v", job.CronExpr, err)
 		}
 	}
-	// Run once on startup, then every 30 seconds.
-	s.runMaintenanceTick()
+	// 高频内部维护任务
 	if _, err := s.cron.AddFunc("@every 30s", s.runMaintenanceTick); err != nil {
 		return err
 	}
-	// Run daily maintenance tasks once on startup, then daily at 3:00 AM.
-	s.runDailyMaintenanceTasks()
+	// 每日维护任务
 	if _, err := s.cron.AddFunc("0 3 * * *", s.runDailyMaintenanceTasks); err != nil {
 		return err
 	}
@@ -67,51 +67,67 @@ func (s *Scheduler) AddJob(job model.ScheduledMessage) error {
 
 	j := job
 	entry, err := s.cron.AddFunc(j.CronExpr, func() {
+		ctx := context.Background()
 		group, err := s.service.Repo().FindGroupByID(j.GroupID)
 		if err != nil || group == nil {
 			return
 		}
-		var sent tgbotapi.Message
+		var sent *models.Message
 		switch j.MediaType {
 		case "photo":
-			out := tgbotapi.NewPhoto(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
-			out.Caption = j.Content
+			out := &tgbot.SendPhotoParams{
+				ChatID:  group.TGGroupID,
+				Photo:   &models.InputFileString{Data: j.MediaFileID},
+				Caption: j.Content,
+			}
 			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
 				out.ReplyMarkup = markup
 			}
-			sent, _ = s.bot.Send(out)
+			sent, _ = s.bot.SendPhoto(ctx, out)
 		case "video":
-			out := tgbotapi.NewVideo(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
-			out.Caption = j.Content
+			out := &tgbot.SendVideoParams{
+				ChatID:  group.TGGroupID,
+				Video:   &models.InputFileString{Data: j.MediaFileID},
+				Caption: j.Content,
+			}
 			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
 				out.ReplyMarkup = markup
 			}
-			sent, _ = s.bot.Send(out)
+			sent, _ = s.bot.SendVideo(ctx, out)
 		case "document":
-			out := tgbotapi.NewDocument(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
-			out.Caption = j.Content
+			out := &tgbot.SendDocumentParams{
+				ChatID:   group.TGGroupID,
+				Document: &models.InputFileString{Data: j.MediaFileID},
+				Caption:  j.Content,
+			}
 			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
 				out.ReplyMarkup = markup
 			}
-			sent, _ = s.bot.Send(out)
+			sent, _ = s.bot.SendDocument(ctx, out)
 		case "animation":
-			out := tgbotapi.NewAnimation(group.TGGroupID, tgbotapi.FileID(j.MediaFileID))
-			out.Caption = j.Content
+			out := &tgbot.SendAnimationParams{
+				ChatID:    group.TGGroupID,
+				Animation: &models.InputFileString{Data: j.MediaFileID},
+				Caption:   j.Content,
+			}
 			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
 				out.ReplyMarkup = markup
 			}
-			sent, _ = s.bot.Send(out)
+			sent, _ = s.bot.SendAnimation(ctx, out)
 		default:
-			out := tgbotapi.NewMessage(group.TGGroupID, j.Content)
+			out := &tgbot.SendMessageParams{
+				ChatID: group.TGGroupID,
+				Text:   j.Content,
+			}
 			if markup, ok := service.InlineKeyboardFromButtonRowsJSON(j.ButtonRows); ok {
 				out.ReplyMarkup = markup
 			}
-			sent, _ = s.bot.Send(out)
+			sent, _ = s.bot.SendMessage(ctx, out)
 		}
-		if j.PinMessage && sent.MessageID > 0 {
-			_, _ = s.bot.Request(tgbotapi.PinChatMessageConfig{
+		if j.PinMessage && sent != nil && sent.ID > 0 {
+			_, _ = s.bot.PinChatMessage(ctx, &tgbot.PinChatMessageParams{
 				ChatID:              group.TGGroupID,
-				MessageID:           sent.MessageID,
+				MessageID:           sent.ID,
 				DisableNotification: true,
 			})
 		}

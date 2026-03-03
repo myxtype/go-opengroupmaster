@@ -5,10 +5,10 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendWelcomePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -48,7 +48,7 @@ func (h *Handler) sendWelcomePanel(bot *tgbotapi.BotAPI, target renderTarget, tg
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WelcomeKeyboard(tgGroupID, enabled, cfg.Mode, cfg.DeleteMinutes))
 }
 
-func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -70,7 +70,7 @@ func (h *Handler) sendWelcomeDeleteMinutesPanel(bot *tgbotapi.BotAPI, target ren
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WelcomeDeleteMinutesKeyboard(tgGroupID, cfg.DeleteMinutes))
 }
 
-func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendRBACPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -82,7 +82,7 @@ func (h *Handler) sendRBACPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUse
 	h.render(bot, target, text, keyboards.RBACKeyboard(tgGroupID))
 }
 
-func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendBlacklistPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -103,7 +103,7 @@ func (h *Handler) sendBlacklistPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.BlacklistKeyboard(tgGroupID))
 }
 
-func (h *Handler) sendSettingsPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID int64) {
+func (h *Handler) sendSettingsPanel(bot *tgbot.Bot, target renderTarget, tgUserID int64) {
 	lang, _ := h.service.GetUserLanguage(tgUserID)
 	text := "设置\n当前语言: " + lang + "\n可切换为中文/英文（逐步覆盖）"
 	h.render(bot, target, text, keyboards.SettingsKeyboard(lang))

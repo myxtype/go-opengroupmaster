@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image/color"
@@ -18,9 +19,10 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/psykhi/wordclouds"
 	"github.com/yanyiwu/gojieba"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -161,14 +163,14 @@ func (s *Service) ListWordCloudBlacklistByTGGroupID(tgGroupID int64, page, pageS
 	return &WordCloudBlacklistPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
 }
 
-func (s *Service) collectWordCloudMessage(msg *tgbotapi.Message, group *model.Group) {
+func (s *Service) collectWordCloudMessage(msg *models.Message, group *model.Group) {
 	if msg == nil || group == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
 	if !s.WordCloudAvailable() {
 		return
 	}
-	if msg.IsCommand() {
+	if isCommandMessage(msg) {
 		return
 	}
 	content := strings.TrimSpace(antiSpamMessageContent(msg))
@@ -328,7 +330,7 @@ func wordCloudJiebaPathsIfValid(dir string) []string {
 	return paths
 }
 
-func (s *Service) SendWordCloudReportByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID int64, manual bool) error {
+func (s *Service) SendWordCloudReportByTGGroupID(bot *tgbot.Bot, tgGroupID int64, manual bool) error {
 	if bot == nil {
 		return errors.New("nil bot")
 	}
@@ -336,9 +338,11 @@ func (s *Service) SendWordCloudReportByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID
 	if err != nil {
 		return err
 	}
-	photo := tgbotapi.NewPhoto(tgGroupID, tgbotapi.FileBytes{Name: "wordcloud.png", Bytes: image})
-	photo.Caption = caption
-	if _, err := bot.Send(photo); err != nil {
+	if _, err := bot.SendPhoto(context.Background(), &tgbot.SendPhotoParams{
+		ChatID:  tgGroupID,
+		Photo:   &models.InputFileUpload{Filename: "wordcloud.png", Data: bytes.NewReader(image)},
+		Caption: caption,
+	}); err != nil {
 		return err
 	}
 	group, gErr := s.repo.FindGroupByTGID(tgGroupID)
@@ -353,6 +357,18 @@ func (s *Service) SendWordCloudReportByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID
 		}
 	}
 	return nil
+}
+
+func isCommandMessage(msg *models.Message) bool {
+	if msg == nil || strings.TrimSpace(msg.Text) == "" {
+		return false
+	}
+	for _, e := range msg.Entities {
+		if e.Type == models.MessageEntityTypeBotCommand && e.Offset == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) GenerateWordCloudReportByTGGroupID(tgGroupID int64, now time.Time) ([]byte, string, string, error) {

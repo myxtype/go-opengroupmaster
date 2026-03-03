@@ -11,15 +11,16 @@ import (
 	"supervisor/internal/handler/keyboards"
 	svc "supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+func (h *Handler) handleMessage(bot *tgbot.Bot, msg *models.Message) {
 	if msg == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
 
-	if msg.Chat.IsGroup() || msg.Chat.IsSuperGroup() {
+	if isGroupChat(msg.Chat) || isSuperGroupChat(msg.Chat) {
 		group, _, err := h.service.RegisterGroupAndUser(msg)
 		if err == nil {
 			_ = h.service.SyncGroupAdmins(bot, group)
@@ -31,7 +32,7 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 			_ = h.service.OnNewMembers(bot, msg)
 		}
 		// 处理群组命令
-		if msg.IsCommand() {
+		if isCommandMessage(msg) {
 			h.handleGroupCommand(bot, msg)
 			return
 		}
@@ -40,84 +41,84 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 		return
 	}
 
-	if !msg.Chat.IsPrivate() {
+	if !isPrivateChat(msg.Chat) {
 		return
 	}
-	if msg.IsCommand() {
+	if isCommandMessage(msg) {
 		h.handlePrivateCommand(bot, msg)
 		return
 	}
 	h.handlePrivatePendingInput(bot, msg)
 }
 
-func (h *Handler) handleEditedMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+func (h *Handler) handleEditedMessage(bot *tgbot.Bot, msg *models.Message) {
 	if msg == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
-	if !msg.Chat.IsGroup() && !msg.Chat.IsSuperGroup() {
+	if !isGroupChat(msg.Chat) && !isSuperGroupChat(msg.Chat) {
 		return
 	}
 	// 编辑消息只做风控检测，避免重复触发命令/积分/自动回复等流程。
 	_ = h.service.CheckEditedMessageAndModerate(bot, msg)
 }
 
-func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+func (h *Handler) handlePrivateCommand(bot *tgbot.Bot, msg *models.Message) {
 	target := renderTarget{ChatID: msg.Chat.ID}
-	switch msg.Command() {
+	switch messageCommand(msg) {
 	case "start":
-		args := strings.TrimSpace(msg.CommandArguments())
+		args := strings.TrimSpace(messageCommandArguments(msg))
 		if strings.HasPrefix(args, "chain_") {
 			chainID64, err := strconv.ParseUint(strings.TrimPrefix(args, "chain_"), 10, 64)
 			if err != nil || chainID64 == 0 {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙参数错误，请回到群里重新点击按钮"))
+				_, _ = sendText(bot, msg.Chat.ID, "接龙参数错误，请回到群里重新点击按钮")
 				return
 			}
 			view, err := h.service.ChainViewByChainID(uint(chainID64))
 			if err != nil || !view.Active {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已结束或不存在，请回到群里查看最新消息"))
+				_, _ = sendText(bot, msg.Chat.ID, "当前接龙已结束或不存在，请回到群里查看最新消息")
 				return
 			}
 			h.setPending(msg.From.ID, pendingInput{Kind: "chain_submit_entry", TGGroupID: view.TGGroupID, ChainID: view.ID})
 			existing, ok, _ := h.service.UserChainEntryByChainID(view.ID, msg.From.ID)
 			if ok && strings.TrimSpace(existing) != "" {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "👉 请输入您的接龙内容\n\n当前已提交内容：\n"+existing+"\n\n发送新内容即可覆盖修改。"))
+				_, _ = sendText(bot, msg.Chat.ID, "👉 请输入您的接龙内容\n\n当前已提交内容：\n"+existing+"\n\n发送新内容即可覆盖修改。")
 			} else {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "👉 请输入您的接龙内容"))
+				_, _ = sendText(bot, msg.Chat.ID, "👉 请输入您的接龙内容")
 			}
 			return
 		}
-		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", keyboards.MainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", keyboards.MainMenuKeyboard(h.botUsername))
 	case "help":
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, privateHelpText()))
+		_, _ = sendText(bot, msg.Chat.ID, privateHelpText())
 	case "groups":
 		h.sendGroupsMenu(bot, target, msg.From.ID, 1)
 	case "settings":
 		h.sendSettingsPanel(bot, target, msg.From.ID)
 	default:
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "暂不支持该私聊命令"))
+		_, _ = sendText(bot, msg.Chat.ID, "暂不支持该私聊命令")
 	}
 }
 
-func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
-	switch msg.Command() {
+func (h *Handler) handleGroupCommand(bot *tgbot.Bot, msg *models.Message) {
+	switch messageCommand(msg) {
 	case "help":
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, groupHelpText()))
+		_, _ = sendText(bot, msg.Chat.ID, groupHelpText())
 	case "wordcloud":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		if !h.service.WordCloudAvailable() {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词云分词器未就绪，请检查 WORDCLOUD_JIEBA_DICT_DIR"))
+			_, _ = sendText(bot, msg.Chat.ID, "词云分词器未就绪，请检查 WORDCLOUD_JIEBA_DICT_DIR")
 			return
 		}
 		if err := h.service.SendWordCloudReportByTGGroupID(bot, msg.Chat.ID, true); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "生成词云失败（可能暂无数据，或未配置字体 WORDCLOUD_FONT_PATH）"))
+			_, _ = sendText(bot, msg.Chat.ID, "生成词云失败（可能暂无数据，或未配置字体 WORDCLOUD_FONT_PATH）")
 			return
 		}
 	case "lottery_create":
-		args := strings.TrimSpace(msg.CommandArguments())
+		args := strings.TrimSpace(messageCommandArguments(msg))
 		title := "默认抽奖"
 		winners := 1
 		keyword := "参加"
@@ -135,33 +136,29 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 		}
 		l, err := h.service.CreateLotteryByTGGroupIDWithKeyword(msg.Chat.ID, title, winners, keyword)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "创建抽奖失败")
 			return
 		}
-		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", l.Title, l.WinnersCount, l.JoinKeyword)))
+		publishMsg, sendErr := sendText(bot, msg.Chat.ID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", l.Title, l.WinnersCount, l.JoinKeyword))
 		if sendErr == nil {
-			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, publishMsg.MessageID, "publish")
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, publishMsg.ID, "publish")
 		}
 	case "lottery_join":
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送当前抽奖设置的关键词参与（不再使用 /lottery_join）"))
+		_, _ = sendText(bot, msg.Chat.ID, "请发送当前抽奖设置的关键词参与（不再使用 /lottery_join）")
 	case "lottery_draw":
 		winners, err := h.service.DrawActiveLotteryByTGGroupID(msg.Chat.ID)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开奖失败：没有足够参与者或无活动抽奖"))
+			_, _ = sendText(bot, msg.Chat.ID, "开奖失败：没有足够参与者或无活动抽奖")
 			return
 		}
 		resultText, resultEntities := lotteryResultText(winners)
-		result := tgbotapi.NewMessage(msg.Chat.ID, resultText)
-		result.Entities = resultEntities
-		resultMsg, sendErr := bot.Send(result)
+		resultMsg, sendErr := sendTextWithEntities(bot, msg.Chat.ID, resultText, resultEntities)
 		if sendErr == nil {
-			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.MessageID, "result")
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, msg.Chat.ID, resultMsg.ID, "result")
 		}
 	case "link":
 		sendLinkReply := func(text string) {
-			out := tgbotapi.NewMessage(msg.Chat.ID, text)
-			out.ReplyToMessageID = msg.MessageID
-			_, _ = bot.Send(out)
+			_, _ = sendTextReply(bot, msg.Chat.ID, msg.ID, text)
 		}
 		res, err := h.service.CreateInviteLinkForUserByTGGroupID(bot, msg.Chat.ID, msg.From.ID)
 		if err != nil {
@@ -197,148 +194,148 @@ func (h *Handler) handleGroupCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message
 	case "black_add":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, reason, err := h.resolveBlacklistTargetAndReason(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/black_add @用户名 原因(可选)\n也可回复对方消息使用：/black_add 原因(可选)"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/black_add @用户名 原因(可选)\n也可回复对方消息使用：/black_add 原因(可选)")
 			return
 		}
 		if reason == "" {
 			reason = "group_admin_command"
 		}
 		if err := h.service.AddBlacklistByTGGroupID(msg.Chat.ID, tgUserID, reason); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "加入黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入本群黑名单：%d", tgUserID)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已加入本群黑名单：%d", tgUserID))
 	case "black_remove":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, _, err := h.resolveBlacklistTargetAndReason(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/black_remove @用户名\n也可回复对方消息使用：/black_remove"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/black_remove @用户名\n也可回复对方消息使用：/black_remove")
 			return
 		}
 		if err := h.service.RemoveBlacklistByTGGroupID(msg.Chat.ID, tgUserID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "移除黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除本群黑名单：%d", tgUserID)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已移除本群黑名单：%d", tgUserID))
 	case "mute":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, arg, err := h.resolveModerationTargetAndArg(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/mute @用户名 [分钟]\n也可回复对方消息使用：/mute [分钟]\n默认 60 分钟"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/mute @用户名 [分钟]\n也可回复对方消息使用：/mute [分钟]\n默认 60 分钟")
 			return
 		}
 		minutes := 60
 		if strings.TrimSpace(arg) != "" {
 			v, pErr := strconv.Atoi(strings.TrimSpace(arg))
 			if pErr != nil || v <= 0 {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "禁言分钟数需为大于 0 的整数"))
+				_, _ = sendText(bot, msg.Chat.ID, "禁言分钟数需为大于 0 的整数")
 				return
 			}
 			minutes = v
 		}
 		if err := h.service.MuteMemberByTGGroupID(bot, msg.Chat.ID, tgUserID, minutes); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "禁言失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "禁言失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已禁言用户：%d（%d 分钟）", tgUserID, minutes)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已禁言用户：%d（%d 分钟）", tgUserID, minutes))
 	case "unmute":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/unmute @用户名\n也可回复对方消息使用：/unmute"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/unmute @用户名\n也可回复对方消息使用：/unmute")
 			return
 		}
 		if err := h.service.UnmuteMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "解除禁言失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "解除禁言失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已解除禁言：%d", tgUserID)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已解除禁言：%d", tgUserID))
 	case "ban":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, arg, err := h.resolveModerationTargetAndArg(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/ban @用户名 [分钟]\n也可回复对方消息使用：/ban [分钟]\n不填分钟为永久封禁"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/ban @用户名 [分钟]\n也可回复对方消息使用：/ban [分钟]\n不填分钟为永久封禁")
 			return
 		}
 		minutes := 0
 		if strings.TrimSpace(arg) != "" {
 			v, pErr := strconv.Atoi(strings.TrimSpace(arg))
 			if pErr != nil || v <= 0 {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "封禁分钟数需为大于 0 的整数"))
+				_, _ = sendText(bot, msg.Chat.ID, "封禁分钟数需为大于 0 的整数")
 				return
 			}
 			minutes = v
 		}
 		if err := h.service.BanMemberByTGGroupID(bot, msg.Chat.ID, tgUserID, minutes); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "封禁失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "封禁失败")
 			return
 		}
 		if minutes > 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已封禁用户：%d（%d 分钟）", tgUserID, minutes)))
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已封禁用户：%d（%d 分钟）", tgUserID, minutes))
 		} else {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已永久封禁用户：%d", tgUserID)))
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已永久封禁用户：%d", tgUserID))
 		}
 	case "unban":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/unban @用户名\n也可回复对方消息使用：/unban"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/unban @用户名\n也可回复对方消息使用：/unban")
 			return
 		}
 		if err := h.service.UnbanMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "解除封禁失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "解除封禁失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已解除封禁：%d", tgUserID)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已解除封禁：%d", tgUserID))
 	case "kick":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "仅群管理员可执行该命令"))
+			_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
 			return
 		}
 		tgUserID, _, err := h.resolveModerationTargetAndArg(msg)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用法：/kick @用户名\n也可回复对方消息使用：/kick"))
+			_, _ = sendText(bot, msg.Chat.ID, "用法：/kick @用户名\n也可回复对方消息使用：/kick")
 			return
 		}
 		if err := h.service.KickMemberByTGGroupID(bot, msg.Chat.ID, tgUserID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "踢出失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "踢出失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已踢出用户：%d", tgUserID)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已踢出用户：%d", tgUserID))
 	}
 }
 
-func (h *Handler) resolveModerationTargetAndArg(msg *tgbotapi.Message) (int64, string, error) {
+func (h *Handler) resolveModerationTargetAndArg(msg *models.Message) (int64, string, error) {
 	if msg == nil {
 		return 0, "", fmt.Errorf("invalid message")
 	}
-	args := strings.TrimSpace(msg.CommandArguments())
+	args := strings.TrimSpace(messageCommandArguments(msg))
 	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil {
 		return msg.ReplyToMessage.From.ID, args, nil
 	}
@@ -372,13 +369,13 @@ func (h *Handler) resolveModerationTargetAndArg(msg *tgbotapi.Message) (int64, s
 	return target, extra, nil
 }
 
-func (h *Handler) resolveBlacklistTargetAndReason(msg *tgbotapi.Message) (int64, string, error) {
+func (h *Handler) resolveBlacklistTargetAndReason(msg *models.Message) (int64, string, error) {
 	replyTarget := int64(0)
 	if msg.ReplyToMessage != nil && msg.ReplyToMessage.From != nil {
 		replyTarget = msg.ReplyToMessage.From.ID
 	}
 
-	args := strings.TrimSpace(msg.CommandArguments())
+	args := strings.TrimSpace(messageCommandArguments(msg))
 	if args == "" {
 		if replyTarget != 0 {
 			return replyTarget, "", nil
@@ -423,13 +420,13 @@ func (h *Handler) resolveBlacklistTargetAndReason(msg *tgbotapi.Message) (int64,
 	return target, reason, nil
 }
 
-func (h *Handler) resolvePointTarget(msg *tgbotapi.Message, text string) (int64, string, error) {
-	if msg != nil && msg.ForwardFrom != nil && !msg.ForwardFrom.IsBot {
-		name := displayNameFromUser(msg.ForwardFrom)
+func (h *Handler) resolvePointTarget(msg *models.Message, text string) (int64, string, error) {
+	if u := forwardFromUser(msg); u != nil && !u.IsBot {
+		name := displayNameFromUser(u)
 		if strings.TrimSpace(name) == "" {
-			name = fmt.Sprintf("%d", msg.ForwardFrom.ID)
+			name = fmt.Sprintf("%d", u.ID)
 		}
-		return msg.ForwardFrom.ID, name, nil
+		return u.ID, name, nil
 	}
 	raw := strings.TrimSpace(text)
 	if raw == "" {
@@ -452,10 +449,10 @@ func (h *Handler) resolvePointTarget(msg *tgbotapi.Message, text string) (int64,
 	return user.TGUserID, fmt.Sprintf("%d", user.TGUserID), nil
 }
 
-func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
+func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message) {
 	pending, ok := h.getPending(msg.From.ID)
 	if !ok {
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请先点击菜单按钮选择操作。"))
+		_, _ = sendText(bot, msg.Chat.ID, "请先点击菜单按钮选择操作。")
 		return
 	}
 	target := renderTarget{ChatID: msg.Chat.ID}
@@ -469,12 +466,12 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "auto_add_keyword":
 		keyword := strings.TrimSpace(msg.Text)
 		if keyword == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新新增自动回复")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -489,16 +486,16 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "auto_add_reply":
 		reply := msg.Text
 		if strings.TrimSpace(pending.Keyword) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少关键词，请重新新增自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少关键词，请重新新增自动回复")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新新增自动回复")
 			return
 		}
 		if strings.TrimSpace(reply) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "回复内容不能为空")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -513,38 +510,38 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "auto_add_buttons":
 		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少自动回复内容，请重新新增自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少自动回复内容，请重新新增自动回复")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新新增自动回复")
 			return
 		}
 		if err := h.service.AddAutoReplyByTGGroupIDWithButtons(pending.TGGroupID, pending.Keyword, pending.Content, matchType, msg.Text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "新增自动回复失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "新增自动回复失败："+err.Error())
 			return
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "bw_add":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "违禁词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "违禁词不能为空")
 			return
 		}
 		if err := h.service.AddBannedWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "新增违禁词失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "新增违禁词失败")
 			return
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "auto_edit_keyword":
 		keyword := strings.TrimSpace(msg.Text)
 		if keyword == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新编辑自动回复")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -560,16 +557,16 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "auto_edit_reply":
 		reply := msg.Text
 		if strings.TrimSpace(pending.Keyword) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少关键词，请重新编辑自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少关键词，请重新编辑自动回复")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新编辑自动回复")
 			return
 		}
 		if strings.TrimSpace(reply) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "回复内容不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "回复内容不能为空")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -585,12 +582,12 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "auto_edit_buttons":
 		if strings.TrimSpace(pending.Keyword) == "" || strings.TrimSpace(pending.Content) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少自动回复内容，请重新编辑"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少自动回复内容，请重新编辑")
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
 		if !isAutoReplyMatchType(matchType) {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少触发方式，请重新编辑自动回复")
 			return
 		}
 		rawButtons := strings.TrimSpace(msg.Text)
@@ -601,119 +598,119 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			err = h.service.UpdateAutoReplyByTGGroupIDWithButtons(pending.TGGroupID, pending.RuleID, pending.Keyword, pending.Content, matchType, msg.Text)
 		}
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "更新自动回复失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "更新自动回复失败："+err.Error())
 			return
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
 	case "bw_edit":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "违禁词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "违禁词不能为空")
 			return
 		}
 		if err := h.service.UpdateBannedWordByTGGroupID(pending.TGGroupID, pending.RuleID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "更新违禁词失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "更新违禁词失败")
 			return
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
 	case "bw_warn_threshold":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordWarnThresholdByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置警告次数失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置警告次数失败")
 			return
 		}
 		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "bw_warn_action_mute_minutes":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordWarnActionMuteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置阈值后禁言时长失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置阈值后禁言时长失败")
 			return
 		}
 		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "bw_warn_action_ban_minutes":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordWarnActionBanMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置阈值后封禁时长失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置阈值后封禁时长失败")
 			return
 		}
 		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "bw_mute_minutes":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordMuteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置禁言时长失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置禁言时长失败")
 			return
 		}
 		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "bw_ban_minutes":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordBanMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置封禁时长失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置封禁时长失败")
 			return
 		}
 		h.sendBannedWordPenaltyPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "bw_warn_delete_minutes":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于等于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetBannedWordWarnDeleteMinutesByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置删除提醒失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置删除提醒失败")
 			return
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "lottery_create":
 		parts := strings.Split(text, "|")
 		if len(parts) != 3 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：抽奖标题|中奖人数|参与关键词"))
+			_, _ = sendText(bot, msg.Chat.ID, "格式错误，请按：抽奖标题|中奖人数|参与关键词")
 			return
 		}
 		title := strings.TrimSpace(parts[0])
 		winners, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		keyword := strings.TrimSpace(parts[2])
 		if title == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "抽奖标题不能为空")
 			return
 		}
 		if err != nil || winners <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "中奖人数需为大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "中奖人数需为大于 0 的整数")
 			return
 		}
 		if keyword == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "参与关键词不能为空")
 			return
 		}
 		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, title, winners, keyword); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "创建抽奖失败")
 			return
 		}
-		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(pending.TGGroupID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", title, winners, keyword)))
+		publishMsg, sendErr := sendText(bot, pending.TGGroupID, fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", title, winners, keyword))
 		if sendErr == nil {
-			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.ID, "publish")
 		}
 		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "lottery_create_title":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题不能为空，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "抽奖标题不能为空，请重新输入")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -726,11 +723,11 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "lottery_create_winners":
 		winners, err := strconv.Atoi(text)
 		if err != nil || winners <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "中奖人数需为大于 0 的整数，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "中奖人数需为大于 0 的整数，请重新输入")
 			return
 		}
 		if strings.TrimSpace(pending.LotteryTitle) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖标题已丢失，请重新创建抽奖"))
+			_, _ = sendText(bot, msg.Chat.ID, "抽奖标题已丢失，请重新创建抽奖")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -743,34 +740,35 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "lottery_create_keyword":
 		if strings.TrimSpace(pending.LotteryTitle) == "" || pending.LotteryWinners <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "抽奖配置已丢失，请重新创建抽奖"))
+			_, _ = sendText(bot, msg.Chat.ID, "抽奖配置已丢失，请重新创建抽奖")
 			return
 		}
 		keyword := text
 		if keyword == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "参与关键词不能为空，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "参与关键词不能为空，请重新输入")
 			return
 		}
 		if _, err := h.service.CreateLotteryByTGGroupIDWithKeyword(pending.TGGroupID, pending.LotteryTitle, pending.LotteryWinners, keyword); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建抽奖失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "创建抽奖失败")
 			return
 		}
-		publishMsg, sendErr := bot.Send(tgbotapi.NewMessage(
+		publishMsg, sendErr := sendText(
+			bot,
 			pending.TGGroupID,
 			fmt.Sprintf("抽奖已创建：%s（中奖人数:%d）\n发送关键词「%s」即可参与", pending.LotteryTitle, pending.LotteryWinners, keyword),
-		))
+		)
 		if sendErr == nil {
-			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.MessageID, "publish")
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, pending.TGGroupID, publishMsg.ID, "publish")
 		}
 		h.sendLotteryPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "sched_add_cron":
 		cronExpr := strings.TrimSpace(msg.Text)
 		if cronExpr == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "cron 表达式不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "cron 表达式不能为空")
 			return
 		}
 		if err := h.service.ValidateCronExpr(cronExpr); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "cron 表达式格式错误，请按 5 段格式：分钟 小时 日 月 星期\n示例：0 9 * * *"))
+			_, _ = sendText(bot, msg.Chat.ID, "cron 表达式格式错误，请按 5 段格式：分钟 小时 日 月 星期\n示例：0 9 * * *")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -783,7 +781,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "sched_add_content":
 		if strings.TrimSpace(pending.CronExpr) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少 cron 表达式，请重新创建定时消息"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少 cron 表达式，请重新创建定时消息")
 			return
 		}
 		content := strings.TrimSpace(msg.Text)
@@ -808,7 +806,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			content = strings.TrimSpace(msg.Caption)
 		}
 		if content == "" && mediaType == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "消息内容不能为空；可发送文本，或发送图片/视频/文件/动图（可选文字说明）"))
+			_, _ = sendText(bot, msg.Chat.ID, "消息内容不能为空；可发送文本，或发送图片/视频/文件/动图（可选文字说明）")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -824,7 +822,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "sched_add_buttons":
 		if strings.TrimSpace(pending.CronExpr) == "" || (strings.TrimSpace(pending.Content) == "" && strings.TrimSpace(pending.MediaType) == "") {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少定时消息内容，请重新创建"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少定时消息内容，请重新创建")
 			return
 		}
 		rawButtons := strings.TrimSpace(msg.Text)
@@ -838,27 +836,27 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "sched_edit_text":
 		if pending.RuleID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板")
 			return
 		}
 		if err := h.service.UpdateScheduledTextByTGGroupID(pending.TGGroupID, pending.RuleID, msg.Text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改文本失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "修改文本失败："+err.Error())
 			return
 		}
 		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
 	case "sched_edit_cron":
 		if pending.RuleID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板")
 			return
 		}
 		if err := h.service.UpdateScheduledCronByTGGroupID(pending.TGGroupID, pending.RuleID, msg.Text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改 Cron 失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "修改 Cron 失败："+err.Error())
 			return
 		}
 		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
 	case "sched_edit_buttons":
 		if pending.RuleID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板")
 			return
 		}
 		rawButtons := strings.TrimSpace(msg.Text)
@@ -866,18 +864,18 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			rawButtons = "关闭"
 		}
 		if err := h.service.UpdateScheduledButtonsByTGGroupID(pending.TGGroupID, pending.RuleID, rawButtons); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改按钮失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "修改按钮失败："+err.Error())
 			return
 		}
 		h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
 	case "sched_edit_media":
 		if pending.RuleID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板"))
+			_, _ = sendText(bot, msg.Chat.ID, "缺少任务 ID，请重新进入编辑面板")
 			return
 		}
 		if strings.TrimSpace(text) == "关闭" {
 			if err := h.service.UpdateScheduledMediaByTGGroupID(pending.TGGroupID, pending.RuleID, "", ""); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空媒体失败："+err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, "清空媒体失败："+err.Error())
 				return
 			}
 			h.sendScheduledEditPanel(bot, target, msg.From.ID, pending.TGGroupID, pending.RuleID, pending.Page)
@@ -904,11 +902,11 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			mediaFileID = msg.Animation.FileID
 			caption = msg.Caption
 		default:
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送图片/视频/文件/动图，或发送“关闭”清空媒体"))
+			_, _ = sendText(bot, msg.Chat.ID, "请发送图片/视频/文件/动图，或发送“关闭”清空媒体")
 			return
 		}
 		if err := h.service.UpdateScheduledMediaByTGGroupID(pending.TGGroupID, pending.RuleID, mediaType, mediaFileID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "修改媒体失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "修改媒体失败："+err.Error())
 			return
 		}
 		if strings.TrimSpace(caption) != "" {
@@ -918,7 +916,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "invite_set_expire":
 		if text == "0" {
 			if _, err := h.service.SetInviteExpireDateByTGGroupID(pending.TGGroupID, 0); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, "设置失败："+err.Error())
 				return
 			}
 			h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
@@ -926,40 +924,40 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		}
 		expireAt, err := time.ParseInLocation("2006-01-02 15:04", text, time.Local)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时间格式错误，请按格式输入：2026-02-24 17:09"))
+			_, _ = sendText(bot, msg.Chat.ID, "时间格式错误，请按格式输入：2026-02-24 17:09")
 			return
 		}
 		if _, err := h.service.SetInviteExpireDateByTGGroupID(pending.TGGroupID, expireAt.Unix()); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "设置失败："+err.Error())
 			return
 		}
 		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "invite_set_member_limit":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效数字，0 表示不限制"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入有效数字，0 表示不限制")
 			return
 		}
 		if _, err := h.service.SetInviteMemberLimitByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "设置失败："+err.Error())
 			return
 		}
 		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "invite_set_generate_limit":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入有效数字，0 表示不限制"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入有效数字，0 表示不限制")
 			return
 		}
 		if _, err := h.service.SetInviteGenerateLimitByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "设置失败："+err.Error())
 			return
 		}
 		h.sendInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "chain_create_count":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		pending.Count = v
@@ -975,59 +973,59 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "chain_create_intro":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入接龙规则或介绍"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入接龙规则或介绍")
 			return
 		}
 		chainID, err := h.service.StartChainByTGGroupID(pending.TGGroupID, text, pending.Count, pending.Deadline)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建接龙失败："+err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, "创建接龙失败："+err.Error())
 			return
 		}
 		h.syncChainAnnouncementByID(bot, chainID)
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙创建成功，已自动发布到群里"))
+		_, _ = sendText(bot, msg.Chat.ID, "接龙创建成功，已自动发布到群里")
 		h.sendChainPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "chain_submit_entry":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙内容不能为空，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "接龙内容不能为空，请重新输入")
 			return
 		}
 		if pending.ChainID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙参数缺失，请回到群里重新点击参与按钮"))
+			_, _ = sendText(bot, msg.Chat.ID, "接龙参数缺失，请回到群里重新点击参与按钮")
 			return
 		}
 		if err := h.service.SubmitChainEntryByChainID(pending.ChainID, msg.From.ID, displayNameFromUser(msg.From), text); err != nil {
 			switch {
 			case errors.Is(err, svc.ErrChainNotActive):
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已结束"))
+				_, _ = sendText(bot, msg.Chat.ID, "当前接龙已结束")
 			case errors.Is(err, svc.ErrChainDeadlineReached):
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙已截止"))
+				_, _ = sendText(bot, msg.Chat.ID, "当前接龙已截止")
 			case errors.Is(err, svc.ErrChainParticipantLimitReached):
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前接龙人数已满"))
+				_, _ = sendText(bot, msg.Chat.ID, "当前接龙人数已满")
 			default:
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "提交失败："+err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, "提交失败："+err.Error())
 			}
 			return
 		}
 		h.syncChainAnnouncementByID(bot, pending.ChainID)
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "接龙成功！"))
+		_, _ = sendText(bot, msg.Chat.ID, "接龙成功！")
 		h.setPending(msg.From.ID, pending)
 		return
 	case "poll_create", "poll_create_question":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能为空，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "投票问题不能为空，请重新输入")
 			return
 		}
 		if legacyQuestion, legacyOptions, ok := parsePollInlineInput(text); ok {
 			if len([]rune(legacyQuestion)) > 300 {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能超过 300 字"))
+				_, _ = sendText(bot, msg.Chat.ID, "投票问题不能超过 300 字")
 				return
 			}
 			if err := validatePollOptions(legacyOptions); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, err.Error())
 				return
 			}
 			if _, err := h.service.CreatePollByTGGroupID(bot, pending.TGGroupID, legacyQuestion, legacyOptions); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败："+err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, "创建投票失败："+err.Error())
 				return
 			}
 			h.clearPending(msg.From.ID)
@@ -1035,7 +1033,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		if len([]rune(text)) > 300 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题不能超过 300 字"))
+			_, _ = sendText(bot, msg.Chat.ID, "投票问题不能超过 300 字")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -1048,21 +1046,21 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "poll_create_option":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入选项内容，或发送“完成”发布投票"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入选项内容，或发送“完成”发布投票")
 			return
 		}
 		if strings.TrimSpace(pending.PollQuestion) == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "投票问题已丢失，请重新创建"))
+			_, _ = sendText(bot, msg.Chat.ID, "投票问题已丢失，请重新创建")
 			return
 		}
 		switch text {
 		case "完成":
 			if err := validatePollOptions(pending.PollOptions); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, err.Error())
 				return
 			}
 			if _, err := h.service.CreatePollByTGGroupID(bot, pending.TGGroupID, pending.PollQuestion, pending.PollOptions); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "创建投票失败："+err.Error()))
+				_, _ = sendText(bot, msg.Chat.ID, "创建投票失败："+err.Error())
 				return
 			}
 			h.clearPending(msg.From.ID)
@@ -1077,16 +1075,16 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 
 		additions := parsePollOptionInput(text)
 		if len(additions) == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "未识别到有效选项，请重新输入"))
+			_, _ = sendText(bot, msg.Chat.ID, "未识别到有效选项，请重新输入")
 			return
 		}
 		next, err := mergePollOptions(pending.PollOptions, additions, 10)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, err.Error())
 			return
 		}
 		if err := validatePollOptionItems(next); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, err.Error()))
+			_, _ = sendText(bot, msg.Chat.ID, err.Error())
 			return
 		}
 		pending.PollOptions = next
@@ -1095,73 +1093,73 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	case "monitor_add":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		if err := h.service.AddMonitorKeywordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "添加关键词失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "添加关键词失败")
 			return
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "monitor_remove":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		if err := h.service.RemoveMonitorKeywordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "删除关键词失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "删除关键词失败")
 			return
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "wc_set_push_time":
 		hour, minute, err := h.service.SetWordCloudPushTimeByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制）"))
+			_, _ = sendText(bot, msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制）")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute))
 		h.sendWordCloudPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "wc_black_add":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词语不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "词语不能为空")
 			return
 		}
 		if err := h.service.AddWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "添加词云黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "添加词云黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "已添加词云黑名单词语"))
+		_, _ = sendText(bot, msg.Chat.ID, "已添加词云黑名单词语")
 		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "wc_black_remove":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "词语不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "词语不能为空")
 			return
 		}
 		if err := h.service.RemoveWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除词云黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "移除词云黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "已移除词云黑名单词语"))
+		_, _ = sendText(bot, msg.Chat.ID, "已移除词云黑名单词语")
 		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "spam_msg_len":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetAntiSpamMaxMessageLengthByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置超长消息长度失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置超长消息长度失败")
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "spam_name_len":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		if _, err := h.service.SetAntiSpamMaxNameLengthByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置超长姓名长度失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置超长姓名长度失败")
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
@@ -1178,31 +1176,31 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "spam_ai_spam_score":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 1 || v > 100 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入 1~100 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入 1~100 的整数")
 			return
 		}
 		if _, err := h.service.SetAntiSpamAISpamScoreByTGGroupID(pending.TGGroupID, v); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置 AI 垃圾分失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置 AI 垃圾分失败")
 			return
 		}
 		h.sendAntiSpamAIPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "spam_exception_add":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		if _, err := h.service.AddAntiSpamExceptionByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "添加例外失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "添加例外失败")
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "spam_exception_remove":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "关键词不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "关键词不能为空")
 			return
 		}
 		if _, err := h.service.RemoveAntiSpamExceptionByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除例外失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "移除例外失败")
 			return
 		}
 		h.sendAntiSpamPanel(bot, target, msg.From.ID, pending.TGGroupID)
@@ -1219,146 +1217,146 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	case "night_tz":
 		tz, err := h.service.SetNightModeTimezoneByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "时区格式错误，请输入如 +8、-5、+8:30、UTC+8"))
+			_, _ = sendText(bot, msg.Chat.ID, "时区格式错误，请输入如 +8、-5、+8:30、UTC+8")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "夜间模式时区已设置为 "+tz))
+		_, _ = sendText(bot, msg.Chat.ID, "夜间模式时区已设置为 "+tz)
 		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "night_start_hour":
 		hour, err := h.service.SetNightModeStartHourByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "开始小时格式错误，请输入 0-23 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "开始小时格式错误，请输入 0-23 的整数")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{Kind: "night_end_hour", TGGroupID: pending.TGGroupID})
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("开始小时已设置为 %02d:00\n请继续输入结束小时（0-23）", hour)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("开始小时已设置为 %02d:00\n请继续输入结束小时（0-23）", hour))
 		return
 	case "night_end_hour":
 		hour, err := h.service.SetNightModeEndHourByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "结束小时格式错误，请输入 0-23 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "结束小时格式错误，请输入 0-23 的整数")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("结束小时已设置为 %02d:00", hour)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("结束小时已设置为 %02d:00", hour))
 		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_checkin_keyword":
 		keyword, err := h.service.SetPointsCheckinKeywordByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "签到口令不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "签到口令不能为空")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "签到口令已设置为："+keyword))
+		_, _ = sendText(bot, msg.Chat.ID, "签到口令已设置为："+keyword)
 		h.sendPointsCheckinPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_checkin_reward":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		reward, err := h.service.SetPointsCheckinRewardByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置签到奖励失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置签到奖励失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("签到奖励已设置为：%d", reward)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("签到奖励已设置为：%d", reward))
 		h.sendPointsCheckinPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_message_reward":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		reward, err := h.service.SetPointsMessageRewardByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置发言奖励失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置发言奖励失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("发言奖励已设置为：%d", reward)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("发言奖励已设置为：%d", reward))
 		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_message_daily":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于等于 0 的整数")
 			return
 		}
 		limit, err := h.service.SetPointsMessageDailyLimitByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置发言每日上限失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置发言每日上限失败")
 			return
 		}
 		if limit <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "发言每日上限：无限制"))
+			_, _ = sendText(bot, msg.Chat.ID, "发言每日上限：无限制")
 		} else {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("发言每日上限已设置为：%d", limit)))
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("发言每日上限已设置为：%d", limit))
 		}
 		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_message_min_len":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于等于 0 的整数")
 			return
 		}
 		minLen, err := h.service.SetPointsMessageMinLenByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置最小字数失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置最小字数失败")
 			return
 		}
 		if minLen <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "最小字数长度：无限制"))
+			_, _ = sendText(bot, msg.Chat.ID, "最小字数长度：无限制")
 		} else {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("最小字数长度已设置为：%d", minLen)))
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("最小字数长度已设置为：%d", minLen))
 		}
 		h.sendPointsMessagePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_invite_reward":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于等于 0 的整数")
 			return
 		}
 		reward, err := h.service.SetPointsInviteRewardByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置邀请奖励失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置邀请奖励失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请奖励已设置为：%d", reward)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("邀请奖励已设置为：%d", reward))
 		h.sendPointsInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_invite_daily":
 		v, err := strconv.Atoi(text)
 		if err != nil || v < 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于等于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于等于 0 的整数")
 			return
 		}
 		limit, err := h.service.SetPointsInviteDailyLimitByTGGroupID(pending.TGGroupID, v)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置邀请每日上限失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置邀请每日上限失败")
 			return
 		}
 		if limit <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "邀请每日上限：无限制"))
+			_, _ = sendText(bot, msg.Chat.ID, "邀请每日上限：无限制")
 		} else {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("邀请每日上限已设置为：%d", limit)))
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("邀请每日上限已设置为：%d", limit))
 		}
 		h.sendPointsInvitePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_balance_alias":
 		alias, err := h.service.SetPointsBalanceAliasByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "积分别名不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "积分别名不能为空")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "积分别名已设置为："+alias))
+		_, _ = sendText(bot, msg.Chat.ID, "积分别名已设置为："+alias)
 		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_rank_alias":
 		alias, err := h.service.SetPointsRankAliasByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "排行别名不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "排行别名不能为空")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "排行别名已设置为："+alias))
+		_, _ = sendText(bot, msg.Chat.ID, "排行别名已设置为："+alias)
 		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_admin_add":
 		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -1367,12 +1365,12 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			TargetTGUID: targetTGUserID,
 			TargetLabel: display,
 		})
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要增加的积分数值（正整数）", display)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要增加的积分数值（正整数）", display))
 		return
 	case "points_admin_sub":
 		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -1381,76 +1379,76 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			TargetTGUID: targetTGUserID,
 			TargetLabel: display,
 		})
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要扣除的积分数值（正整数）", display)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入要扣除的积分数值（正整数）", display))
 		return
 	case "points_admin_add_value":
 		if pending.TargetTGUID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“增加积分”"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户已失效，请重新点击“增加积分”")
 			return
 		}
 		value, err := strconv.Atoi(text)
 		if err != nil || value <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, pending.TargetTGUID, value)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "增加积分失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "增加积分失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 增加积分：%d\n当前积分：%d", pending.TargetLabel, applied, current)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已为 %s 增加积分：%d\n当前积分：%d", pending.TargetLabel, applied, current))
 		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "points_admin_sub_value":
 		if pending.TargetTGUID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“扣除积分”"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户已失效，请重新点击“扣除积分”")
 			return
 		}
 		value, err := strconv.Atoi(text)
 		if err != nil || value <= 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+			_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 			return
 		}
 		applied, current, err := h.service.AdjustPointsByTargetTGUserID(pending.TGGroupID, pending.TargetTGUID, -value)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "扣除积分失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "扣除积分失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已为 %s 扣除积分：%d\n当前积分：%d", pending.TargetLabel, -applied, current)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已为 %s 扣除积分：%d\n当前积分：%d", pending.TargetLabel, -applied, current))
 		h.sendPointsPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_role":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：tg_user_id|role"))
+			_, _ = sendText(bot, msg.Chat.ID, "格式错误，请按：tg_user_id|role")
 			return
 		}
 		tgUID, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "用户ID格式错误"))
+			_, _ = sendText(bot, msg.Chat.ID, "用户ID格式错误")
 			return
 		}
 		role := strings.TrimSpace(parts[1])
 		if err := h.service.SetRoleByTGGroupID(pending.TGGroupID, tgUID, role); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置角色失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置角色失败")
 			return
 		}
 		h.sendRBACPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "rbac_set_acl":
 		parts := strings.SplitN(text, "|", 2)
 		if len(parts) != 2 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "格式错误，请按：feature|role1,role2"))
+			_, _ = sendText(bot, msg.Chat.ID, "格式错误，请按：feature|role1,role2")
 			return
 		}
 		feature := strings.TrimSpace(parts[0])
 		roles := strings.Split(parts[1], ",")
 		if err := h.service.SetFeatureACLByTGGroupID(pending.TGGroupID, feature, roles); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "设置权限失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "设置权限失败")
 			return
 		}
 		h.sendRBACPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "black_add":
 		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息")
 			return
 		}
 		h.setPending(msg.From.ID, pendingInput{
@@ -1459,11 +1457,11 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			TargetTGUID: targetTGUserID,
 			TargetLabel: display,
 		})
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入加入黑名单原因（可选，发送“跳过”使用默认原因）", display)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("目标用户：%s\n请输入加入黑名单原因（可选，发送“跳过”使用默认原因）", display))
 		return
 	case "black_add_reason":
 		if pending.TargetTGUID == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户已失效，请重新点击“添加”"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户已失效，请重新点击“添加”")
 			return
 		}
 		reason := strings.TrimSpace(msg.Text)
@@ -1471,69 +1469,69 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			reason = "panel_manual_add"
 		}
 		if err := h.service.AddBlacklistByTGGroupID(pending.TGGroupID, pending.TargetTGUID, reason); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "加入黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "加入黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已加入黑名单：%s", pending.TargetLabel)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已加入黑名单：%s", pending.TargetLabel))
 		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "black_remove":
 		targetTGUserID, display, err := h.resolvePointTarget(msg, text)
 		if err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息"))
+			_, _ = sendText(bot, msg.Chat.ID, "目标用户解析失败，请输入用户名、用户ID，或转发成员消息")
 			return
 		}
 		if err := h.service.RemoveBlacklistByTGGroupID(pending.TGGroupID, targetTGUserID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "移除黑名单失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "移除黑名单失败")
 			return
 		}
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("已移除黑名单：%s", display)))
+		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("已移除黑名单：%s", display))
 		h.sendBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "welcome_edit":
 		if text == "" {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "欢迎文案不能为空"))
+			_, _ = sendText(bot, msg.Chat.ID, "欢迎文案不能为空")
 			return
 		}
 		if err := h.service.SetWelcomeTextByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎文案失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "保存欢迎文案失败")
 			return
 		}
 		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "welcome_edit_media":
 		if text == "关闭" {
 			if err := h.service.SetWelcomeMediaByTGGroupID(pending.TGGroupID, ""); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空欢迎图片失败"))
+				_, _ = sendText(bot, msg.Chat.ID, "清空欢迎图片失败")
 				return
 			}
 			h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 			break
 		}
 		if len(msg.Photo) == 0 {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请发送一张图片"))
+			_, _ = sendText(bot, msg.Chat.ID, "请发送一张图片")
 			return
 		}
 		fileID := msg.Photo[len(msg.Photo)-1].FileID
 		if err := h.service.SetWelcomeMediaByTGGroupID(pending.TGGroupID, fileID); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "保存欢迎图片失败"))
+			_, _ = sendText(bot, msg.Chat.ID, "保存欢迎图片失败")
 			return
 		}
 		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "welcome_edit_button":
 		if text == "关闭" {
 			if err := h.service.ClearWelcomeButtonsByTGGroupID(pending.TGGroupID); err != nil {
-				_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "清空欢迎按钮失败"))
+				_, _ = sendText(bot, msg.Chat.ID, "清空欢迎按钮失败")
 				return
 			}
 			h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 			break
 		}
 		if err := h.service.SetWelcomeButtonsByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "按钮格式错误："+
-				err.Error()+"\n\n示例:\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明:\n- 按钮文字和网址用英文 - 分隔\n- 一行两个按钮用 && 分隔"))
+			_, _ = sendText(bot, msg.Chat.ID, "按钮格式错误："+
+				err.Error()+"\n\n示例:\n官网 - link.com\n电报 - t.me/GroupName\n官网 - link.com && 电报 - t.me/GroupName\n说明:\n- 按钮文字和网址用英文 - 分隔\n- 一行两个按钮用 && 分隔")
 			return
 		}
 		h.sendWelcomePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	default:
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "未识别输入态，请重新点击菜单操作"))
+		_, _ = sendText(bot, msg.Chat.ID, "未识别输入态，请重新点击菜单操作")
 	}
 
 	h.clearPending(msg.From.ID)
@@ -1648,22 +1646,22 @@ func pollDraftText(question string, options []string) string {
 }
 
 func (h *Handler) handleModerationDurationInput(
-	bot *tgbotapi.BotAPI,
-	msg *tgbotapi.Message,
+	bot *tgbot.Bot,
+	msg *models.Message,
 	target renderTarget,
 	pending pendingInput,
 	text string,
 	failMessage string,
 	setFn func(int64, int) (int, error),
-	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+	sendPanelFn func(*tgbot.Bot, renderTarget, int64, int64),
 ) {
 	v, err := strconv.Atoi(text)
 	if err != nil || v <= 0 {
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "请输入大于 0 的整数"))
+		_, _ = sendText(bot, msg.Chat.ID, "请输入大于 0 的整数")
 		return
 	}
 	if _, err := setFn(pending.TGGroupID, v); err != nil {
-		_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, failMessage))
+		_, _ = sendText(bot, msg.Chat.ID, failMessage)
 		return
 	}
 	sendPanelFn(bot, target, msg.From.ID, pending.TGGroupID)

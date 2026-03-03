@@ -1,8 +1,10 @@
 package handler
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"github.com/go-telegram/bot/models"
+)
 
-func (h *Handler) handleChatMemberUpdate(update *tgbotapi.ChatMemberUpdated) {
+func (h *Handler) handleChatMemberUpdate(update *models.ChatMemberUpdated) {
 	if update == nil {
 		return
 	}

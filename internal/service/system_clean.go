@@ -1,13 +1,15 @@
 package service
 
 import (
+	"context"
 	"errors"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (s *Service) HandleSystemMessageCleanup(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
-	if msg == nil || msg.Chat == nil {
+func (s *Service) HandleSystemMessageCleanup(bot *tgbot.Bot, msg *models.Message) error {
+	if msg == nil {
 		return nil
 	}
 	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
@@ -41,7 +43,10 @@ func (s *Service) HandleSystemMessageCleanup(bot *tgbotapi.BotAPI, msg *tgbotapi
 	if !shouldDelete || action == "" {
 		return nil
 	}
-	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+	_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{
+		ChatID:    msg.Chat.ID,
+		MessageID: msg.ID,
+	})
 	_ = s.repo.CreateLog(group.ID, action, 0, 0)
 	return nil
 }

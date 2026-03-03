@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,9 +14,10 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/mojocn/base64Captcha"
 	"gorm.io/gorm"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 var ErrVerifyWrongAnswer = errors.New("wrong answer")
@@ -29,7 +32,7 @@ type verifyChallengeOptions struct {
 	mode          string
 	tgGroupID     int64
 	tgUserID      int64
-	target        *tgbotapi.User
+	target        *models.User
 	timeoutMins   int
 	timeoutAction string
 	allowFallback bool
@@ -39,12 +42,28 @@ type verifyChallengePayload struct {
 	mode       string
 	answer     string
 	text       string
-	entities   []tgbotapi.MessageEntity
-	markup     tgbotapi.InlineKeyboardMarkup
+	entities   []models.MessageEntity
+	markup     models.InlineKeyboardMarkup
 	photoName  string
 	photoBytes []byte
 	audioName  string
 	audioBytes []byte
+}
+
+func inlineKeyboardButtonData(text, data string) models.InlineKeyboardButton {
+	return models.InlineKeyboardButton{Text: text, CallbackData: data}
+}
+
+func inlineKeyboardButtonURL(text, url string) models.InlineKeyboardButton {
+	return models.InlineKeyboardButton{Text: text, URL: url}
+}
+
+func inlineKeyboardRow(buttons ...models.InlineKeyboardButton) []models.InlineKeyboardButton {
+	return buttons
+}
+
+func inlineKeyboardMarkup(rows ...[]models.InlineKeyboardButton) models.InlineKeyboardMarkup {
+	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, error) {
@@ -53,7 +72,7 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 	}
 	target := opts.target
 	if target == nil {
-		target = &tgbotapi.User{ID: opts.tgUserID, FirstName: "该用户"}
+		target = &models.User{ID: opts.tgUserID, FirstName: "该用户"}
 	}
 	buildButton := func(suffix string) verifyChallengePayload {
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
@@ -61,9 +80,9 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			mode:     "button",
 			text:     text,
 			entities: entities,
-			markup: tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", opts.tgGroupID, opts.tgUserID)),
+			markup: inlineKeyboardMarkup(
+				inlineKeyboardRow(
+					inlineKeyboardButtonData("我已验证", fmt.Sprintf("verify:button:%d:%d", opts.tgGroupID, opts.tgUserID)),
 				),
 			),
 		}
@@ -77,16 +96,16 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 		suffix := fmt.Sprintf(" 请完成算术验证：%d + %d = ?（%d 分钟内）", a, b, opts.timeoutMins)
 		text, entities := composeTextWithUserMention("新成员 ", target, suffix)
 		options := buildMathOptions(answer)
-		row := make([]tgbotapi.InlineKeyboardButton, 0, len(options))
+		row := make([]models.InlineKeyboardButton, 0, len(options))
 		for _, opt := range options {
-			row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", opts.tgGroupID, opts.tgUserID, opt)))
+			row = append(row, inlineKeyboardButtonData(strconv.Itoa(opt), fmt.Sprintf("verify:math:%d:%d:%d", opts.tgGroupID, opts.tgUserID, opt)))
 		}
 		return verifyChallengePayload{
 			mode:     "math",
 			answer:   strconv.Itoa(answer),
 			text:     text,
 			entities: entities,
-			markup:   tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(row...)),
+			markup:   inlineKeyboardMarkup(inlineKeyboardRow(row...)),
 		}, nil
 	case "captcha":
 		code, imgBytes, err := buildCaptchaImage()
@@ -104,14 +123,14 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			answer:   code,
 			text:     text,
 			entities: entities,
-			markup: tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
-					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+			markup: inlineKeyboardMarkup(
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[0], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					inlineKeyboardButtonData(options[1], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
 				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
-					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[2], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					inlineKeyboardButtonData(options[3], fmt.Sprintf("verify:captcha:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
 				),
 			),
 			photoName:  "verify_captcha.png",
@@ -133,14 +152,14 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			answer:   ch,
 			text:     text,
 			entities: entities,
-			markup: tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
-					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+			markup: inlineKeyboardMarkup(
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					inlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
 				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
-					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					inlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhchar:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
 				),
 			),
 			photoName:  "verify_zhchar.png",
@@ -162,14 +181,14 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 			answer:   code,
 			text:     text,
 			entities: entities,
-			markup: tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
-					tgbotapi.NewInlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
+			markup: inlineKeyboardMarkup(
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[0], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[0])),
+					inlineKeyboardButtonData(options[1], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[1])),
 				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
-					tgbotapi.NewInlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
+				inlineKeyboardRow(
+					inlineKeyboardButtonData(options[2], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[2])),
+					inlineKeyboardButtonData(options[3], fmt.Sprintf("verify:zhvoice:%d:%d:%s", opts.tgGroupID, opts.tgUserID, options[3])),
 				),
 			),
 			audioName:  "verify_zhvoice.wav",
@@ -180,7 +199,7 @@ func buildVerifyChallenge(opts verifyChallengeOptions) (verifyChallengePayload, 
 	}
 }
 
-func sendVerifyChallenge(bot *tgbotapi.BotAPI, chatID int64, payload verifyChallengePayload) (int, error) {
+func sendVerifyChallenge(bot *tgbot.Bot, chatID int64, payload verifyChallengePayload) (int, error) {
 	if bot == nil {
 		return 0, errors.New("bot is nil")
 	}
@@ -189,42 +208,50 @@ func sendVerifyChallenge(bot *tgbotapi.BotAPI, chatID int64, payload verifyChall
 		if name == "" {
 			name = "verify_captcha.png"
 		}
-		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileBytes{Name: name, Bytes: payload.photoBytes})
-		photo.Caption = payload.text
-		photo.CaptionEntities = payload.entities
-		photo.ReplyMarkup = payload.markup
-		sent, err := bot.Send(photo)
+		photo := &tgbot.SendPhotoParams{
+			ChatID:          chatID,
+			Photo:           &models.InputFileUpload{Filename: name, Data: bytes.NewReader(payload.photoBytes)},
+			Caption:         payload.text,
+			CaptionEntities: payload.entities,
+			ReplyMarkup:     payload.markup,
+		}
+		sent, err := bot.SendPhoto(context.Background(), photo)
 		if err != nil {
 			return 0, err
 		}
-		return sent.MessageID, nil
+		return sent.ID, nil
 	}
 	if len(payload.audioBytes) > 0 {
 		name := strings.TrimSpace(payload.audioName)
 		if name == "" {
 			name = "verify_audio.wav"
 		}
-		doc := tgbotapi.NewDocument(chatID, tgbotapi.FileBytes{Name: name, Bytes: payload.audioBytes})
-		doc.Caption = payload.text
-		doc.CaptionEntities = payload.entities
-		doc.ReplyMarkup = payload.markup
-		sent, err := bot.Send(doc)
+		doc := &tgbot.SendDocumentParams{
+			ChatID:          chatID,
+			Document:        &models.InputFileUpload{Filename: name, Data: bytes.NewReader(payload.audioBytes)},
+			Caption:         payload.text,
+			CaptionEntities: payload.entities,
+			ReplyMarkup:     payload.markup,
+		}
+		sent, err := bot.SendDocument(context.Background(), doc)
 		if err != nil {
 			return 0, err
 		}
-		return sent.MessageID, nil
+		return sent.ID, nil
 	}
-	msg := tgbotapi.NewMessage(chatID, payload.text)
-	msg.Entities = payload.entities
-	msg.ReplyMarkup = payload.markup
-	sent, err := bot.Send(msg)
+	sent, err := bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        payload.text,
+		Entities:    payload.entities,
+		ReplyMarkup: payload.markup,
+	})
 	if err != nil {
 		return 0, err
 	}
-	return sent.MessageID, nil
+	return sent.ID, nil
 }
 
-func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
+func (s *Service) OnNewMembers(bot *tgbot.Bot, msg *models.Message) error {
 	if len(msg.NewChatMembers) == 0 {
 		return nil
 	}
@@ -262,12 +289,12 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 			now := time.Now()
 			deadline := now.Add(timeout)
 			target := m
-			restrict := tgbotapi.RestrictChatMemberConfig{
-				ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: m.ID},
-				UntilDate:        deadline.Unix(),
-				Permissions:      &tgbotapi.ChatPermissions{},
-			}
-			_, _ = bot.Request(restrict)
+			_, _ = bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+				ChatID:      msg.Chat.ID,
+				UserID:      m.ID,
+				UntilDate:   int(deadline.Unix()),
+				Permissions: &models.ChatPermissions{},
+			})
 
 			pending := verifyPending{
 				TGGroupID:     group.TGGroupID,
@@ -329,7 +356,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 	}
 	// 在入群模式下，欢迎消息发送给新成员
 	if cfg.Mode == "join" {
-		users := make([]tgbotapi.User, 0, len(msg.NewChatMembers))
+		users := make([]models.User, 0, len(msg.NewChatMembers))
 		for _, m := range msg.NewChatMembers {
 			if m.IsBot {
 				continue
@@ -344,7 +371,7 @@ func (s *Service) OnNewMembers(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) erro
 }
 
 // PassVerification 验证用户
-func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, tgGroupID, tgUserID int64, mode string, answer string) error {
+func (s *Service) PassVerification(bot *tgbot.Bot, cb *models.CallbackQuery, tgGroupID, tgUserID int64, mode string, answer string) error {
 	if cb.From.ID != tgUserID {
 		return errors.New("only target user can verify")
 	}
@@ -407,7 +434,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQu
 		return err
 	}
 	if pending.MessageID > 0 {
-		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
+		_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: tgGroupID, MessageID: pending.MessageID})
 	}
 
 	if gErr == nil {
@@ -416,11 +443,14 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQu
 		if wErr == nil && welcomeEnabled {
 			cfg, cErr := s.getWelcomeConfig(group.ID)
 			if cErr == nil && cfg.Mode == "verify" {
-				member, mErr := bot.GetChatMember(tgbotapi.GetChatMemberConfig{
-					ChatConfigWithUser: tgbotapi.ChatConfigWithUser{ChatID: tgGroupID, UserID: tgUserID},
+				member, mErr := bot.GetChatMember(context.Background(), &tgbot.GetChatMemberParams{
+					ChatID: tgGroupID,
+					UserID: tgUserID,
 				})
-				if mErr == nil && member.User != nil {
-					_ = s.sendWelcome(bot, tgGroupID, group.ID, []tgbotapi.User{*member.User}, cfg)
+				if mErr == nil {
+					if u := chatMemberUser(*member); u != nil {
+						_ = s.sendWelcome(bot, tgGroupID, group.ID, []models.User{*u}, cfg)
+					}
 				}
 			}
 		}
@@ -428,7 +458,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQu
 	return nil
 }
 
-func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, pending verifyPending) error {
+func (s *Service) refreshVerifyChallenge(bot *tgbot.Bot, cb *models.CallbackQuery, pending verifyPending) error {
 	if bot == nil {
 		return errors.New("bot is nil")
 	}
@@ -440,7 +470,7 @@ func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 		mode:          pending.Mode,
 		tgGroupID:     pending.TGGroupID,
 		tgUserID:      pending.TGUserID,
-		target:        cb.From,
+		target:        &cb.From,
 		timeoutMins:   remainMins,
 		timeoutAction: pending.TimeoutAction,
 		allowFallback: true,
@@ -458,7 +488,7 @@ func (s *Service) refreshVerifyChallenge(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 	newPending.MessageID = msgID
 
 	if pending.MessageID > 0 {
-		_, _ = bot.Request(tgbotapi.NewDeleteMessage(pending.TGGroupID, pending.MessageID))
+		_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: pending.TGGroupID, MessageID: pending.MessageID})
 	}
 	return s.addVerifyPending(newPending)
 }
@@ -526,27 +556,30 @@ func (s *Service) popVerifyPendingByID(id uint) (bool, error) {
 	return s.repo.DeleteJoinVerifyPendingByID(id)
 }
 
-func (s *Service) applyVerifyTimeout(bot *tgbotapi.BotAPI, pending verifyPending) {
+func (s *Service) applyVerifyTimeout(bot *tgbot.Bot, pending verifyPending) {
 	tgGroupID := pending.TGGroupID
 	tgUserID := pending.TGUserID
 	if pending.TimeoutAction == "kick" {
-		_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+		_, _ = bot.BanChatMember(context.Background(), &tgbot.BanChatMemberParams{
+			ChatID:    tgGroupID,
+			UserID:    tgUserID,
+			UntilDate: int(time.Now().Add(1 * time.Minute).Unix()),
 		})
-		_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			OnlyIfBanned:     true,
+		_, _ = bot.UnbanChatMember(context.Background(), &tgbot.UnbanChatMemberParams{
+			ChatID:       tgGroupID,
+			UserID:       tgUserID,
+			OnlyIfBanned: true,
 		})
 	} else {
-		_, _ = bot.Request(tgbotapi.RestrictChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			UntilDate:        time.Now().Add(verifyPermanentMuteHours * time.Hour).Unix(),
-			Permissions:      &tgbotapi.ChatPermissions{},
+		_, _ = bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+			ChatID:      tgGroupID,
+			UserID:      tgUserID,
+			UntilDate:   int(time.Now().Add(verifyPermanentMuteHours * time.Hour).Unix()),
+			Permissions: &models.ChatPermissions{},
 		})
 	}
 	if pending.MessageID > 0 {
-		_, _ = bot.Request(tgbotapi.NewDeleteMessage(tgGroupID, pending.MessageID))
+		_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: tgGroupID, MessageID: pending.MessageID})
 	}
 	if group, err := s.repo.FindGroupByTGID(tgGroupID); err == nil {
 		action := "mute"
@@ -686,7 +719,7 @@ func buildAudioCaptcha(language string) (string, []byte, error) {
 	return strings.TrimSpace(answer), audioBytes, nil
 }
 
-func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, users []tgbotapi.User, cfg welcomeConfig) error {
+func (s *Service) sendWelcome(bot *tgbot.Bot, chatID int64, groupID uint, users []models.User, cfg welcomeConfig) error {
 	sentMessageID, err := s.sendWelcomeMessage(bot, chatID, users, cfg)
 	if err != nil {
 		return err
@@ -698,58 +731,64 @@ func (s *Service) sendWelcome(bot *tgbotapi.BotAPI, chatID int64, groupID uint, 
 	return nil
 }
 
-func (s *Service) sendWelcomePreview(bot *tgbotapi.BotAPI, chatID int64, users []tgbotapi.User, cfg welcomeConfig) error {
+func (s *Service) sendWelcomePreview(bot *tgbot.Bot, chatID int64, users []models.User, cfg welcomeConfig) error {
 	_, err := s.sendWelcomeMessage(bot, chatID, users, cfg)
 	return err
 }
 
-func (s *Service) sendWelcomeMessage(bot *tgbotapi.BotAPI, chatID int64, users []tgbotapi.User, cfg welcomeConfig) (int, error) {
+func (s *Service) sendWelcomeMessage(bot *tgbot.Bot, chatID int64, users []models.User, cfg welcomeConfig) (int, error) {
 	text, entities := buildWelcomeTextWithMentions(cfg.Text, users)
 
 	var markup any
 	if len(cfg.ButtonRows) > 0 {
-		rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(cfg.ButtonRows))
+		rows := make([][]models.InlineKeyboardButton, 0, len(cfg.ButtonRows))
 		for _, rowCfg := range cfg.ButtonRows {
-			row := make([]tgbotapi.InlineKeyboardButton, 0, len(rowCfg))
+			row := make([]models.InlineKeyboardButton, 0, len(rowCfg))
 			for _, btn := range rowCfg {
 				if strings.TrimSpace(btn.Text) == "" || strings.TrimSpace(btn.URL) == "" {
 					continue
 				}
-				row = append(row, tgbotapi.NewInlineKeyboardButtonURL(btn.Text, btn.URL))
+				row = append(row, inlineKeyboardButtonURL(btn.Text, btn.URL))
 			}
 			if len(row) > 0 {
 				rows = append(rows, row)
 			}
 		}
 		if len(rows) > 0 {
-			markup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+			markup = inlineKeyboardMarkup(rows...)
 		}
 	}
 
 	sentMessageID := 0
 	if strings.TrimSpace(cfg.MediaFileID) != "" {
-		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(cfg.MediaFileID))
-		photo.Caption = text
-		photo.CaptionEntities = entities
-		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
+		photo := &tgbot.SendPhotoParams{
+			ChatID:          chatID,
+			Photo:           &models.InputFileString{Data: cfg.MediaFileID},
+			Caption:         text,
+			CaptionEntities: entities,
+		}
+		if m, ok := markup.(models.InlineKeyboardMarkup); ok {
 			photo.ReplyMarkup = m
 		}
-		msg, err := bot.Send(photo)
+		msg, err := bot.SendPhoto(context.Background(), photo)
 		if err != nil {
 			return 0, err
 		}
-		sentMessageID = msg.MessageID
+		sentMessageID = msg.ID
 	} else {
-		message := tgbotapi.NewMessage(chatID, text)
-		message.Entities = entities
-		if m, ok := markup.(tgbotapi.InlineKeyboardMarkup); ok {
+		message := &tgbot.SendMessageParams{
+			ChatID:   chatID,
+			Text:     text,
+			Entities: entities,
+		}
+		if m, ok := markup.(models.InlineKeyboardMarkup); ok {
 			message.ReplyMarkup = m
 		}
-		msg, err := bot.Send(message)
+		msg, err := bot.SendMessage(context.Background(), message)
 		if err != nil {
 			return 0, err
 		}
-		sentMessageID = msg.MessageID
+		sentMessageID = msg.ID
 	}
 	return sentMessageID, nil
 }

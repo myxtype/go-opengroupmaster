@@ -6,10 +6,11 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleAutoReplyFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "view":
 		h.answerCallback(bot, cb.ID, "加载自动回复")
@@ -123,7 +124,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 	}
 }
 
-func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleBannedWordFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "noop":
 		h.answerCallback(bot, cb.ID, "")
@@ -272,7 +273,7 @@ func (h *Handler) handleBannedWordFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 	}
 }
 
-func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleLotteryFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "view":
 		h.answerCallback(bot, cb.ID, "加载抽奖")
@@ -295,11 +296,9 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 		}
 		h.answerCallback(bot, cb.ID, "开奖完成")
 		resultText, resultEntities := lotteryResultText(winners)
-		result := tgbotapi.NewMessage(tgGroupID, resultText)
-		result.Entities = resultEntities
-		resultMsg, sendErr := bot.Send(result)
+		resultMsg, sendErr := sendTextWithEntities(bot, tgGroupID, resultText, resultEntities)
 		if sendErr == nil {
-			_ = h.service.PinLotteryMessageByTGGroupID(bot, tgGroupID, resultMsg.MessageID, "result")
+			_ = h.service.PinLotteryMessageByTGGroupID(bot, tgGroupID, resultMsg.ID, "result")
 		}
 		h.sendLotteryPanel(bot, target, cb.From.ID, tgGroupID)
 	case "records":
@@ -381,7 +380,7 @@ func (h *Handler) handleLotteryFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 	}
 }
 
-func (h *Handler) handleScheduleFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleScheduleFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	switch action {
 	case "view":
 		h.answerCallback(bot, cb.ID, "加载定时消息")

@@ -12,7 +12,7 @@ import (
 	"supervisor/internal/model"
 	"supervisor/pkg/tgmention"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 func permissionFeatureKey(feature, action string) string {
@@ -83,7 +83,7 @@ func maxPages(total int64, pageSize int) int {
 	return pages
 }
 
-func joinWinnerNames(winners []model.User) (string, []tgbotapi.MessageEntity) {
+func joinWinnerNames(winners []model.User) (string, []models.MessageEntity) {
 	if len(winners) == 0 {
 		return "无", nil
 	}
@@ -99,7 +99,7 @@ func joinWinnerNames(winners []model.User) (string, []tgbotapi.MessageEntity) {
 	return tgmention.JoinMentions(refs, ", ")
 }
 
-func lotteryResultText(winners []model.User) (string, []tgbotapi.MessageEntity) {
+func lotteryResultText(winners []model.User) (string, []models.MessageEntity) {
 	namesText, entities := joinWinnerNames(winners)
 	prefix := "开奖结果："
 	return prefix + namesText, tgmention.ShiftEntities(entities, tgmention.UTF16Len(prefix))

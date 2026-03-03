@@ -15,7 +15,8 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ var mentionPattern = regexp.MustCompile(`@[A-Za-z0-9_]{2,}`)
 
 // CheckMessageAndRespond 处理群组消息的主要入口
 // 顺序：黑名单检查 -> 违规处理 -> 积分签到/命令 -> 关键词监控 -> 抽奖 -> 自动回复 -> 积分奖励 -> 词云统计
-func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
+func (s *Service) CheckMessageAndRespond(bot *tgbot.Bot, msg *models.Message) error {
 	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -72,9 +73,15 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 				if errors.Is(err, ErrInsufficientPoints) {
 					cfg, cfgErr := s.getPointsConfig(group.ID)
 					if cfgErr == nil {
-						_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("当前积分不足，参与抽奖需要 %d 积分。发送“%s”可查询积分。", cfg.LotteryCost, cfg.BalanceAlias)))
+						_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+							ChatID: msg.Chat.ID,
+							Text:   fmt.Sprintf("当前积分不足，参与抽奖需要 %d 积分。发送“%s”可查询积分。", cfg.LotteryCost, cfg.BalanceAlias),
+						})
 					} else {
-						_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "当前积分不足，无法参与抽奖。"))
+						_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+							ChatID: msg.Chat.ID,
+							Text:   "当前积分不足，无法参与抽奖。",
+						})
 					}
 					return nil
 				}
@@ -85,15 +92,18 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 				deleteAfter := time.Duration(0)
 				if mins, cfgErr := s.LotteryDeleteKeywordMinutesByGroupID(group.ID); cfgErr == nil && mins > 0 {
 					deleteAfter = time.Duration(mins) * time.Minute
-					s.ScheduleMessageDelete(msg.Chat.ID, msg.MessageID, deleteAfter)
+					s.ScheduleMessageDelete(msg.Chat.ID, msg.ID, deleteAfter)
 				}
 				if joined {
-					// 回复参与成功消息，同样支持自动删除
-					reply := tgbotapi.NewMessage(msg.Chat.ID, "参与抽奖成功")
-					reply.ReplyToMessageID = msg.MessageID
-					replyMsg, sendErr := bot.Send(reply)
+					replyMsg, sendErr := bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+						ChatID: msg.Chat.ID,
+						Text:   "参与抽奖成功",
+						ReplyParameters: &models.ReplyParameters{
+							MessageID: msg.ID,
+						},
+					})
 					if sendErr == nil && deleteAfter > 0 {
-						s.ScheduleMessageDelete(msg.Chat.ID, replyMsg.MessageID, deleteAfter)
+						s.ScheduleMessageDelete(msg.Chat.ID, replyMsg.ID, deleteAfter)
 					}
 				}
 				return nil
@@ -106,12 +116,17 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 			return err
 		}
 		if rule != nil {
-			reply := tgbotapi.NewMessage(msg.Chat.ID, rule.Reply)
-			reply.ReplyToMessageID = msg.MessageID
+			reply := &tgbot.SendMessageParams{
+				ChatID: msg.Chat.ID,
+				Text:   rule.Reply,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: msg.ID,
+				},
+			}
 			if markup, ok := InlineKeyboardFromButtonRowsJSON(rule.ButtonRows); ok {
 				reply.ReplyMarkup = markup
 			}
-			_, _ = bot.Send(reply)
+			_, _ = bot.SendMessage(context.Background(), reply)
 		}
 	}
 
@@ -127,7 +142,7 @@ func (s *Service) CheckMessageAndRespond(bot *tgbotapi.BotAPI, msg *tgbotapi.Mes
 
 // CheckEditedMessageAndModerate 处理编辑消息的违规检查
 // 注意：编辑消息仅做风控检测，避免重复触发积分/自动回复等流程
-func (s *Service) CheckEditedMessageAndModerate(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) error {
+func (s *Service) CheckEditedMessageAndModerate(bot *tgbot.Bot, msg *models.Message) error {
 	group, err := s.repo.FindGroupByTGID(msg.Chat.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -148,7 +163,7 @@ func (s *Service) CheckEditedMessageAndModerate(bot *tgbotapi.BotAPI, msg *tgbot
 
 // handleGroupBlacklistModeration 处理黑名单用户的消息
 // 黑名单用户消息会被直接删除并踢出群组（24小时封禁）
-func (s *Service) handleGroupBlacklistModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
+func (s *Service) handleGroupBlacklistModeration(bot *tgbot.Bot, msg *models.Message, group *model.Group) (bool, error) {
 	if msg == nil || group == nil || msg.From == nil {
 		return false, nil
 	}
@@ -160,15 +175,18 @@ func (s *Service) handleGroupBlacklistModeration(bot *tgbotapi.BotAPI, msg *tgbo
 		return false, nil
 	}
 	// 删除消息并封禁用户
-	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
-	_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: msg.Chat.ID, UserID: msg.From.ID},
-		UntilDate:        time.Now().Add(24 * time.Hour).Unix(),
+	_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
+	_, _ = bot.BanChatMember(context.Background(), &tgbot.BanChatMemberParams{
+		ChatID:    msg.Chat.ID,
+		UserID:    msg.From.ID,
+		UntilDate: int(time.Now().Add(24 * time.Hour).Unix()),
 	})
 	alertText, entities := composeTextWithUserMention("", msg.From, " 命中本群黑名单，已移出群组")
-	alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
-	alert.Entities = entities
-	_, _ = bot.Send(alert)
+	_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+		ChatID:   msg.Chat.ID,
+		Text:     alertText,
+		Entities: entities,
+	})
 	_ = s.repo.CreateLog(group.ID, "group_blacklist_kick", 0, 0)
 	return true, nil
 }
@@ -176,7 +194,7 @@ func (s *Service) handleGroupBlacklistModeration(bot *tgbotapi.BotAPI, msg *tgbo
 // applyModeration 统一处理消息的违规检查和处理
 // 检查顺序：夜间模式 -> 违禁词 -> AI/规则反垃圾 -> 反刷屏
 // 管理员消息和 SenderChat 信息不受限制
-func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
+func (s *Service) applyModeration(bot *tgbot.Bot, msg *models.Message, group *model.Group) (bool, error) {
 	if msg.From == nil && msg.SenderChat == nil {
 		return false, nil
 	}
@@ -202,13 +220,13 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			switch cfg.Mode {
 			case nightModeGlobalMute:
 				// 全局禁言：删除所有消息
-				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+				_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
 				_ = s.repo.CreateLog(group.ID, "night_mode_global_mute_delete", 0, 0)
 				return true, nil
 			default:
 				if isNightMediaMessage(msg) {
 					// 媒体消息禁发
-					_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+					_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
 					_ = s.repo.CreateLog(group.ID, "night_mode_delete_media", 0, 0)
 					return true, nil
 				}
@@ -243,7 +261,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 				if aiErr != nil {
 					decisionSource = "rule_fallback"
 					if s.logger != nil {
-						s.logger.Printf("anti spam ai fallback chat=%d msg=%d err=%v", msg.Chat.ID, msg.MessageID, aiErr)
+						s.logger.Printf("anti spam ai fallback chat=%d msg=%d err=%v", msg.Chat.ID, msg.ID, aiErr)
 					}
 				} else if aiResult.IsSpamBy(cfg.AISpamScore) {
 					blocked = true
@@ -258,7 +276,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 
 			if blocked {
 				// 删除消息
-				_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+				_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
 				appliedPenalty := cfg.Penalty
 				actionLabel := moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
 				targetID := uint(0)
@@ -305,12 +323,11 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 						reasonText = "规则判定"
 					}
 					alertText := fmt.Sprintf("%s 正在发送垃圾消息。\n原因：%s\n处理：%s", antiSpamActorDisplayName(msg), reasonText, actionLabel)
-					var alertEntities []tgbotapi.MessageEntity
+					var alertEntities []models.MessageEntity
 					if msg.From != nil {
 						alertText, alertEntities = composeAntiSpamAlertWithMention(msg.From, reasonLabel, actionLabel)
 					}
-					alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
-					alert.Entities = alertEntities
+					alert := &tgbot.SendMessageParams{ChatID: msg.Chat.ID, Text: alertText, Entities: alertEntities}
 					if msg.From != nil {
 						buttonLabel := "管理员解禁"
 						buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
@@ -318,15 +335,11 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 							buttonLabel = "撤销警告"
 							buttonAction = fmt.Sprintf("feat:mod:spamwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
 						}
-						alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-							tgbotapi.NewInlineKeyboardRow(
-								tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
-							),
-						)
+						alert.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: buttonLabel, CallbackData: buttonAction}}}}
 					}
-					alertMsg, sendErr := bot.Send(alert)
+					alertMsg, sendErr := bot.SendMessage(context.Background(), alert)
 					if sendErr == nil && cfg.WarnDeleteSec > 0 {
-						s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+						s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.ID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 					}
 				}
 				// 记录审计日志
@@ -358,7 +371,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 		flooding, reason := s.isFlooding(group.TGGroupID, msg.From.ID, msg.Text, cfg)
 		if flooding {
 			// 删除刷屏消息
-			_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+			_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
 			appliedPenalty := cfg.Penalty
 			actionLabel := moderationPenaltyActionLabel(appliedPenalty, cfg.MuteMinutes, cfg.BanMinutes)
 			targetID := uint(0)
@@ -394,7 +407,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			if reason == "high_freq" {
 				alertText = fmt.Sprintf("%s（%d秒内%d条）", alertText, cfg.WindowSec, cfg.MaxMessages)
 			}
-			alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+			alert := &tgbot.SendMessageParams{ChatID: msg.Chat.ID, Text: alertText}
 			if msg.From != nil {
 				buttonLabel := "管理员解禁"
 				buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
@@ -402,15 +415,11 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 					buttonLabel = "撤销警告"
 					buttonAction = fmt.Sprintf("feat:mod:floodwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
 				}
-				alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
-					),
-				)
+				alert.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: buttonLabel, CallbackData: buttonAction}}}}
 			}
-			alertMsg, sendErr := bot.Send(alert)
+			alertMsg, sendErr := bot.SendMessage(context.Background(), alert)
 			if sendErr == nil && cfg.WarnDeleteSec > 0 {
-				s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+				s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.ID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 			}
 			_ = s.repo.CreateLog(group.ID, "anti_flood_"+appliedPenalty+"_"+reason, 0, targetID)
 			return true, nil
@@ -421,7 +430,7 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 
 // applyBannedWordModeration 检查并处理违禁词
 // 逻辑：检测违禁词 -> 删除消息 -> 应用惩罚（禁言/踢出/封禁）-> 发送提醒
-func (s *Service) applyBannedWordModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, group *model.Group) (bool, error) {
+func (s *Service) applyBannedWordModeration(bot *tgbot.Bot, msg *models.Message, group *model.Group) (bool, error) {
 	if msg.Text == "" {
 		return false, nil
 	}
@@ -442,9 +451,9 @@ func (s *Service) applyBannedWordModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	}
 
 	// 删除消息
-	_, _ = bot.Request(tgbotapi.NewDeleteMessage(msg.Chat.ID, msg.MessageID))
+	_, _ = bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{ChatID: msg.Chat.ID, MessageID: msg.ID})
 	alertText := "消息触发违禁词，已撤回"
-	var alertEntities []tgbotapi.MessageEntity
+	var alertEntities []models.MessageEntity
 	logTargetID := uint(0)
 	appliedPenalty := antiFloodPenaltyDeleteOnly
 	actionLabel := moderationPenaltyActionLabel(appliedPenalty, bwCfg.MuteMinutes, bwCfg.BanMinutes)
@@ -486,8 +495,7 @@ func (s *Service) applyBannedWordModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		alertText, alertEntities = composeTextWithUserMention("", msg.From, fmt.Sprintf(" 消息触发违禁词，已%s", actionLabel))
 	}
 	_ = s.repo.CreateLog(group.ID, "banned_word_penalty_"+appliedPenalty, 0, logTargetID)
-	alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
-	alert.Entities = alertEntities
+	alert := &tgbot.SendMessageParams{ChatID: msg.Chat.ID, Text: alertText, Entities: alertEntities}
 	if msg.From != nil {
 		buttonLabel := "管理员解禁"
 		buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
@@ -495,15 +503,11 @@ func (s *Service) applyBannedWordModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			buttonLabel = "撤销警告"
 			buttonAction = fmt.Sprintf("feat:mod:bwwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
 		}
-		alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
-			),
-		)
+		alert.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: buttonLabel, CallbackData: buttonAction}}}}
 	}
-	alertMsg, sendErr := bot.Send(alert)
+	alertMsg, sendErr := bot.SendMessage(context.Background(), alert)
 	if sendErr == nil && bwCfg.WarnDeleteMinutes > 0 {
-		s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(bwCfg.WarnDeleteMinutes)*time.Minute)
+		s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.ID, time.Duration(bwCfg.WarnDeleteMinutes)*time.Minute)
 	}
 	_ = s.repo.CreateLog(group.ID, "banned_word_delete", 0, logTargetID)
 	return true, nil
@@ -533,12 +537,12 @@ func (s *Service) isFlooding(tgGroupID, tgUserID int64, text string, cfg antiFlo
 }
 
 // floodUserDisplayName 获取刷屏用户的显示名称（用于提醒消息）
-func floodUserDisplayName(u *tgbotapi.User) string {
+func floodUserDisplayName(u *models.User) string {
 	return userMentionLabel(u)
 }
 
 // antiSpamActorDisplayName 获取垃圾消息发送者的显示名称（支持 SenderChat）
-func antiSpamActorDisplayName(msg *tgbotapi.Message) string {
+func antiSpamActorDisplayName(msg *models.Message) string {
 	if msg == nil {
 		return "该用户"
 	}
@@ -556,39 +560,42 @@ func antiSpamActorDisplayName(msg *tgbotapi.Message) string {
 }
 
 // applyPenaltyToMember 对用户应用惩罚（禁言/踢出/踢出+封禁）
-func applyPenaltyToMember(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, penalty string, muteMinutes, banMinutes int) {
+func applyPenaltyToMember(bot *tgbot.Bot, tgGroupID, tgUserID int64, penalty string, muteMinutes, banMinutes int) {
 	switch penalty {
 	case antiFloodPenaltyMute:
 		// 禁言指定分钟数
-		restrict := tgbotapi.RestrictChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			UntilDate:        time.Now().Add(time.Duration(muteMinutes) * time.Minute).Unix(),
-			Permissions:      &tgbotapi.ChatPermissions{},
-		}
-		_, _ = bot.Request(restrict)
+		_, _ = bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+			ChatID:      tgGroupID,
+			UserID:      tgUserID,
+			UntilDate:   int(time.Now().Add(time.Duration(muteMinutes) * time.Minute).Unix()),
+			Permissions: &models.ChatPermissions{},
+		})
 	case antiFloodPenaltyKick:
 		// 临时封禁 1 分钟后解封（即踢出）
-		_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			UntilDate:        time.Now().Add(1 * time.Minute).Unix(),
+		_, _ = bot.BanChatMember(context.Background(), &tgbot.BanChatMemberParams{
+			ChatID:    tgGroupID,
+			UserID:    tgUserID,
+			UntilDate: int(time.Now().Add(1 * time.Minute).Unix()),
 		})
-		_, _ = bot.Request(tgbotapi.UnbanChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			OnlyIfBanned:     true,
+		_, _ = bot.UnbanChatMember(context.Background(), &tgbot.UnbanChatMemberParams{
+			ChatID:       tgGroupID,
+			UserID:       tgUserID,
+			OnlyIfBanned: true,
 		})
 	case antiFloodPenaltyKickBan:
 		// 踢出并封禁指定分钟数
-		_, _ = bot.Request(tgbotapi.BanChatMemberConfig{
-			ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-			RevokeMessages:   true,
-			UntilDate:        time.Now().Add(time.Duration(banMinutes) * time.Minute).Unix(),
+		_, _ = bot.BanChatMember(context.Background(), &tgbot.BanChatMemberParams{
+			ChatID:         tgGroupID,
+			UserID:         tgUserID,
+			RevokeMessages: true,
+			UntilDate:      int(time.Now().Add(time.Duration(banMinutes) * time.Minute).Unix()),
 		})
 	}
 }
 
 // containsLink 检测消息中是否包含链接
 // 支持 url 实体和文本中的 http/https/ftp/tg/www:// 等链接
-func containsLink(msg *tgbotapi.Message, content string) bool {
+func containsLink(msg *models.Message, content string) bool {
 	if msg != nil {
 		if containsLinkEntity(msg.Entities) || containsLinkEntity(msg.CaptionEntities) {
 			return true
@@ -598,9 +605,9 @@ func containsLink(msg *tgbotapi.Message, content string) bool {
 }
 
 // containsLinkEntity 检测消息实体中是否包含链接类型
-func containsLinkEntity(entities []tgbotapi.MessageEntity) bool {
+func containsLinkEntity(entities []models.MessageEntity) bool {
 	for _, entity := range entities {
-		entityType := strings.ToLower(strings.TrimSpace(entity.Type))
+		entityType := strings.ToLower(strings.TrimSpace(string(entity.Type)))
 		if slices.Contains([]string{"url", "text_link"}, entityType) {
 			return true
 		}
@@ -609,7 +616,7 @@ func containsLinkEntity(entities []tgbotapi.MessageEntity) bool {
 }
 
 // antiSpamMessageContent 提取消息的文本内容（支持 Caption）
-func antiSpamMessageContent(msg *tgbotapi.Message) string {
+func antiSpamMessageContent(msg *models.Message) string {
 	parts := make([]string, 0, 2)
 	if strings.TrimSpace(msg.Text) != "" {
 		parts = append(parts, msg.Text)
@@ -635,13 +642,13 @@ func antiSpamExceptionHit(content string, keywords []string) bool {
 }
 
 // antiSpamExceptionMatched 检测消息是否命中例外关键词（用于跳过反垃圾检测）
-func antiSpamExceptionMatched(msg *tgbotapi.Message, keywords []string) bool {
+func antiSpamExceptionMatched(msg *models.Message, keywords []string) bool {
 	return antiSpamExceptionHit(antiSpamMessageContent(msg), keywords)
 }
 
 // antiSpamViolation 使用规则引擎检测垃圾消息
 // 检测项：图片、联系人分享、频道马甲、转发、链接、@群组、@用户、ETH 地址、超长消息、超长姓名
-func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string, string) {
+func antiSpamViolation(msg *models.Message, cfg antiSpamConfig) (bool, string, string) {
 	content := antiSpamMessageContent(msg)
 	if cfg.BlockPhoto && len(msg.Photo) > 0 {
 		return true, "photo", "图片"
@@ -652,10 +659,10 @@ func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string,
 	if cfg.BlockChannelAlias && msg.SenderChat != nil {
 		return true, "channel_alias", "频道马甲发言"
 	}
-	if cfg.BlockForwardFromChannel && (msg.ForwardFromChat != nil || msg.IsAutomaticForward) {
+	if cfg.BlockForwardFromChannel && (isForwardFromChannel(msg) || msg.IsAutomaticForward) {
 		return true, "forward_channel", "来自频道转发"
 	}
-	if cfg.BlockForwardFromUser && (msg.ForwardFrom != nil || strings.TrimSpace(msg.ForwardSenderName) != "") {
+	if cfg.BlockForwardFromUser && isForwardFromUser(msg) {
 		return true, "forward_user", "来自用户转发"
 	}
 	if cfg.BlockLink && containsLink(msg, content) {
@@ -681,7 +688,7 @@ func antiSpamViolation(msg *tgbotapi.Message, cfg antiSpamConfig) (bool, string,
 
 // classifyAntiSpamWithAI 使用 AI 进行垃圾消息二分类
 // 支持缓存机制避免重复请求，返回判定结果、是否命中缓存、错误信息
-func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message, strictness string) (spamAIResult, bool, error) {
+func (s *Service) classifyAntiSpamWithAI(msg *models.Message, strictness string) (spamAIResult, bool, error) {
 	if s.spamAI == nil {
 		return spamAIResult{}, false, errors.New("nil ai classifier")
 	}
@@ -691,7 +698,7 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message, strictness strin
 		cacheTTL = 7 * 24 * time.Hour
 	}
 	now := time.Now()
-	hash := antiSpamContentHash(msg, strictness)
+	hash := antiSpamContentHash(msg)
 	if hash == "" {
 		return spamAIResult{}, false, errors.New("empty content hash")
 	}
@@ -723,7 +730,7 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message, strictness strin
 		_ = s.repo.UpsertAISpamCache(msg.Chat.ID, hash, string(payload), now)
 	}
 	// 定期清理过期缓存（每 200 条消息清理一次）
-	if msg != nil && msg.MessageID > 0 && msg.MessageID%200 == 0 {
+	if msg != nil && msg.ID > 0 && msg.ID%200 == 0 {
 		_ = s.repo.DeleteAISpamCacheBefore(now.Add(-cacheTTL))
 	}
 	return normalized, false, nil
@@ -731,49 +738,46 @@ func (s *Service) classifyAntiSpamWithAI(msg *tgbotapi.Message, strictness strin
 
 // antiSpamContentHash 生成消息内容的哈希值用于 AI 缓存键
 // 包含内容、媒体类型、转发信息等用于精确匹配
-func antiSpamContentHash(msg *tgbotapi.Message, strictness string) string {
+func antiSpamContentHash(msg *models.Message) string {
 	if msg == nil {
 		return ""
 	}
-	strictness = normalizeAntiSpamAIStrictness(strictness)
 	content := normalizeSpamText(antiSpamMessageContent(msg))
-	parts := []string{
-		content,
-		fmt.Sprintf("photo:%d", len(msg.Photo)),
-		fmt.Sprintf("video:%t", msg.Video != nil),
-		fmt.Sprintf("animation:%t", msg.Animation != nil),
-		fmt.Sprintf("document:%t", msg.Document != nil),
-		fmt.Sprintf("sticker:%t", msg.Sticker != nil),
-		fmt.Sprintf("voice:%t", msg.Voice != nil),
-		fmt.Sprintf("audio:%t", msg.Audio != nil),
-		fmt.Sprintf("contact:%t", msg.Contact != nil),
-		fmt.Sprintf("sender_chat:%d", antiSpamChatID(msg.SenderChat)),
-		fmt.Sprintf("forward_chat:%d", antiSpamChatID(msg.ForwardFromChat)),
-		fmt.Sprintf("auto_forward:%t", msg.IsAutomaticForward),
-		fmt.Sprintf("ai_strictness:%s", strictness),
-	}
-	raw := strings.Join(parts, "|")
-	sum := sha256.Sum256([]byte(raw))
+	sum := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(sum[:])
 }
 
 // antiSpamChatID 获取发送者 Chat 的 ID（ SenderChat 或 ForwardFromChat）
-func antiSpamChatID(chat *tgbotapi.Chat) int64 {
+func antiSpamChatID(chat *models.Chat) int64 {
 	if chat == nil {
 		return 0
 	}
 	return chat.ID
 }
 
+func isForwardFromChannel(msg *models.Message) bool {
+	if msg == nil || msg.ForwardOrigin == nil {
+		return false
+	}
+	return msg.ForwardOrigin.Type == models.MessageOriginTypeChannel || msg.ForwardOrigin.Type == models.MessageOriginTypeChat
+}
+
+func isForwardFromUser(msg *models.Message) bool {
+	if msg == nil || msg.ForwardOrigin == nil {
+		return false
+	}
+	return msg.ForwardOrigin.Type == models.MessageOriginTypeUser || msg.ForwardOrigin.Type == models.MessageOriginTypeHiddenUser
+}
+
 // antiSpamNameLength 计算用户或频道名称长度（用于超长名称检测）
-func antiSpamNameLength(msg *tgbotapi.Message) int {
+func antiSpamNameLength(msg *models.Message) int {
 	if msg == nil {
 		return 0
 	}
 	if msg.From != nil {
 		name := strings.TrimSpace(msg.From.FirstName + " " + msg.From.LastName)
 		if name == "" {
-			name = strings.TrimSpace(msg.From.UserName)
+			name = strings.TrimSpace(msg.From.Username)
 		}
 		return utf8.RuneCountInString(name)
 	}

@@ -7,124 +7,124 @@ import (
 	"supervisor/internal/model"
 	"supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
-func InviteKeyboard(tgGroupID int64, enabled bool) tgbotapi.InlineKeyboardMarkup {
+func InviteKeyboard(tgGroupID int64, enabled bool) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
+	return inlineKeyboardMarkup(
 		statusControlRow(
 			enabled,
 			fmt.Sprintf("feat:invite:noop:%s", gid),
 			fmt.Sprintf("feat:invite:on:%s", gid),
 			fmt.Sprintf("feat:invite:off:%s", gid),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("配置过期时间", fmt.Sprintf("feat:invite:expire:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("配置过期时间", fmt.Sprintf("feat:invite:expire:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("最大邀请数配置", fmt.Sprintf("feat:invite:member:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("最大邀请数配置", fmt.Sprintf("feat:invite:member:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("生成数量限制配置", fmt.Sprintf("feat:invite:gen:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("生成数量限制配置", fmt.Sprintf("feat:invite:gen:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("导出", fmt.Sprintf("feat:invite:export:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("清空数据", fmt.Sprintf("feat:invite:clear:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("导出", fmt.Sprintf("feat:invite:export:%s", gid)),
+			inlineKeyboardButtonData("清空数据", fmt.Sprintf("feat:invite:clear:%s", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:invite:view:%s", gid)),
 	)
 }
 
-func InviteExpireInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteExpireInputKeyboard(tgGroupID int64) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:expireunlimit:%s", gid)),
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:expireunlimit:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			inlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
 		),
 	)
 }
 
-func InviteMemberInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteMemberInputKeyboard(tgGroupID int64) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:memberunlimit:%s", gid)),
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:memberunlimit:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			inlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
 		),
 	)
 }
 
-func InviteGenerateInputKeyboard(tgGroupID int64) tgbotapi.InlineKeyboardMarkup {
+func InviteGenerateInputKeyboard(tgGroupID int64) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:genunlimit:%s", gid)),
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("🚫 无限制", fmt.Sprintf("feat:invite:genunlimit:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			inlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
 		),
 	)
 }
 
-func AutoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func AutoReplyListKeyboard(tgGroupID int64, items []model.AutoReply, page, totalPages int) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+4)
+	rows := make([][]models.InlineKeyboardButton, 0, len(items)+4)
 	for _, item := range items {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(
+		rows = append(rows, inlineKeyboardRow(
+			inlineKeyboardButtonData(
 				fmt.Sprintf("✏️ 编辑 #%d", item.ID),
 				fmt.Sprintf("feat:auto:edit:%s:%d:%d", gid, item.ID, page),
 			),
-			tgbotapi.NewInlineKeyboardButtonData(
+			inlineKeyboardButtonData(
 				fmt.Sprintf("🗑 删除 #%d", item.ID),
 				fmt.Sprintf("feat:auto:del:%s:%d:%d", gid, item.ID, page),
 			),
 		))
 	}
-	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
+	nav := make([]models.InlineKeyboardButton, 0, 2)
 	if page > 1 {
-		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:auto:list:%s:%d", gid, page-1)))
+		nav = append(nav, inlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:auto:list:%s:%d", gid, page-1)))
 	}
 	if page < totalPages {
-		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:auto:list:%s:%d", gid, page+1)))
+		nav = append(nav, inlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:auto:list:%s:%d", gid, page+1)))
 	}
 	if len(nav) > 0 {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(nav...))
+		rows = append(rows, inlineKeyboardRow(nav...))
 	}
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("➕ 新增自动回复", fmt.Sprintf("feat:auto:add:%s", gid)),
-		tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+	rows = append(rows, inlineKeyboardRow(
+		inlineKeyboardButtonData("➕ 新增自动回复", fmt.Sprintf("feat:auto:add:%s", gid)),
+		inlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 	))
-	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return inlineKeyboardMarkup(rows...)
 }
 
-func AutoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbotapi.InlineKeyboardMarkup {
+func AutoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("精准触发", fmt.Sprintf("%s:exact", modeSelectPrefix)),
-			tgbotapi.NewInlineKeyboardButtonData("包含触发", fmt.Sprintf("%s:contains", modeSelectPrefix)),
-			tgbotapi.NewInlineKeyboardButtonData("正则触发", fmt.Sprintf("%s:regex", modeSelectPrefix)),
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("精准触发", fmt.Sprintf("%s:exact", modeSelectPrefix)),
+			inlineKeyboardButtonData("包含触发", fmt.Sprintf("%s:contains", modeSelectPrefix)),
+			inlineKeyboardButtonData("正则触发", fmt.Sprintf("%s:regex", modeSelectPrefix)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
-			tgbotapi.NewInlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),
+			inlineKeyboardButtonData("返回上级", fmt.Sprintf("feat:pending:back:%s", gid)),
 		),
 	)
 }
 
-func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items []model.BannedWord, page, totalPages int) tgbotapi.InlineKeyboardMarkup {
+func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items []model.BannedWord, page, totalPages int) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(items)+8)
+	rows := make([][]models.InlineKeyboardButton, 0, len(items)+8)
 	rows = append(rows,
 		statusControlRow(
 			view.Enabled,
@@ -132,43 +132,43 @@ func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items
 			fmt.Sprintf("feat:bw:on:%s", gid),
 			fmt.Sprintf("feat:bw:off:%s", gid),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("惩罚设置", fmt.Sprintf("feat:bw:penalty:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("惩罚设置", fmt.Sprintf("feat:bw:penalty:%s", gid)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("删除提醒："+bannedWordDeleteText(view.WarnDeleteMinutes), fmt.Sprintf("feat:bw:delwarninput:%s", gid)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("删除提醒："+bannedWordDeleteText(view.WarnDeleteMinutes), fmt.Sprintf("feat:bw:delwarninput:%s", gid)),
 		),
 	)
 	for _, item := range items {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(
+		rows = append(rows, inlineKeyboardRow(
+			inlineKeyboardButtonData(
 				fmt.Sprintf("✏️ 编辑 #%d", item.ID),
 				fmt.Sprintf("feat:bw:edit:%s:%d:%d", gid, item.ID, page),
 			),
-			tgbotapi.NewInlineKeyboardButtonData(
+			inlineKeyboardButtonData(
 				fmt.Sprintf("🗑 删除 #%d", item.ID),
 				fmt.Sprintf("feat:bw:del:%s:%d:%d", gid, item.ID, page),
 			),
 		))
 	}
-	nav := make([]tgbotapi.InlineKeyboardButton, 0, 2)
+	nav := make([]models.InlineKeyboardButton, 0, 2)
 	if page > 1 {
-		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:bw:list:%s:%d", gid, page-1)))
+		nav = append(nav, inlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:bw:list:%s:%d", gid, page-1)))
 	}
 	if page < totalPages {
-		nav = append(nav, tgbotapi.NewInlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:bw:list:%s:%d", gid, page+1)))
+		nav = append(nav, inlineKeyboardButtonData("下一页 ➡", fmt.Sprintf("feat:bw:list:%s:%d", gid, page+1)))
 	}
 	if len(nav) > 0 {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(nav...))
+		rows = append(rows, inlineKeyboardRow(nav...))
 	}
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("➕ 新增违禁词", fmt.Sprintf("feat:bw:add:%s", gid)),
-		tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+	rows = append(rows, inlineKeyboardRow(
+		inlineKeyboardButtonData("➕ 新增违禁词", fmt.Sprintf("feat:bw:add:%s", gid)),
+		inlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 	))
-	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return inlineKeyboardMarkup(rows...)
 }
 
-func BannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tgbotapi.InlineKeyboardMarkup {
+func BannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
 	rows := moderationPenaltyRowsWithSpec(
 		gid,
@@ -190,8 +190,8 @@ func BannedWordPenaltyKeyboard(tgGroupID int64, view *service.BannedWordView) tg
 		},
 	)
 
-	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("◀ 返回违禁词面板", fmt.Sprintf("feat:bw:view:%s", gid)),
+	rows = append(rows, inlineKeyboardRow(
+		inlineKeyboardButtonData("◀ 返回违禁词面板", fmt.Sprintf("feat:bw:view:%s", gid)),
 	))
-	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return inlineKeyboardMarkup(rows...)
 }

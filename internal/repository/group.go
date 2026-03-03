@@ -5,11 +5,11 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 	"gorm.io/gorm"
 )
 
-func (r *Repository) UpsertGroup(chat *tgbotapi.Chat) (*model.Group, error) {
+func (r *Repository) UpsertGroup(chat *models.Chat) (*model.Group, error) {
 	if chat == nil {
 		return nil, errors.New("nil chat")
 	}

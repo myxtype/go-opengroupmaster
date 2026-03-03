@@ -3,10 +3,10 @@ package service
 import (
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (s *Service) processWordCloudPush(bot *tgbotapi.BotAPI) {
+func (s *Service) processWordCloudPush(bot *tgbot.Bot) {
 	groups, err := s.repo.ListWordCloudEnabledGroups()
 	if err != nil {
 		if s.logger != nil {
@@ -27,7 +27,7 @@ func (s *Service) processWordCloudPush(bot *tgbotapi.BotAPI) {
 }
 
 // RunWordCloudTick executes one word cloud push maintenance cycle.
-func (s *Service) RunWordCloudTick(bot *tgbotapi.BotAPI) {
+func (s *Service) RunWordCloudTick(bot *tgbot.Bot) {
 	if bot == nil {
 		return
 	}

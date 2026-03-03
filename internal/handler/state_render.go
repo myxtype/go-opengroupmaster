@@ -1,32 +1,40 @@
 package handler
 
 import (
+	"context"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 // ensureAdmin 确保用户是目标群的管理员
-func (h *Handler) ensureAdmin(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) bool {
+func (h *Handler) ensureAdmin(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) bool {
 	ok, err := h.service.IsAdminByTGGroupID(tgGroupID, tgUserID)
 	if err != nil || !ok {
-		h.render(bot, target, "你不是该群管理员，或机器人尚未同步该群权限", keyboards.MainMenuKeyboard(bot.Self.UserName))
+		h.render(bot, target, "你不是该群管理员，或机器人尚未同步该群权限", keyboards.MainMenuKeyboard(h.botUsername))
 		return false
 	}
 	return true
 }
 
 // render 渲染消息，优先尝试编辑原消息（保持聊天界面干净）
-func (h *Handler) render(bot *tgbotapi.BotAPI, target renderTarget, text string, markup tgbotapi.InlineKeyboardMarkup) {
+func (h *Handler) render(bot *tgbot.Bot, target renderTarget, text string, markup models.InlineKeyboardMarkup) {
 	if target.Edit && target.MessageID > 0 {
-		edit := tgbotapi.NewEditMessageTextAndMarkup(target.ChatID, target.MessageID, text, markup)
-		if _, err := bot.Send(edit); err == nil {
+		if _, err := bot.EditMessageText(context.Background(), &tgbot.EditMessageTextParams{
+			ChatID:      target.ChatID,
+			MessageID:   target.MessageID,
+			Text:        text,
+			ReplyMarkup: markup,
+		}); err == nil {
 			return
 		}
 	}
-	msg := tgbotapi.NewMessage(target.ChatID, text)
-	msg.ReplyMarkup = markup
-	_, _ = bot.Send(msg)
+	_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+		ChatID:      target.ChatID,
+		Text:        text,
+		ReplyMarkup: markup,
+	})
 }
 
 // setPending 设置用户的待处理输入状态（用于多步骤交互流程）
@@ -52,13 +60,18 @@ func (h *Handler) clearPending(userID int64) {
 }
 
 // answerCallback 回复回调查询（隐藏按钮上的加载状态）
-func (h *Handler) answerCallback(bot *tgbotapi.BotAPI, callbackID, text string) {
-	_, _ = bot.Request(tgbotapi.NewCallback(callbackID, text))
+func (h *Handler) answerCallback(bot *tgbot.Bot, callbackID, text string) {
+	_, _ = bot.AnswerCallbackQuery(context.Background(), &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: callbackID,
+		Text:            text,
+	})
 }
 
 // answerCallbackAlert 回复回调查询并显示弹窗提示
-func (h *Handler) answerCallbackAlert(bot *tgbotapi.BotAPI, callbackID, text string) {
-	cfg := tgbotapi.NewCallback(callbackID, text)
-	cfg.ShowAlert = true
-	_, _ = bot.Request(cfg)
+func (h *Handler) answerCallbackAlert(bot *tgbot.Bot, callbackID, text string) {
+	_, _ = bot.AnswerCallbackQuery(context.Background(), &tgbot.AnswerCallbackQueryParams{
+		CallbackQueryID: callbackID,
+		Text:            text,
+		ShowAlert:       true,
+	})
 }

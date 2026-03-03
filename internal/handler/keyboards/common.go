@@ -3,7 +3,7 @@ package keyboards
 import (
 	"fmt"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -13,7 +13,29 @@ const (
 	cbGroupsPagePF = "menu:groups:page:"
 )
 
-func statusControlRow(enabled bool, labelData, onData, offData string) []tgbotapi.InlineKeyboardButton {
+func inlineKeyboardButtonData(text, data string) models.InlineKeyboardButton {
+	return models.InlineKeyboardButton{
+		Text:         text,
+		CallbackData: data,
+	}
+}
+
+func inlineKeyboardButtonURL(text, link string) models.InlineKeyboardButton {
+	return models.InlineKeyboardButton{
+		Text: text,
+		URL:  link,
+	}
+}
+
+func inlineKeyboardRow(buttons ...models.InlineKeyboardButton) []models.InlineKeyboardButton {
+	return buttons
+}
+
+func inlineKeyboardMarkup(rows ...[]models.InlineKeyboardButton) models.InlineKeyboardMarkup {
+	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func statusControlRow(enabled bool, labelData, onData, offData string) []models.InlineKeyboardButton {
 	onLabel := "启用"
 	offLabel := "关闭"
 	if enabled {
@@ -21,17 +43,17 @@ func statusControlRow(enabled bool, labelData, onData, offData string) []tgbotap
 	} else {
 		offLabel = "✅关闭"
 	}
-	return tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("状态：", labelData),
-		tgbotapi.NewInlineKeyboardButtonData(onLabel, onData),
-		tgbotapi.NewInlineKeyboardButtonData(offLabel, offData),
+	return inlineKeyboardRow(
+		inlineKeyboardButtonData("状态：", labelData),
+		inlineKeyboardButtonData(onLabel, onData),
+		inlineKeyboardButtonData(offLabel, offData),
 	)
 }
 
-func panelRefreshBackRow(gid string, refreshData string) []tgbotapi.InlineKeyboardButton {
-	return tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("🔄 刷新", refreshData),
-		tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
+func panelRefreshBackRow(gid string, refreshData string) []models.InlineKeyboardButton {
+	return inlineKeyboardRow(
+		inlineKeyboardButtonData("🔄 刷新", refreshData),
+		inlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 	)
 }
 
@@ -77,7 +99,7 @@ func verifyTimeoutActionLabel(v string) string {
 	return "永久禁言"
 }
 
-func moderationPenaltyRows(gid, scope string, penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) [][]tgbotapi.InlineKeyboardButton {
+func moderationPenaltyRows(gid, scope string, penalty string, warnThreshold int, warnAction string, warnActionMuteMinutes int, warnActionBanMinutes int, muteMinutes int, banMinutes int) [][]models.InlineKeyboardButton {
 	return moderationPenaltyRowsWithSpec(
 		gid,
 		penalty,
@@ -119,7 +141,7 @@ func moderationPenaltyRowsWithSpec(
 	muteMinutes int,
 	banMinutes int,
 	spec moderationPenaltyRowSpec,
-) [][]tgbotapi.InlineKeyboardButton {
+) [][]models.InlineKeyboardButton {
 	const (
 		penaltyWarn       = "warn"
 		penaltyMute       = "mute"
@@ -137,52 +159,52 @@ func moderationPenaltyRowsWithSpec(
 	warnKickLabel := selectedLabel("阈值后踢出", warnAction == penaltyKick)
 	warnKickBanLabel := selectedLabel("阈值后封禁", warnAction == penaltyKickBan)
 
-	rows := [][]tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(warnLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyWarn)),
-			tgbotapi.NewInlineKeyboardButtonData(muteLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyMute)),
+	rows := [][]models.InlineKeyboardButton{
+		inlineKeyboardRow(
+			inlineKeyboardButtonData(warnLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyWarn)),
+			inlineKeyboardButtonData(muteLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyMute)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(kickLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKick)),
-			tgbotapi.NewInlineKeyboardButtonData(kickBanLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKickBan)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData(kickLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKick)),
+			inlineKeyboardButtonData(kickBanLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyKickBan)),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyDeleteOnly)),
+		inlineKeyboardRow(
+			inlineKeyboardButtonData(deleteOnlyLabel, fmt.Sprintf(spec.PenaltySet, gid, penaltyDeleteOnly)),
 		),
 	}
 
 	if penalty == penaltyWarn {
 		rows = append(rows,
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("警告次数：%d（输入）", warnThreshold), fmt.Sprintf(spec.WarnCount, gid)),
+			inlineKeyboardRow(
+				inlineKeyboardButtonData(fmt.Sprintf("警告次数：%d（输入）", warnThreshold), fmt.Sprintf(spec.WarnCount, gid)),
 			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(warnMuteLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyMute)),
-				tgbotapi.NewInlineKeyboardButtonData(warnKickLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKick)),
-				tgbotapi.NewInlineKeyboardButtonData(warnKickBanLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKickBan)),
+			inlineKeyboardRow(
+				inlineKeyboardButtonData(warnMuteLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyMute)),
+				inlineKeyboardButtonData(warnKickLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKick)),
+				inlineKeyboardButtonData(warnKickBanLabel, fmt.Sprintf(spec.WarnAction, gid, penaltyKickBan)),
 			),
 		)
 		if warnAction == penaltyMute {
-			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值禁言时长：%d分钟（输入）", warnActionMuteMinutes), fmt.Sprintf(spec.WarnMuteInput, gid)),
+			rows = append(rows, inlineKeyboardRow(
+				inlineKeyboardButtonData(fmt.Sprintf("阈值禁言时长：%d分钟（输入）", warnActionMuteMinutes), fmt.Sprintf(spec.WarnMuteInput, gid)),
 			))
 		}
 		if warnAction == penaltyKickBan {
-			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("阈值封禁时长：%d分钟（输入）", warnActionBanMinutes), fmt.Sprintf(spec.WarnBanInput, gid)),
+			rows = append(rows, inlineKeyboardRow(
+				inlineKeyboardButtonData(fmt.Sprintf("阈值封禁时长：%d分钟（输入）", warnActionBanMinutes), fmt.Sprintf(spec.WarnBanInput, gid)),
 			))
 		}
 	}
 
 	if penalty == penaltyMute {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("禁言时长：%d分钟（输入）", muteMinutes), fmt.Sprintf(spec.MuteInput, gid)),
+		rows = append(rows, inlineKeyboardRow(
+			inlineKeyboardButtonData(fmt.Sprintf("禁言时长：%d分钟（输入）", muteMinutes), fmt.Sprintf(spec.MuteInput, gid)),
 		))
 	}
 
 	if penalty == penaltyKickBan {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("封禁时长：%d分钟（输入）", banMinutes), fmt.Sprintf(spec.BanInput, gid)),
+		rows = append(rows, inlineKeyboardRow(
+			inlineKeyboardButtonData(fmt.Sprintf("封禁时长：%d分钟（输入）", banMinutes), fmt.Sprintf(spec.BanInput, gid)),
 		))
 	}
 	return rows

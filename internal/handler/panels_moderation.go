@@ -5,10 +5,10 @@ import (
 	"strings"
 	"supervisor/internal/handler/keyboards"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
-func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendSystemCleanPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -30,7 +30,7 @@ func (h *Handler) sendSystemCleanPanel(bot *tgbotapi.BotAPI, target renderTarget
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.SystemCleanKeyboard(tgGroupID, cfg))
 }
 
-func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiFloodPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -54,7 +54,7 @@ func (h *Handler) sendAntiFloodPanel(bot *tgbotapi.BotAPI, target renderTarget, 
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -73,7 +73,7 @@ func (h *Handler) sendAntiFloodPenaltyPanel(bot *tgbotapi.BotAPI, target renderT
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodPenaltyKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -91,7 +91,7 @@ func (h *Handler) sendAntiFloodAlertDeletePanel(bot *tgbotapi.BotAPI, target ren
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
 }
 
-func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiFloodCountPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -109,7 +109,7 @@ func (h *Handler) sendAntiFloodCountPanel(bot *tgbotapi.BotAPI, target renderTar
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodCountKeyboard(tgGroupID, view.MaxMessages))
 }
 
-func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiFloodWindowPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -127,7 +127,7 @@ func (h *Handler) sendAntiFloodWindowPanel(bot *tgbotapi.BotAPI, target renderTa
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiFloodWindowKeyboard(tgGroupID, view.WindowSec))
 }
 
-func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiSpamPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -186,7 +186,7 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbotapi.BotAPI, target renderTarget, t
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -205,7 +205,7 @@ func (h *Handler) sendAntiSpamPenaltyPanel(bot *tgbotapi.BotAPI, target renderTa
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamPenaltyKeyboard(tgGroupID, view))
 }
 
-func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}
@@ -223,7 +223,7 @@ func (h *Handler) sendAntiSpamAlertDeletePanel(bot *tgbotapi.BotAPI, target rend
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamAlertDeleteKeyboard(tgGroupID, view.WarnDeleteSec))
 }
 
-func (h *Handler) sendAntiSpamAIPanel(bot *tgbotapi.BotAPI, target renderTarget, tgUserID, tgGroupID int64) {
+func (h *Handler) sendAntiSpamAIPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
 	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
 		return
 	}

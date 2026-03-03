@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
 const (
@@ -13,7 +13,7 @@ const (
 // processDueJoinVerify 处理超时的进群验证任务
 // 进群验证是持久化的（SQLite 表），支持重启恢复
 // 逻辑：查询超时待处理任务 -> 标记为完成 -> 应用超时惩罚
-func (s *Service) processDueJoinVerify(bot *tgbotapi.BotAPI) {
+func (s *Service) processDueJoinVerify(bot *tgbot.Bot) {
 	for {
 		rows, err := s.repo.ListDueJoinVerifyPendings(time.Now(), joinVerifyBatchSize)
 		if err != nil {
@@ -57,7 +57,7 @@ func (s *Service) processDueJoinVerify(bot *tgbotapi.BotAPI) {
 
 // RunJoinVerifyTick 执行一次进群验证超时检查
 // 由 scheduler 每 30 秒调用一次
-func (s *Service) RunJoinVerifyTick(bot *tgbotapi.BotAPI) {
+func (s *Service) RunJoinVerifyTick(bot *tgbot.Bot) {
 	if bot == nil {
 		return
 	}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,10 +10,11 @@ import (
 	"supervisor/internal/handler/keyboards"
 	"supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) syncChainAnnouncementByID(bot *tgbotapi.BotAPI, chainID uint) {
+func (h *Handler) syncChainAnnouncementByID(bot *tgbot.Bot, chainID uint) {
 	if chainID == 0 {
 		return
 	}
@@ -24,24 +26,30 @@ func (h *Handler) syncChainAnnouncementByID(bot *tgbotapi.BotAPI, chainID uint) 
 		return
 	}
 	text := renderChainAnnouncementText(view)
-	joinURL := chainJoinURL(bot.Self.UserName, chainID)
+	joinURL := chainJoinURL(h.botUsername, chainID)
 	markup := keyboards.ChainPublicJoinKeyboard(joinURL, view.Active)
 
 	if view.AnnouncementMessageID > 0 {
-		edit := tgbotapi.NewEditMessageTextAndMarkup(view.TGGroupID, view.AnnouncementMessageID, text, markup)
-		if _, err := bot.Send(edit); err == nil {
+		if _, err := bot.EditMessageText(context.Background(), &tgbot.EditMessageTextParams{
+			ChatID:      view.TGGroupID,
+			MessageID:   view.AnnouncementMessageID,
+			Text:        text,
+			ReplyMarkup: markup,
+		}); err == nil {
 			return
 		} else if strings.Contains(err.Error(), "message is not modified") {
 			return
 		}
 	}
-	msg := tgbotapi.NewMessage(view.TGGroupID, text)
-	msg.ReplyMarkup = markup
-	sent, err := bot.Send(msg)
+	sent, err := bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+		ChatID:      view.TGGroupID,
+		Text:        text,
+		ReplyMarkup: markup,
+	})
 	if err != nil {
 		return
 	}
-	_ = h.service.SetChainAnnouncementMessageID(chainID, sent.MessageID)
+	_ = h.service.SetChainAnnouncementMessageID(chainID, sent.ID)
 }
 
 func renderChainAnnouncementText(view *service.ChainView) string {
@@ -92,7 +100,7 @@ func chainJoinURL(botUserName string, chainID uint) string {
 	return fmt.Sprintf("https://t.me/%s?start=%s", name, payload)
 }
 
-func displayNameFromUser(u *tgbotapi.User) string {
+func displayNameFromUser(u *models.User) string {
 	if u == nil {
 		return "匿名"
 	}
@@ -100,8 +108,8 @@ func displayNameFromUser(u *tgbotapi.User) string {
 	if name != "" {
 		return name
 	}
-	if strings.TrimSpace(u.UserName) != "" {
-		return "@" + strings.TrimSpace(u.UserName)
+	if strings.TrimSpace(u.Username) != "" {
+		return "@" + strings.TrimSpace(u.Username)
 	}
 	return fmt.Sprintf("uid:%d", u.ID)
 }

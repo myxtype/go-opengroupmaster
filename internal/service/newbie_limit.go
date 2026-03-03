@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 func (s *Service) NewbieLimitViewByTGGroupID(tgGroupID int64) (*NewbieLimitView, error) {
@@ -63,32 +65,33 @@ func (s *Service) newbieLimitRestrictionDeadline(groupID uint, joinedAt time.Tim
 	return deadline, true, nil
 }
 
-func (s *Service) restrictMemberNoSpeak(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64, until time.Time) error {
+func (s *Service) restrictMemberNoSpeak(bot *tgbot.Bot, tgGroupID, tgUserID int64, until time.Time) error {
 	if bot == nil || until.IsZero() {
 		return nil
 	}
-	_, err := bot.Request(tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-		UntilDate:        until.Unix(),
-		Permissions:      &tgbotapi.ChatPermissions{},
+	_, err := bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+		ChatID:      tgGroupID,
+		UserID:      tgUserID,
+		UntilDate:   int(until.Unix()),
+		Permissions: &models.ChatPermissions{},
 	})
 	return err
 }
 
-func (s *Service) restoreMemberSpeak(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64) error {
+func (s *Service) restoreMemberSpeak(bot *tgbot.Bot, tgGroupID, tgUserID int64) error {
 	if bot == nil {
 		return nil
 	}
-	perms := &tgbotapi.ChatPermissions{
+	perms := &models.ChatPermissions{
 		CanSendMessages:       true,
-		CanSendMediaMessages:  true,
 		CanSendPolls:          true,
 		CanSendOtherMessages:  true,
 		CanAddWebPagePreviews: true,
 	}
-	_, err := bot.Request(tgbotapi.RestrictChatMemberConfig{
-		ChatMemberConfig: tgbotapi.ChatMemberConfig{ChatID: tgGroupID, UserID: tgUserID},
-		Permissions:      perms,
+	_, err := bot.RestrictChatMember(context.Background(), &tgbot.RestrictChatMemberParams{
+		ChatID:      tgGroupID,
+		UserID:      tgUserID,
+		Permissions: perms,
 	})
 	return err
 }

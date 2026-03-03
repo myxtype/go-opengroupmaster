@@ -14,7 +14,6 @@ type Config struct {
 	DBPath                string
 	BotDebug              bool
 	GormLogSilent         bool
-	UpdateWorkers         int
 	AdminSyncIntervalSecs int
 	WordCloudFontPath     string
 	WordCloudJiebaDictDir string
@@ -31,16 +30,12 @@ func Load() (*Config, error) {
 		DBPath:                envOrDefault("DB_PATH", "sqlite://./data/bot.db"),
 		BotDebug:              parseBool(os.Getenv("BOT_DEBUG")),
 		GormLogSilent:         parseBool(os.Getenv("GORM_LOG_SILENT")),
-		UpdateWorkers:         parseIntDefault(os.Getenv("UPDATE_WORKERS"), 8),
 		AdminSyncIntervalSecs: parseIntDefault(os.Getenv("ADMIN_SYNC_INTERVAL_SECS"), 300),
 		WordCloudFontPath:     strings.TrimSpace(os.Getenv("WORDCLOUD_FONT_PATH")),
 		WordCloudJiebaDictDir: strings.TrimSpace(os.Getenv("WORDCLOUD_JIEBA_DICT_DIR")),
 		AntiSpamAIModel:       strings.TrimSpace(os.Getenv("ANTI_SPAM_AI_MODEL")),
 		AntiSpamAIServerURL:   envOrDefault("ANTI_SPAM_AI_SERVER_URL", "http://127.0.0.1:11434"),
 		AntiSpamAITimeoutSecs: parseIntDefault(os.Getenv("ANTI_SPAM_AI_TIMEOUT_SECS"), 8),
-	}
-	if cfg.UpdateWorkers < 1 {
-		cfg.UpdateWorkers = 1
 	}
 	if cfg.AdminSyncIntervalSecs < 1 {
 		cfg.AdminSyncIntervalSecs = 300

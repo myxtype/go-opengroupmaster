@@ -8,10 +8,11 @@ import (
 	"supervisor/internal/handler/keyboards"
 	svc "supervisor/internal/service"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
+func (h *Handler) handleModerationFeature(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID, tgGroupID int64, action string, parts []string) {
 	ensureAntiSpamAIAvailable := func() bool {
 		view, err := h.service.AntiSpamViewByTGGroupID(tgGroupID)
 		if err != nil {
@@ -591,15 +592,15 @@ func (h *Handler) antiFloodPenaltySummaryByTGGroupID(tgGroupID int64) (string, e
 }
 
 func (h *Handler) handleModerationPenaltySetCallback(
-	bot *tgbotapi.BotAPI,
-	cb *tgbotapi.CallbackQuery,
+	bot *tgbot.Bot,
+	cb *models.CallbackQuery,
 	target renderTarget,
 	userID int64,
 	tgGroupID int64,
 	parts []string,
 	setFn func(int64, string) (string, error),
 	summaryFn func(int64) (string, error),
-	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+	sendPanelFn func(*tgbot.Bot, renderTarget, int64, int64),
 ) {
 	if len(parts) < 5 {
 		h.answerCallback(bot, cb.ID, "参数错误")
@@ -619,14 +620,14 @@ func (h *Handler) handleModerationPenaltySetCallback(
 }
 
 func (h *Handler) handleModerationWarnActionSetCallback(
-	bot *tgbotapi.BotAPI,
-	cb *tgbotapi.CallbackQuery,
+	bot *tgbot.Bot,
+	cb *models.CallbackQuery,
 	target renderTarget,
 	userID int64,
 	tgGroupID int64,
 	parts []string,
 	setFn func(int64, string) (string, error),
-	sendPanelFn func(*tgbotapi.BotAPI, renderTarget, int64, int64),
+	sendPanelFn func(*tgbot.Bot, renderTarget, int64, int64),
 ) {
 	if len(parts) < 5 {
 		h.answerCallback(bot, cb.ID, "参数错误")
@@ -641,8 +642,8 @@ func (h *Handler) handleModerationWarnActionSetCallback(
 }
 
 func (h *Handler) beginModerationPendingInput(
-	bot *tgbotapi.BotAPI,
-	cb *tgbotapi.CallbackQuery,
+	bot *tgbot.Bot,
+	cb *models.CallbackQuery,
 	target renderTarget,
 	userID int64,
 	tgGroupID int64,

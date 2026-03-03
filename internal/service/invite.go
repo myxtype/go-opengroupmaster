@@ -2,8 +2,8 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -12,7 +12,8 @@ import (
 
 	"supervisor/internal/model"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"gorm.io/gorm"
 )
 
@@ -148,7 +149,7 @@ func (s *Service) inviteUserStatsByGroupID(groupID uint, tgUserID int64) (*Invit
 	}, nil
 }
 
-func (s *Service) CreateInviteLinkForUserByTGGroupID(bot *tgbotapi.BotAPI, tgGroupID, tgUserID int64) (*InviteGenerateResult, error) {
+func (s *Service) CreateInviteLinkForUserByTGGroupID(bot *tgbot.Bot, tgGroupID, tgUserID int64) (*InviteGenerateResult, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {
 		return nil, err
@@ -203,21 +204,15 @@ func (s *Service) CreateInviteLinkForUserByTGGroupID(bot *tgbotapi.BotAPI, tgGro
 		return nil, errors.New("invite expire date must be in future")
 	}
 
-	req := tgbotapi.CreateChatInviteLinkConfig{
-		ChatConfig: tgbotapi.ChatConfig{ChatID: tgGroupID},
-	}
+	req := &tgbot.CreateChatInviteLinkParams{ChatID: tgGroupID}
 	if cfg.ExpireDate > 0 {
 		req.ExpireDate = int(cfg.ExpireDate)
 	}
 	if cfg.MemberLimit > 0 {
 		req.MemberLimit = cfg.MemberLimit
 	}
-	resp, err := bot.Request(req)
+	chatInvite, err := bot.CreateChatInviteLink(context.Background(), req)
 	if err != nil {
-		return nil, err
-	}
-	var chatInvite tgbotapi.ChatInviteLink
-	if err := json.Unmarshal(resp.Result, &chatInvite); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(chatInvite.InviteLink) == "" {
@@ -277,14 +272,17 @@ func (s *Service) isInviteLinkReusable(groupID uint, link *model.InviteLink) (bo
 	return true, nil
 }
 
-func (s *Service) TrackInviteByChatMemberUpdate(update *tgbotapi.ChatMemberUpdated) error {
-	if update == nil || update.NewChatMember.User == nil {
+func (s *Service) TrackInviteByChatMemberUpdate(update *models.ChatMemberUpdated) error {
+	if update == nil {
 		return nil
 	}
 	if !isJoinEvent(update.OldChatMember, update.NewChatMember) {
 		return nil
 	}
-	user := update.NewChatMember.User
+	user := chatMemberUser(update.NewChatMember)
+	if user == nil {
+		return nil
+	}
 	if user.IsBot {
 		return nil
 	}
@@ -338,16 +336,16 @@ func (s *Service) TrackInviteByChatMemberUpdate(update *tgbotapi.ChatMemberUpdat
 	return nil
 }
 
-func isJoinEvent(oldChatMember, newChatMember tgbotapi.ChatMember) bool {
+func isJoinEvent(oldChatMember, newChatMember models.ChatMember) bool {
 	return !isActiveChatMember(oldChatMember) && isActiveChatMember(newChatMember)
 }
 
-func isActiveChatMember(chatMember tgbotapi.ChatMember) bool {
-	switch chatMember.Status {
+func isActiveChatMember(chatMember models.ChatMember) bool {
+	switch string(chatMember.Type) {
 	case "member", "administrator", "creator":
 		return true
 	case "restricted":
-		return chatMember.IsMember
+		return chatMember.Restricted != nil && chatMember.Restricted.IsMember
 	default:
 		return false
 	}

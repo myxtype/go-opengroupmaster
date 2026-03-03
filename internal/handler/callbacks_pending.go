@@ -1,8 +1,10 @@
 package handler
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	tgbot "github.com/go-telegram/bot"
+)
 
-func (h *Handler) sendPendingParentPanel(bot *tgbotapi.BotAPI, target renderTarget, userID int64, pending pendingInput) {
+func (h *Handler) sendPendingParentPanel(bot *tgbot.Bot, target renderTarget, userID int64, pending pendingInput) {
 	switch pending.Kind {
 	case "auto_add", "auto_add_mode", "auto_add_keyword", "auto_add_reply", "auto_add_buttons", "auto_edit", "auto_edit_mode", "auto_edit_keyword", "auto_edit_reply", "auto_edit_buttons":
 		page := pending.Page

@@ -11,14 +11,16 @@ import (
 
 	"slices"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
-func (h *Handler) handleCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery) {
-	if cb == nil || cb.Message == nil || cb.From == nil {
+func (h *Handler) handleCallback(bot *tgbot.Bot, cb *models.CallbackQuery) {
+	msg := callbackMessage(cb)
+	if cb == nil || msg == nil {
 		return
 	}
-	target := renderTarget{ChatID: cb.Message.Chat.ID, MessageID: cb.Message.MessageID, Edit: true}
+	target := renderTarget{ChatID: msg.Chat.ID, MessageID: msg.ID, Edit: true}
 	userID := cb.From.ID
 	data := cb.Data
 
@@ -52,7 +54,7 @@ func (h *Handler) handleCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuer
 	}
 }
 
-func (h *Handler) handleVerifyCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery) {
+func (h *Handler) handleVerifyCallback(bot *tgbot.Bot, cb *models.CallbackQuery) {
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 4 {
 		h.answerCallback(bot, cb.ID, "参数错误")
@@ -84,7 +86,7 @@ func (h *Handler) handleVerifyCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callba
 	h.answerCallback(bot, cb.ID, "验证通过")
 }
 
-func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, target renderTarget, userID int64, data string) {
+func (h *Handler) handleFeatureCallback(bot *tgbot.Bot, cb *models.CallbackQuery, target renderTarget, userID int64, data string) {
 	parts := strings.Split(data, ":")
 	if len(parts) < 4 {
 		h.answerCallback(bot, cb.ID, "参数错误")
@@ -369,9 +371,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 				h.answerCallback(bot, cb.ID, "导出失败")
 				return
 			}
-			doc := tgbotapi.NewDocument(target.ChatID, tgbotapi.FileBytes{Name: name, Bytes: content})
-			doc.Caption = "日志 CSV 导出"
-			_, _ = bot.Send(doc)
+			_, _ = sendDocumentBytes(bot, target.ChatID, name, content, "日志 CSV 导出")
 			h.answerCallback(bot, cb.ID, "已导出")
 			h.sendLogPanel(bot, target, userID, tgGroupID, 1, filter)
 		default:
@@ -471,9 +471,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 				h.answerCallback(bot, cb.ID, "导出失败")
 				return
 			}
-			doc := tgbotapi.NewDocument(target.ChatID, tgbotapi.FileBytes{Name: name, Bytes: content})
-			doc.Caption = "邀请数据 CSV 导出"
-			_, _ = bot.Send(doc)
+			_, _ = sendDocumentBytes(bot, target.ChatID, name, content, "邀请数据 CSV 导出")
 			h.answerCallback(bot, cb.ID, "已导出")
 			h.sendInvitePanel(bot, target, userID, tgGroupID)
 		case "clear":
@@ -566,9 +564,7 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 				h.answerCallback(bot, cb.ID, "导出失败")
 				return
 			}
-			doc := tgbotapi.NewDocument(target.ChatID, tgbotapi.FileBytes{Name: name, Bytes: content})
-			doc.Caption = "接龙数据 CSV 导出"
-			_, _ = bot.Send(doc)
+			_, _ = sendDocumentBytes(bot, target.ChatID, name, content, "接龙数据 CSV 导出")
 			h.answerCallback(bot, cb.ID, "已导出")
 			h.sendChainPanel(bot, target, userID, tgGroupID)
 		case "close":

@@ -129,7 +129,6 @@ go run ./cmd
 | `BOT_TOKEN` | 是 | Telegram 机器人 Token | 无 |
 | `DB_PATH` | 否 | 数据库连接串（支持 SQLite/PostgreSQL） | `sqlite://./data/bot.db` |
 | `GORM_LOG_SILENT` | 否 | 是否关闭 SQL 日志 | `false` |
-| `UPDATE_WORKERS` | 否 | Update 并发 worker 数 | `8` |
 | `ADMIN_SYNC_INTERVAL_SECS` | 否 | 管理员同步最小间隔秒数 | `300` |
 | `WORDCLOUD_FONT_PATH` | 否 | 词云字体文件路径（建议中文字体） | 空（自动尝试系统字体） |
 | `WORDCLOUD_JIEBA_DICT_DIR` | 否 | gojieba 词典目录（包含固定文件：`jieba.dict.utf8` 等） | 空（使用 gojieba 默认） |
@@ -451,7 +450,7 @@ gofmt -w ./...
 
 - 使用 SQLite 时会自动启用 WAL：`PRAGMA journal_mode=WAL`
 - 使用 PostgreSQL 时不会执行 SQLite 专属 PRAGMA
-- Update 处理已支持分片并发（默认 8 worker），同一 chat/user 仍保持顺序处理，避免私聊输入态错乱
+- Update 处理使用 `go-telegram/bot` 默认处理流，并通过默认 handler 统一分发
 - Telegram 无法直接查询“某用户管理的所有群”，当前采用“机器人入群后同步管理员”方案。
 - 生产建议切换 webhook、增加限流/审计日志；数据库可按场景选择 SQLite 或 PostgreSQL。
 

@@ -1,9 +1,10 @@
 package service
 
 import (
+	"context"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tgbot "github.com/go-telegram/bot"
 )
 
 const (
@@ -23,7 +24,7 @@ func (s *Service) ScheduleMessageDelete(chatID int64, messageID int, delay time.
 	}
 }
 
-func (s *Service) processDueAutoDeleteTasks(bot *tgbotapi.BotAPI) {
+func (s *Service) processDueAutoDeleteTasks(bot *tgbot.Bot) {
 	for {
 		tasks, err := s.repo.ListDueAutoDeleteTasks(time.Now(), autoDeleteBatchSize)
 		if err != nil {
@@ -35,7 +36,10 @@ func (s *Service) processDueAutoDeleteTasks(bot *tgbotapi.BotAPI) {
 		}
 
 		for _, task := range tasks {
-			_, err := bot.Request(tgbotapi.NewDeleteMessage(task.ChatID, task.MessageID))
+			_, err := bot.DeleteMessage(context.Background(), &tgbot.DeleteMessageParams{
+				ChatID:    task.ChatID,
+				MessageID: task.MessageID,
+			})
 			if err != nil {
 				attempt := task.Attempts + 1
 				if attempt >= autoDeleteMaxAttempts {
@@ -66,7 +70,7 @@ func (s *Service) processDueAutoDeleteTasks(bot *tgbotapi.BotAPI) {
 }
 
 // RunAutoDeleteTick executes one auto-delete maintenance cycle.
-func (s *Service) RunAutoDeleteTick(bot *tgbotapi.BotAPI) {
+func (s *Service) RunAutoDeleteTick(bot *tgbot.Bot) {
 	if bot == nil {
 		return
 	}
