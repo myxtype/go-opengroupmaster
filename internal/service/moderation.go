@@ -647,7 +647,7 @@ func antiSpamExceptionMatched(msg *models.Message, keywords []string) bool {
 }
 
 // antiSpamViolation 使用规则引擎检测垃圾消息
-// 检测项：图片、联系人分享、频道马甲、转发、链接、@群组、@用户、ETH 地址、超长消息、超长姓名
+// 检测项：图片、联系人分享、频道马甲、转发、外部回复、链接、@群组、@用户、ETH 地址、超长消息、超长姓名
 func antiSpamViolation(msg *models.Message, cfg antiSpamConfig) (bool, string, string) {
 	content := antiSpamMessageContent(msg)
 	if cfg.BlockPhoto && len(msg.Photo) > 0 {
@@ -664,6 +664,9 @@ func antiSpamViolation(msg *models.Message, cfg antiSpamConfig) (bool, string, s
 	}
 	if cfg.BlockForwardFromUser && isForwardFromUser(msg) {
 		return true, "forward_user", "来自用户转发"
+	}
+	if cfg.BlockExternalReply && msg.ExternalReply != nil {
+		return true, "external_reply", "外部回复"
 	}
 	if cfg.BlockLink && containsLink(msg, content) {
 		return true, "link", "链接"

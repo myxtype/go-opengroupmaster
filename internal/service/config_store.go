@@ -126,6 +126,7 @@ func defaultAntiSpamConfig() antiSpamConfig {
 		BlockChannelAlias:       false,
 		BlockForwardFromChannel: false,
 		BlockForwardFromUser:    false,
+		BlockExternalReply:      false,
 		BlockAtGroupID:          false,
 		BlockAtUserID:           false,
 		BlockEthAddress:         false,

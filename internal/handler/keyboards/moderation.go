@@ -146,6 +146,7 @@ func AntiSpamKeyboard(tgGroupID int64, view *service.AntiSpamView) models.Inline
 		),
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("屏蔽联系人分享 "+onOffWithEmoji(view.BlockContactShare), fmt.Sprintf("feat:mod:spamopt:%s:contact", gid)),
+			inlineKeyboardButtonData("屏蔽外部回复 "+onOffWithEmoji(view.BlockExternalReply), fmt.Sprintf("feat:mod:spamopt:%s:extreply", gid)),
 		),
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("屏蔽@用户ID "+onOffWithEmoji(view.BlockAtUserID), fmt.Sprintf("feat:mod:spamopt:%s:atuser", gid)),

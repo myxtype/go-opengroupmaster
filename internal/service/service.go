@@ -84,6 +84,7 @@ type antiSpamConfig struct {
 	BlockChannelAlias       bool     `json:"block_channel_alias"`
 	BlockForwardFromChannel bool     `json:"block_forward_channel"`
 	BlockForwardFromUser    bool     `json:"block_forward_user"`
+	BlockExternalReply      bool     `json:"block_external_reply"`
 	BlockAtGroupID          bool     `json:"block_at_group_id"`
 	BlockAtUserID           bool     `json:"block_at_user_id"`
 	BlockEthAddress         bool     `json:"block_eth_address"`
@@ -364,6 +365,7 @@ type AntiSpamView struct {
 	BlockChannelAlias     bool
 	BlockForwardFromChan  bool
 	BlockForwardFromUser  bool
+	BlockExternalReply    bool
 	BlockAtGroupID        bool
 	BlockAtUserID         bool
 	BlockEthAddress       bool

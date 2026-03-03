@@ -29,6 +29,7 @@ func (s *Service) AntiSpamViewByTGGroupID(tgGroupID int64) (*AntiSpamView, error
 		BlockChannelAlias:     cfg.BlockChannelAlias,
 		BlockForwardFromChan:  cfg.BlockForwardFromChannel,
 		BlockForwardFromUser:  cfg.BlockForwardFromUser,
+		BlockExternalReply:    cfg.BlockExternalReply,
 		BlockAtGroupID:        cfg.BlockAtGroupID,
 		BlockAtUserID:         cfg.BlockAtUserID,
 		BlockEthAddress:       cfg.BlockEthAddress,
@@ -264,6 +265,10 @@ func (s *Service) ToggleAntiSpamOptionByTGGroupID(tgGroupID int64, option string
 		cfg.BlockForwardFromUser = !cfg.BlockForwardFromUser
 		next = cfg.BlockForwardFromUser
 		log = "set_anti_spam_fwduser"
+	case "extreply":
+		cfg.BlockExternalReply = !cfg.BlockExternalReply
+		next = cfg.BlockExternalReply
+		log = "set_anti_spam_extreply"
 	case "atgroup":
 		cfg.BlockAtGroupID = !cfg.BlockAtGroupID
 		next = cfg.BlockAtGroupID
