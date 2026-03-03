@@ -311,9 +311,15 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 					alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
 					alert.Entities = alertEntities
 					if msg.From != nil {
+						buttonLabel := "管理员解禁"
+						buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
+						if appliedPenalty == antiFloodPenaltyWarn {
+							buttonLabel = "撤销警告"
+							buttonAction = fmt.Sprintf("feat:mod:spamwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
+						}
 						alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 							tgbotapi.NewInlineKeyboardRow(
-								tgbotapi.NewInlineKeyboardButtonData("管理员解禁", fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)),
+								tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
 							),
 						)
 					}
@@ -387,9 +393,23 @@ func (s *Service) applyModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, g
 			if reason == "high_freq" {
 				alertText = fmt.Sprintf("%s（%d秒内%d条）", alertText, cfg.WindowSec, cfg.MaxMessages)
 			}
-			alert, sendErr := bot.Send(tgbotapi.NewMessage(msg.Chat.ID, alertText))
+			alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
+			if msg.From != nil {
+				buttonLabel := "管理员解禁"
+				buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
+				if appliedPenalty == antiFloodPenaltyWarn {
+					buttonLabel = "撤销警告"
+					buttonAction = fmt.Sprintf("feat:mod:floodwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
+				}
+				alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+					tgbotapi.NewInlineKeyboardRow(
+						tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
+					),
+				)
+			}
+			alertMsg, sendErr := bot.Send(alert)
 			if sendErr == nil && cfg.WarnDeleteSec > 0 {
-				s.ScheduleMessageDelete(msg.Chat.ID, alert.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
+				s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(cfg.WarnDeleteSec)*time.Second)
 			}
 			_ = s.repo.CreateLog(group.ID, "anti_flood_"+appliedPenalty+"_"+reason, 0, targetID)
 			return true, nil
@@ -467,6 +487,19 @@ func (s *Service) applyBannedWordModeration(bot *tgbotapi.BotAPI, msg *tgbotapi.
 	_ = s.repo.CreateLog(group.ID, "banned_word_penalty_"+appliedPenalty, 0, logTargetID)
 	alert := tgbotapi.NewMessage(msg.Chat.ID, alertText)
 	alert.Entities = alertEntities
+	if msg.From != nil {
+		buttonLabel := "管理员解禁"
+		buttonAction := fmt.Sprintf("feat:mod:spamunlock:%d:%d", msg.Chat.ID, msg.From.ID)
+		if appliedPenalty == antiFloodPenaltyWarn {
+			buttonLabel = "撤销警告"
+			buttonAction = fmt.Sprintf("feat:mod:bwwarnrevoke:%d:%d", msg.Chat.ID, msg.From.ID)
+		}
+		alert.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(buttonLabel, buttonAction),
+			),
+		)
+	}
 	alertMsg, sendErr := bot.Send(alert)
 	if sendErr == nil && bwCfg.WarnDeleteMinutes > 0 {
 		s.ScheduleMessageDelete(msg.Chat.ID, alertMsg.MessageID, time.Duration(bwCfg.WarnDeleteMinutes)*time.Minute)

@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
+
 	"supervisor/internal/handler/keyboards"
+	svc "supervisor/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -217,6 +220,66 @@ func (h *Handler) handleModerationFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Cal
 			return
 		}
 		h.answerCallback(bot, cb.ID, "已解禁")
+		return
+	case "spamwarnrevoke":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		targetUserID, err := strconv.ParseInt(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if err := h.service.RevokeAntiSpamWarnByTGGroupID(tgGroupID, userID, targetUserID); err != nil {
+			if errors.Is(err, svc.ErrNoModerationWarnToRevoke) {
+				h.answerCallback(bot, cb.ID, "暂无可撤销的警告")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "撤销失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "警告已撤销")
+		return
+	case "floodwarnrevoke":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		targetUserID, err := strconv.ParseInt(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if err := h.service.RevokeAntiFloodWarnByTGGroupID(tgGroupID, userID, targetUserID); err != nil {
+			if errors.Is(err, svc.ErrNoModerationWarnToRevoke) {
+				h.answerCallback(bot, cb.ID, "暂无可撤销的警告")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "撤销失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "警告已撤销")
+		return
+	case "bwwarnrevoke":
+		if len(parts) < 5 {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		targetUserID, err := strconv.ParseInt(parts[4], 10, 64)
+		if err != nil {
+			h.answerCallback(bot, cb.ID, "参数错误")
+			return
+		}
+		if err := h.service.RevokeBannedWordWarnByTGGroupID(tgGroupID, userID, targetUserID); err != nil {
+			if errors.Is(err, svc.ErrNoModerationWarnToRevoke) {
+				h.answerCallback(bot, cb.ID, "暂无可撤销的警告")
+				return
+			}
+			h.answerCallback(bot, cb.ID, "撤销失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "警告已撤销")
 		return
 	case "flood", "floodview":
 		h.answerCallback(bot, cb.ID, "加载反刷屏")

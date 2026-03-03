@@ -211,6 +211,32 @@ func (s *Service) bannedWordStateByGroupID(groupID uint) (bool, bannedWordConfig
 	return enabled, cfg, nil
 }
 
+func (s *Service) RevokeBannedWordWarnByTGGroupID(tgGroupID, operatorTGUserID, targetTGUserID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	target, err := s.repo.EnsureUserByTGUserID(targetTGUserID)
+	if err != nil {
+		return err
+	}
+	deleted, err := s.repo.DeleteLatestWarnLog(group.ID, target.ID, "banned_word_warn", "banned_word_warn_action_applied")
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return ErrNoModerationWarnToRevoke
+	}
+	operatorID := uint(0)
+	if operatorTGUserID > 0 {
+		if operator, opErr := s.repo.EnsureUserByTGUserID(operatorTGUserID); opErr == nil {
+			operatorID = operator.ID
+		}
+	}
+	_ = s.repo.CreateLog(group.ID, "banned_word_warn_revoked", operatorID, target.ID)
+	return nil
+}
+
 func isAllowedBannedWordPenalty(v string) bool {
 	return isAllowedModerationPenalty(v)
 }

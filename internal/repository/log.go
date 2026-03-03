@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -68,6 +69,27 @@ func (r *Repository) CountAntiSpamWarnsSinceLastAction(groupID, targetID uint) (
 		Where("id > (?)", sub).
 		Count(&total).Error
 	return total, err
+}
+
+func (r *Repository) DeleteLatestWarnLog(groupID, targetID uint, warnAction, warnAppliedAction string) (bool, error) {
+	sub := r.db.Model(&model.Log{}).
+		Select("COALESCE(MAX(id), 0)").
+		Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, warnAppliedAction)
+	var warn model.Log
+	err := r.db.Where("group_id = ? and target_id = ? and action = ?", groupID, targetID, warnAction).
+		Where("id > (?)", sub).
+		Order("id desc").
+		First(&warn).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := r.db.Delete(&warn).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *Repository) CountAntiFloodWarnsSinceLastAction(groupID, targetID uint) (int64, error) {

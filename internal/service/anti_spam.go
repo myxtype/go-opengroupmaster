@@ -497,6 +497,32 @@ func (s *Service) ReleaseAntiSpamPenaltyByTGGroupID(bot *tgbotapi.BotAPI, tgGrou
 	return s.restoreMemberSpeak(bot, tgGroupID, tgUserID)
 }
 
+func (s *Service) RevokeAntiSpamWarnByTGGroupID(tgGroupID, operatorTGUserID, targetTGUserID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	target, err := s.repo.EnsureUserByTGUserID(targetTGUserID)
+	if err != nil {
+		return err
+	}
+	deleted, err := s.repo.DeleteLatestWarnLog(group.ID, target.ID, "anti_spam_warn", "anti_spam_warn_action_applied")
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return ErrNoModerationWarnToRevoke
+	}
+	operatorID := uint(0)
+	if operatorTGUserID > 0 {
+		if operator, opErr := s.repo.EnsureUserByTGUserID(operatorTGUserID); opErr == nil {
+			operatorID = operator.ID
+		}
+	}
+	_ = s.repo.CreateLog(group.ID, "anti_spam_warn_revoked", operatorID, target.ID)
+	return nil
+}
+
 func isAllowedAntiSpamWarnDeleteSec(sec int) bool {
 	switch sec {
 	case -1, 0, 10, 30, 60, 300, 600, 1800, 3600, 21600, 43200:

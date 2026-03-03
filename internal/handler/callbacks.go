@@ -9,6 +9,8 @@ import (
 	svc "supervisor/internal/service"
 	"time"
 
+	"slices"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -111,8 +113,9 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 		return
 	}
 
-	// "管理员解禁"按钮会出现在群提醒消息上，非管理员点击时只给出提示，不重绘该消息。
-	if feature == "mod" && action == "spamunlock" {
+	// reminder buttons only respond to admin clicks without re-rendering the panel.
+	isReminderAction := slices.Contains([]string{"spamunlock", "spamwarnrevoke", "floodwarnrevoke", "bwwarnrevoke"}, action)
+	if feature == "mod" && isReminderAction {
 		ok, err := h.service.IsAdminByTGGroupID(tgGroupID, userID)
 		if err != nil || !ok {
 			h.answerCallback(bot, cb.ID, "你不是该群管理员，或机器人尚未同步该群权限")
