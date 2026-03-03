@@ -55,7 +55,7 @@ func UserLabel(u UserRef) string {
 	if u.ID != 0 {
 		return fmt.Sprintf("uid:%d", u.ID)
 	}
-	return "该用户"
+	return "某用户"
 }
 
 func ComposeTextWithMention(prefix string, user UserRef, suffix string) (string, []tgbotapi.MessageEntity) {
