@@ -15,23 +15,25 @@ import (
 )
 
 func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
-	if msg == nil || msg.From == nil || msg.From.IsBot {
+	if skipIncomingMessage(msg) {
 		return
 	}
 
 	if msg.Chat.IsGroup() || msg.Chat.IsSuperGroup() {
-		group, _, err := h.service.RegisterGroupAndUser(msg)
-		if err == nil {
-			_ = h.service.SyncGroupAdmins(bot, group)
+		if msg.From != nil {
+			group, _, err := h.service.RegisterGroupAndUser(msg)
+			if err == nil {
+				_ = h.service.SyncGroupAdmins(bot, group)
+			}
 		}
 		// 处理系统消息清理
 		_ = h.service.HandleSystemMessageCleanup(bot, msg)
 		// 处理新成员加入
-		if len(msg.NewChatMembers) > 0 {
+		if msg.From != nil && len(msg.NewChatMembers) > 0 {
 			_ = h.service.OnNewMembers(bot, msg)
 		}
 		// 处理群组命令
-		if msg.IsCommand() {
+		if msg.From != nil && msg.IsCommand() {
 			h.handleGroupCommand(bot, msg)
 			return
 		}
@@ -40,7 +42,7 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 		return
 	}
 
-	if !msg.Chat.IsPrivate() {
+	if !msg.Chat.IsPrivate() || msg.From == nil {
 		return
 	}
 	if msg.IsCommand() {
@@ -51,7 +53,7 @@ func (h *Handler) handleMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 }
 
 func (h *Handler) handleEditedMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
-	if msg == nil || msg.From == nil || msg.From.IsBot {
+	if skipIncomingMessage(msg) {
 		return
 	}
 	if !msg.Chat.IsGroup() && !msg.Chat.IsSuperGroup() {
@@ -59,6 +61,18 @@ func (h *Handler) handleEditedMessage(bot *tgbotapi.BotAPI, msg *tgbotapi.Messag
 	}
 	// 编辑消息只做风控检测，避免重复触发命令/积分/自动回复等流程。
 	_ = h.service.CheckEditedMessageAndModerate(bot, msg)
+}
+
+// skipIncomingMessage 返回是否应忽略该条消息。
+// 仅忽略：空消息、机器人用户消息、以及缺少 From/SenderChat 身份的非法消息。
+func skipIncomingMessage(msg *tgbotapi.Message) bool {
+	if msg == nil {
+		return true
+	}
+	if msg.From != nil && msg.From.IsBot {
+		return true
+	}
+	return msg.From == nil && msg.SenderChat == nil
 }
 
 func (h *Handler) handlePrivateCommand(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
