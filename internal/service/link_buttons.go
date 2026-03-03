@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -17,7 +18,7 @@ func parseAndEncodeButtonRows(raw string) (string, error) {
 
 func parseOptionalButtonRows(raw string) ([][]welcomeButton, error) {
 	txt := strings.TrimSpace(raw)
-	if txt == "" || txt == "跳过" || txt == "关闭" {
+	if slices.Contains([]string{"", "跳过", "关闭"}, txt) {
 		return [][]welcomeButton{}, nil
 	}
 	rows, err := parseWelcomeButtonsInput(raw)

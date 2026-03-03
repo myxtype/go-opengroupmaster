@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -458,7 +459,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 		return
 	}
 	target := renderTarget{ChatID: msg.Chat.ID}
-	if pending.Kind != "chain_submit_entry" && !h.ensureAdmin(bot, target, msg.From.ID, pending.TGGroupID) {
+	if !slices.Contains([]string{"chain_submit_entry"}, pending.Kind) && !h.ensureAdmin(bot, target, msg.From.ID, pending.TGGroupID) {
 		h.clearPending(msg.From.ID)
 		return
 	}
@@ -472,7 +473,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
 			return
 		}
@@ -492,7 +493,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
 			return
 		}
@@ -516,7 +517,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新新增自动回复"))
 			return
 		}
@@ -542,7 +543,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
 			return
 		}
@@ -563,7 +564,7 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
 			return
 		}
@@ -588,13 +589,13 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbotapi.BotAPI, msg *tgbotapi.
 			return
 		}
 		matchType := strings.TrimSpace(pending.MatchType)
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			_, _ = bot.Send(tgbotapi.NewMessage(msg.Chat.ID, "缺少触发方式，请重新编辑自动回复"))
 			return
 		}
 		rawButtons := strings.TrimSpace(msg.Text)
 		var err error
-		if rawButtons == "" || rawButtons == "跳过" {
+		if slices.Contains([]string{"", "跳过"}, rawButtons) {
 			err = h.service.UpdateAutoReplyByTGGroupID(pending.TGGroupID, pending.RuleID, pending.Keyword, pending.Content, matchType)
 		} else {
 			err = h.service.UpdateAutoReplyByTGGroupIDWithButtons(pending.TGGroupID, pending.RuleID, pending.Keyword, pending.Content, matchType, msg.Text)

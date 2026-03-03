@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"regexp"
 	"strings"
 
 	"supervisor/internal/model"
@@ -22,6 +23,14 @@ func (r *Repository) MatchAutoReply(groupID uint, message string) (*model.AutoRe
 		switch r.MatchType {
 		case "contains":
 			if strings.Contains(message, r.Keyword) {
+				return &r, nil
+			}
+		case "regex":
+			re, compileErr := regexp.Compile(r.Keyword)
+			if compileErr != nil {
+				continue
+			}
+			if re.MatchString(message) {
 				return &r, nil
 			}
 		default:

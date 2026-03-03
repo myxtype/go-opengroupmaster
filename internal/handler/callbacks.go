@@ -134,10 +134,10 @@ func (h *Handler) handleFeatureCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.Callb
 			return
 		}
 	}
-	keepPending := (feature == "chain" && (action == "limmode" || action == "setdur")) ||
+	keepPending := (feature == "chain" && slices.Contains([]string{"limmode", "setdur"}, action)) ||
 		(feature == "sched" && action == "pinset") ||
-		(feature == "poll" && (action == "submit" || action == "reset"))
-	if feature != "pending" && action != "add" && action != "edit" && !keepPending {
+		(feature == "poll" && slices.Contains([]string{"submit", "reset"}, action))
+	if !slices.Contains([]string{"pending"}, feature) && !slices.Contains([]string{"add", "edit"}, action) && !keepPending {
 		h.clearPending(userID)
 	}
 

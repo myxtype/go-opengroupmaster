@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -600,7 +601,7 @@ func containsLink(msg *tgbotapi.Message, content string) bool {
 func containsLinkEntity(entities []tgbotapi.MessageEntity) bool {
 	for _, entity := range entities {
 		entityType := strings.ToLower(strings.TrimSpace(entity.Type))
-		if entityType == "url" || entityType == "text_link" {
+		if slices.Contains([]string{"url", "text_link"}, entityType) {
 			return true
 		}
 	}

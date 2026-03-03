@@ -113,6 +113,7 @@ func AutoReplyMatchTypeKeyboard(tgGroupID int64, modeSelectPrefix string) tgbota
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("精准触发", fmt.Sprintf("%s:exact", modeSelectPrefix)),
 			tgbotapi.NewInlineKeyboardButtonData("包含触发", fmt.Sprintf("%s:contains", modeSelectPrefix)),
+			tgbotapi.NewInlineKeyboardButtonData("正则触发", fmt.Sprintf("%s:regex", modeSelectPrefix)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("◀ 返回群面板", fmt.Sprintf("feat:pending:cancel:%s", gid)),

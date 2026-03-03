@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -357,7 +358,7 @@ func (s *Service) PassVerification(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQu
 	if pending.Mode != mode {
 		return errors.New("wrong verify mode")
 	}
-	if pending.Mode == "math" || pending.Mode == "captcha" || pending.Mode == "zhchar" || pending.Mode == "zhvoice" {
+	if slices.Contains([]string{"math", "captcha", "zhchar", "zhvoice"}, pending.Mode) {
 		if strings.TrimSpace(answer) == "" || strings.TrimSpace(answer) != pending.Answer {
 			pending.FailCount++
 			if pending.FailCount >= verifyFailLimit {

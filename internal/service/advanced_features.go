@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,7 @@ func (s *Service) CanAccessFeatureByTGGroupID(tgGroupID, tgUserID int64, feature
 }
 
 func (s *Service) SetRoleByTGGroupID(tgGroupID, targetTGUserID int64, role string) error {
-	if role != "super_admin" && role != "admin" {
+	if !slices.Contains([]string{"super_admin", "admin"}, role) {
 		return errors.New("invalid role")
 	}
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
@@ -73,7 +74,7 @@ func (s *Service) SetFeatureACLByTGGroupID(tgGroupID int64, feature string, role
 	valid := make([]string, 0, len(roles))
 	for _, r := range roles {
 		r = strings.TrimSpace(r)
-		if r == "super_admin" || r == "admin" {
+		if slices.Contains([]string{"super_admin", "admin"}, r) {
 			valid = append(valid, r)
 		}
 	}
@@ -140,7 +141,7 @@ func (s *Service) ListBlacklistByTGGroupID(tgGroupID int64) ([]model.GroupBlackl
 }
 
 func (s *Service) SetUserLanguage(tgUserID int64, lang string) error {
-	if lang != "zh" && lang != "en" {
+	if !slices.Contains([]string{"zh", "en"}, lang) {
 		return errors.New("invalid language")
 	}
 	return s.repo.SetUserLanguage(tgUserID, lang)

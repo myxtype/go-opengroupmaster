@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"supervisor/internal/model"
 
@@ -21,6 +22,11 @@ func (s *Service) AddAutoReplyByTGGroupIDWithButtons(tgGroupID int64, keyword, r
 		return err
 	}
 	matchType = normalizeAutoReplyMatchType(matchType)
+	if matchType == "regex" {
+		if _, err := regexp.Compile(keyword); err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
+	}
 	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
 	if err != nil {
 		return err
@@ -62,6 +68,11 @@ func (s *Service) UpdateAutoReplyByTGGroupID(tgGroupID int64, id uint, keyword, 
 		return err
 	}
 	matchType = normalizeAutoReplyMatchType(matchType)
+	if matchType == "regex" {
+		if _, err := regexp.Compile(keyword); err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
+	}
 	return s.repo.UpdateAutoReply(group.ID, id, keyword, reply, matchType)
 }
 
@@ -71,6 +82,11 @@ func (s *Service) UpdateAutoReplyByTGGroupIDWithButtons(tgGroupID int64, id uint
 		return err
 	}
 	matchType = normalizeAutoReplyMatchType(matchType)
+	if matchType == "regex" {
+		if _, err := regexp.Compile(keyword); err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
+	}
 	buttonRows, err := parseAndEncodeButtonRows(rawButtons)
 	if err != nil {
 		return err
@@ -82,6 +98,8 @@ func normalizeAutoReplyMatchType(matchType string) string {
 	switch strings.TrimSpace(strings.ToLower(matchType)) {
 	case "contains":
 		return "contains"
+	case "regex":
+		return "regex"
 	default:
 		return "exact"
 	}

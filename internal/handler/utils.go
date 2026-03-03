@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,10 @@ func permissionFeatureKey(feature, action string) string {
 	}
 	_ = action
 	return ""
+}
+
+func isAutoReplyMatchType(matchType string) bool {
+	return slices.Contains([]string{"exact", "contains", "regex"}, strings.TrimSpace(matchType))
 }
 
 func parseInt64Suffix(data, prefix string) (int64, error) {
@@ -289,8 +294,11 @@ func nightModeActionLabel(mode string) string {
 }
 
 func autoReplyMatchTypeLabel(v string) string {
-	if strings.TrimSpace(strings.ToLower(v)) == "contains" {
+	switch strings.TrimSpace(strings.ToLower(v)) {
+	case "contains":
 		return "包含触发"
+	case "regex":
+		return "正则触发"
 	}
 	return "精准触发"
 }

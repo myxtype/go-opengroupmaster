@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -70,7 +71,7 @@ func normalizeWelcomeButtonURL(raw string) (string, error) {
 	if err != nil {
 		return "", errors.New("链接格式无效")
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	if !slices.Contains([]string{"http", "https"}, parsed.Scheme) {
 		return "", errors.New("仅支持 http/https 链接")
 	}
 	if strings.TrimSpace(parsed.Hostname()) == "" {

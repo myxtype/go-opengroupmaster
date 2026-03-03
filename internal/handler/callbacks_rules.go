@@ -17,25 +17,29 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 	case "add":
 		h.answerCallback(bot, cb.ID, "请选择触发方式")
 		h.setPending(userID, pendingInput{Kind: "auto_add_mode", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "第1步：请选择触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:addmode:%d", tgGroupID)))
+		h.render(bot, target, "第1步：请选择触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发\n正则触发：关键词按正则表达式匹配消息", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:addmode:%d", tgGroupID)))
 	case "addmode":
 		if len(parts) < 5 {
 			h.answerCallback(bot, cb.ID, "参数错误")
 			return
 		}
 		matchType := strings.TrimSpace(parts[4])
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			h.answerCallback(bot, cb.ID, "触发方式错误")
 			return
 		}
 		h.answerCallback(bot, cb.ID, "请输入关键词")
+		keywordPrompt := "第2步：请输入自动回复关键词"
+		if matchType == "regex" {
+			keywordPrompt = "第2步：请输入正则表达式（例如：(?i)hello|hi）"
+		}
 		h.setPending(userID, pendingInput{
 			Kind:      "auto_add_keyword",
 			TGGroupID: tgGroupID,
 			Page:      1,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第2步：请输入自动回复关键词", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, keywordPrompt, keyboards.PendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -81,7 +85,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 		}
 		h.answerCallback(bot, cb.ID, "请选择触发方式")
 		h.setPending(userID, pendingInput{Kind: "auto_edit_mode", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "第1步：请选择新触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:editmode:%d:%d:%d", tgGroupID, id, page)))
+		h.render(bot, target, "第1步：请选择新触发方式\n精准触发：消息内容与关键词完全相同才触发\n包含触发：消息内容中包含关键词就触发\n正则触发：关键词按正则表达式匹配消息", keyboards.AutoReplyMatchTypeKeyboard(tgGroupID, fmt.Sprintf("feat:auto:editmode:%d:%d:%d", tgGroupID, id, page)))
 	case "editmode":
 		if len(parts) < 7 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -97,11 +101,15 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 			page = 1
 		}
 		matchType := strings.TrimSpace(parts[6])
-		if matchType != "exact" && matchType != "contains" {
+		if !isAutoReplyMatchType(matchType) {
 			h.answerCallback(bot, cb.ID, "触发方式错误")
 			return
 		}
 		h.answerCallback(bot, cb.ID, "请输入关键词")
+		keywordPrompt := "第2步：请输入新的关键词"
+		if matchType == "regex" {
+			keywordPrompt = "第2步：请输入新的正则表达式（例如：(?i)hello|hi）"
+		}
 		h.setPending(userID, pendingInput{
 			Kind:      "auto_edit_keyword",
 			TGGroupID: tgGroupID,
@@ -109,7 +117,7 @@ func (h *Handler) handleAutoReplyFeature(bot *tgbotapi.BotAPI, cb *tgbotapi.Call
 			Page:      page,
 			MatchType: matchType,
 		})
-		h.render(bot, target, "第2步：请输入新的关键词", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, keywordPrompt, keyboards.PendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
