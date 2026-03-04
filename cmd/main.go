@@ -82,57 +82,81 @@ func main() {
 
 	switch cfg.BotRunMode {
 	case "webhook":
-		webhookURL, err := url.Parse(cfg.WebhookURL)
-		if err != nil {
-			log.Fatalf("parse webhook url: %v", err)
-		}
-		webhookPath := webhookURL.Path
-		if webhookPath == "" {
-			webhookPath = "/"
-		}
-
-		ok, err := botAPI.SetWebhook(ctx, &tgbot.SetWebhookParams{
-			URL:                cfg.WebhookURL,
-			AllowedUpdates:     allowedUpdates,
-			DropPendingUpdates: cfg.WebhookDropPending,
-			SecretToken:        cfg.WebhookSecretToken,
-		})
-		if err != nil {
-			log.Fatalf("set webhook: %v", err)
-		}
-		if !ok {
-			log.Fatalf("set webhook: telegram api returned false")
-		}
-
-		mux := http.NewServeMux()
-		mux.HandleFunc(webhookPath, botAPI.WebhookHandler())
-		server := &http.Server{
-			Addr:    cfg.WebhookListenAddr,
-			Handler: mux,
-		}
-
-		go func() {
-			<-ctx.Done()
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := server.Shutdown(shutdownCtx); err != nil && err != http.ErrServerClosed {
-				l.Printf("webhook server shutdown failed: %v", err)
-			}
-		}()
-		go botAPI.StartWebhook(ctx)
-
-		l.Printf("running in webhook mode, listen=%s path=%s", cfg.WebhookListenAddr, webhookPath)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("webhook server: %v", err)
-		}
+		runWebhook(ctx, l, botAPI, cfg, allowedUpdates)
 	default:
-		_, err := botAPI.DeleteWebhook(ctx, &tgbot.DeleteWebhookParams{
+		runPolling(ctx, l, botAPI)
+	}
+}
+
+func runWebhook(ctx context.Context, l *log.Logger, botAPI *tgbot.Bot, cfg *config.Config, allowedUpdates []string) {
+	webhookURL, err := url.Parse(cfg.WebhookURL)
+	if err != nil {
+		log.Fatalf("parse webhook url: %v", err)
+	}
+	webhookPath := webhookURL.Path
+	if webhookPath == "" {
+		webhookPath = "/"
+	}
+
+	ok, err := botAPI.SetWebhook(ctx, &tgbot.SetWebhookParams{
+		URL:                cfg.WebhookURL,
+		AllowedUpdates:     allowedUpdates,
+		DropPendingUpdates: cfg.WebhookDropPending,
+		SecretToken:        cfg.WebhookSecretToken,
+	})
+	if err != nil {
+		log.Fatalf("set webhook: %v", err)
+	}
+	if !ok {
+		log.Fatalf("set webhook: telegram api returned false")
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(webhookPath, botAPI.WebhookHandler())
+	server := &http.Server{
+		Addr:    cfg.WebhookListenAddr,
+		Handler: mux,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil && err != http.ErrServerClosed {
+			l.Printf("webhook server shutdown failed: %v", err)
+		}
+	}()
+	go botAPI.StartWebhook(ctx)
+
+	l.Printf("running in webhook mode, listen=%s path=%s", cfg.WebhookListenAddr, webhookPath)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("webhook server: %v", err)
+	}
+}
+
+func runPolling(ctx context.Context, l *log.Logger, botAPI *tgbot.Bot) {
+	info, err := botAPI.GetWebhookInfo(ctx)
+	if err != nil {
+		log.Fatalf("get webhook info before polling: %v", err)
+	}
+	if info.URL != "" {
+		_, err = botAPI.DeleteWebhook(ctx, &tgbot.DeleteWebhookParams{
 			DropPendingUpdates: false,
 		})
 		if err != nil {
 			log.Fatalf("delete webhook before polling: %v", err)
 		}
-		l.Printf("running in polling mode")
-		botAPI.Start(ctx)
+
+		infoAfterDelete, err := botAPI.GetWebhookInfo(ctx)
+		if err != nil {
+			log.Fatalf("get webhook info after delete before polling: %v", err)
+		}
+		if infoAfterDelete.URL != "" {
+			log.Fatalf("delete webhook before polling: webhook still active url=%s", infoAfterDelete.URL)
+		}
+	} else {
+		l.Printf("polling mode detected no active webhook, skip delete")
 	}
+	l.Printf("running in polling mode")
+	botAPI.Start(ctx)
 }
