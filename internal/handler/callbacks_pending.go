@@ -12,7 +12,7 @@ func (h *Handler) sendPendingParentPanel(bot *tgbot.Bot, target renderTarget, us
 			page = 1
 		}
 		h.sendAutoReplyList(bot, target, userID, pending.TGGroupID, page)
-	case "bw_add", "bw_edit":
+	case "bw_add", "bw_remove":
 		page := pending.Page
 		if page < 1 {
 			page = 1

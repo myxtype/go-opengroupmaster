@@ -139,18 +139,6 @@ func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items
 			inlineKeyboardButtonData("删除提醒："+bannedWordDeleteText(view.WarnDeleteMinutes), fmt.Sprintf("feat:bw:delwarninput:%s", gid)),
 		),
 	)
-	for _, item := range items {
-		rows = append(rows, inlineKeyboardRow(
-			inlineKeyboardButtonData(
-				fmt.Sprintf("✏️ 编辑 #%d", item.ID),
-				fmt.Sprintf("feat:bw:edit:%s:%d:%d", gid, item.ID, page),
-			),
-			inlineKeyboardButtonData(
-				fmt.Sprintf("🗑 删除 #%d", item.ID),
-				fmt.Sprintf("feat:bw:del:%s:%d:%d", gid, item.ID, page),
-			),
-		))
-	}
 	nav := make([]models.InlineKeyboardButton, 0, 2)
 	if page > 1 {
 		nav = append(nav, inlineKeyboardButtonData("⬅ 上一页", fmt.Sprintf("feat:bw:list:%s:%d", gid, page-1)))
@@ -163,6 +151,9 @@ func BannedWordListKeyboard(tgGroupID int64, view *service.BannedWordView, items
 	}
 	rows = append(rows, inlineKeyboardRow(
 		inlineKeyboardButtonData("➕ 新增违禁词", fmt.Sprintf("feat:bw:add:%s", gid)),
+		inlineKeyboardButtonData("🗑 批量删除", fmt.Sprintf("feat:bw:remove:%s", gid)),
+	))
+	rows = append(rows, inlineKeyboardRow(
 		inlineKeyboardButtonData("◀ 返回群面板", cbGroupPrefix+gid),
 	))
 	return inlineKeyboardMarkup(rows...)

@@ -457,6 +457,7 @@ type PointsPanelView struct {
 
 type WordCloudPanelView struct {
 	Enabled        bool
+	AutoPush       bool
 	PushHour       int
 	PushMinute     int
 	BlacklistCount int64

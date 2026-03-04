@@ -942,11 +942,15 @@ func defaultWordCloudConfig() wordCloudConfig {
 }
 
 func normalizeWordCloudConfig(cfg wordCloudConfig) wordCloudConfig {
-	if cfg.PushHour < 0 || cfg.PushHour > 23 {
-		cfg.PushHour = 18
-	}
-	if cfg.PushMinute < 0 || cfg.PushMinute > 59 {
+	if cfg.PushHour == -1 {
 		cfg.PushMinute = 0
+	} else {
+		if cfg.PushHour < -1 || cfg.PushHour > 23 {
+			cfg.PushHour = 18
+		}
+		if cfg.PushMinute < 0 || cfg.PushMinute > 59 {
+			cfg.PushMinute = 0
+		}
 	}
 	cfg.LastPushDay = strings.TrimSpace(cfg.LastPushDay)
 	return cfg

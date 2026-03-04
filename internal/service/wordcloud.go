@@ -19,10 +19,10 @@ import (
 
 	"supervisor/internal/model"
 
-	"github.com/psykhi/wordclouds"
-	"github.com/yanyiwu/gojieba"
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/psykhi/wordclouds"
+	"github.com/yanyiwu/gojieba"
 )
 
 const (
@@ -73,6 +73,7 @@ func (s *Service) WordCloudPanelViewByTGGroupID(tgGroupID int64) (*WordCloudPane
 	}
 	return &WordCloudPanelView{
 		Enabled:        enabled,
+		AutoPush:       cfg.PushHour >= 0,
 		PushHour:       cfg.PushHour,
 		PushMinute:     cfg.PushMinute,
 		BlacklistCount: blacklistCount,
@@ -117,6 +118,24 @@ func (s *Service) SetWordCloudPushTimeByTGGroupID(tgGroupID int64, raw string) (
 	}
 	_ = s.repo.CreateLog(group.ID, fmt.Sprintf("set_word_cloud_push_time_%02d_%02d", hour, minute), 0, 0)
 	return hour, minute, nil
+}
+
+func (s *Service) DisableWordCloudAutoPushByTGGroupID(tgGroupID int64) error {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.getWordCloudConfig(group.ID)
+	if err != nil {
+		return err
+	}
+	cfg.PushHour = -1
+	cfg.PushMinute = 0
+	if err := s.saveWordCloudConfig(group.ID, cfg); err != nil {
+		return err
+	}
+	_ = s.repo.CreateLog(group.ID, "set_word_cloud_push_time_off", 0, 0)
+	return nil
 }
 
 func (s *Service) AddWordCloudBlacklistWordByTGGroupID(tgGroupID int64, word string) error {
@@ -558,6 +577,9 @@ func (s *Service) wordCloudReadyToPush(groupID uint, now time.Time) (bool, error
 	cfg, err := s.getWordCloudConfig(groupID)
 	if err != nil {
 		return false, err
+	}
+	if cfg.PushHour < 0 {
+		return false, nil
 	}
 	current := now.In(time.Local)
 	if current.Hour() != cfg.PushHour || current.Minute() != cfg.PushMinute {

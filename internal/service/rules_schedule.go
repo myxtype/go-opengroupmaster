@@ -125,6 +125,14 @@ func (s *Service) DeleteBannedWordByTGGroupID(tgGroupID int64, id uint) error {
 	return s.repo.DeleteBannedWord(group.ID, id)
 }
 
+func (s *Service) DeleteBannedWordByTGGroupIDAndWord(tgGroupID int64, word string) (int64, error) {
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.DeleteBannedWordsByWord(group.ID, word)
+}
+
 func (s *Service) UpdateBannedWordByTGGroupID(tgGroupID int64, id uint, word string) error {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
 	if err != nil {

@@ -42,7 +42,7 @@ func (h *Handler) handleWordCloudFeature(bot *tgbot.Bot, cb *models.CallbackQuer
 	case "settimeinput":
 		h.answerCallback(bot, cb.ID, "请输入时间")
 		h.setPending(userID, pendingInput{Kind: "wc_set_push_time", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入词云推送时间（HH:MM，24小时制）\n示例：18:00", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入词云推送时间（HH:MM，24小时制）\n示例：18:00\n发送“关闭”可停止自动推送", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "settime":
 		if len(parts) < 5 || len(parts[4]) != 4 {
 			h.answerCallback(bot, cb.ID, "参数错误")
@@ -56,6 +56,13 @@ func (h *Handler) handleWordCloudFeature(bot *tgbot.Bot, cb *models.CallbackQuer
 			return
 		}
 		h.answerCallback(bot, cb.ID, "推送时间已更新")
+		h.sendWordCloudPanel(bot, target, userID, tgGroupID)
+	case "setoff":
+		if err := h.service.DisableWordCloudAutoPushByTGGroupID(tgGroupID); err != nil {
+			h.answerCallback(bot, cb.ID, "设置失败")
+			return
+		}
+		h.answerCallback(bot, cb.ID, "已关闭自动推送")
 		h.sendWordCloudPanel(bot, target, userID, tgGroupID)
 	case "blacklist":
 		page := 1

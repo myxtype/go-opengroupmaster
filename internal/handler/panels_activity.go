@@ -43,16 +43,20 @@ func (h *Handler) sendWordCloudPanel(bot *tgbot.Bot, target renderTarget, tgUser
 	if view.Enabled {
 		status = "✅ 开启"
 	}
+	pushTimeText := "不自动推送"
+	if view.AutoPush {
+		pushTimeText = fmt.Sprintf("%02d:%02d", view.PushHour, view.PushMinute)
+	}
 	lines := []string{
 		"☁️ 词云统计",
 		"",
 		fmt.Sprintf("状态:%s", status),
-		fmt.Sprintf("定时推送时间:%02d:%02d", view.PushHour, view.PushMinute),
+		fmt.Sprintf("定时推送时间:%s", pushTimeText),
 		fmt.Sprintf("黑名单词语:%d 个", view.BlacklistCount),
 		"",
 		"说明：",
 		"1) 开启后，机器人会对群内消息分词并持久化词频",
-		"2) 到达推送时间会自动发送今日词云统计",
+		"2) 设置推送时间后，到点自动发送今日词云统计",
 		"3) 管理员可在群内使用 /wordcloud 立即生成",
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudKeyboard(tgGroupID, view))

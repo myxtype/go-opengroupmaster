@@ -221,7 +221,11 @@ func (h *Handler) handleBannedWordFeature(bot *tgbot.Bot, cb *models.CallbackQue
 	case "add":
 		h.answerCallback(bot, cb.ID, "请发送违禁词")
 		h.setPending(userID, pendingInput{Kind: "bw_add", TGGroupID: tgGroupID, Page: 1})
-		h.render(bot, target, "请直接发送要新增的违禁词（单条）", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请直接发送要新增的违禁词（支持多条，一行一个）", keyboards.PendingCancelKeyboard(tgGroupID))
+	case "remove":
+		h.answerCallback(bot, cb.ID, "请发送要删除的违禁词")
+		h.setPending(userID, pendingInput{Kind: "bw_remove", TGGroupID: tgGroupID, Page: 1})
+		h.render(bot, target, "请直接发送要删除的违禁词（支持多条，一行一个）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "list":
 		page := 1
 		if len(parts) >= 5 {
@@ -231,43 +235,6 @@ func (h *Handler) handleBannedWordFeature(bot *tgbot.Bot, cb *models.CallbackQue
 		}
 		h.answerCallback(bot, cb.ID, "加载违禁词")
 		h.sendBannedWordList(bot, target, userID, tgGroupID, page)
-	case "del":
-		if len(parts) < 6 {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		id, err := strconv.ParseUint(parts[4], 10, 64)
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		page, _ := strconv.Atoi(parts[5])
-		if page < 1 {
-			page = 1
-		}
-		if err := h.service.DeleteBannedWordByTGGroupID(tgGroupID, uint(id)); err != nil {
-			h.answerCallback(bot, cb.ID, "删除失败")
-			return
-		}
-		h.answerCallback(bot, cb.ID, "已删除")
-		h.sendBannedWordList(bot, target, userID, tgGroupID, page)
-	case "edit":
-		if len(parts) < 6 {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		id, err := strconv.ParseUint(parts[4], 10, 64)
-		if err != nil {
-			h.answerCallback(bot, cb.ID, "参数错误")
-			return
-		}
-		page, _ := strconv.Atoi(parts[5])
-		if page < 1 {
-			page = 1
-		}
-		h.answerCallback(bot, cb.ID, "请输入新违禁词")
-		h.setPending(userID, pendingInput{Kind: "bw_edit", TGGroupID: tgGroupID, RuleID: uint(id), Page: page})
-		h.render(bot, target, "请发送新的违禁词内容", keyboards.PendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}

@@ -56,6 +56,11 @@ func (r *Repository) DeleteBannedWord(groupID, id uint) error {
 	return r.db.Where("group_id = ? and id = ?", groupID, id).Delete(&model.BannedWord{}).Error
 }
 
+func (r *Repository) DeleteBannedWordsByWord(groupID uint, word string) (int64, error) {
+	tx := r.db.Where("group_id = ? and lower(word) = lower(?)", groupID, word).Delete(&model.BannedWord{})
+	return tx.RowsAffected, tx.Error
+}
+
 func (r *Repository) UpdateBannedWord(groupID, id uint, word string) error {
 	return r.db.Model(&model.BannedWord{}).Where("group_id = ? and id = ?", groupID, id).Update("word", word).Error
 }

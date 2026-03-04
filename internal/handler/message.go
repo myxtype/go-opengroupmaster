@@ -524,13 +524,34 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "bw_add":
-		if text == "" {
+		words := parseBannedWordsBatch(msg.Text)
+		if len(words) == 0 {
 			_, _ = sendText(bot, msg.Chat.ID, "违禁词不能为空")
 			return
 		}
-		if err := h.service.AddBannedWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = sendText(bot, msg.Chat.ID, "新增违禁词失败")
+		for _, word := range words {
+			if err := h.service.AddBannedWordByTGGroupID(pending.TGGroupID, word); err != nil {
+				_, _ = sendText(bot, msg.Chat.ID, "新增违禁词失败："+word)
+				return
+			}
+		}
+		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
+	case "bw_remove":
+		words := parseBannedWordsBatch(msg.Text)
+		if len(words) == 0 {
+			_, _ = sendText(bot, msg.Chat.ID, "违禁词不能为空")
 			return
+		}
+		for _, word := range words {
+			deleted, err := h.service.DeleteBannedWordByTGGroupIDAndWord(pending.TGGroupID, word)
+			if err != nil {
+				_, _ = sendText(bot, msg.Chat.ID, "删除违禁词失败："+word)
+				return
+			}
+			if deleted == 0 {
+				_, _ = sendText(bot, msg.Chat.ID, "未找到违禁词："+word)
+				return
+			}
 		}
 		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "auto_edit_keyword":
@@ -602,16 +623,6 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 			return
 		}
 		h.sendAutoReplyList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
-	case "bw_edit":
-		if text == "" {
-			_, _ = sendText(bot, msg.Chat.ID, "违禁词不能为空")
-			return
-		}
-		if err := h.service.UpdateBannedWordByTGGroupID(pending.TGGroupID, pending.RuleID, text); err != nil {
-			_, _ = sendText(bot, msg.Chat.ID, "更新违禁词失败")
-			return
-		}
-		h.sendBannedWordList(bot, target, msg.From.ID, pending.TGGroupID, pending.Page)
 	case "bw_warn_threshold":
 		v, err := strconv.Atoi(text)
 		if err != nil || v <= 0 {
@@ -1112,9 +1123,18 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 		}
 		h.sendMonitorPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "wc_set_push_time":
+		if isWordCloudAutoPushDisableInput(text) {
+			if err := h.service.DisableWordCloudAutoPushByTGGroupID(pending.TGGroupID); err != nil {
+				_, _ = sendText(bot, msg.Chat.ID, "关闭自动推送失败")
+				return
+			}
+			_, _ = sendText(bot, msg.Chat.ID, "词云自动推送已关闭")
+			h.sendWordCloudPanel(bot, target, msg.From.ID, pending.TGGroupID)
+			return
+		}
 		hour, minute, err := h.service.SetWordCloudPushTimeByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
-			_, _ = sendText(bot, msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制）")
+			_, _ = sendText(bot, msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制），或发送“关闭”")
 			return
 		}
 		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute))

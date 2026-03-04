@@ -103,7 +103,10 @@ func MonitorKeyboard(tgGroupID int64) models.InlineKeyboardMarkup {
 
 func WordCloudKeyboard(tgGroupID int64, view *service.WordCloudPanelView) models.InlineKeyboardMarkup {
 	gid := strconv.FormatInt(tgGroupID, 10)
-	pushText := fmt.Sprintf("%02d:%02d", view.PushHour, view.PushMinute)
+	pushText := "不自动推送"
+	if view.AutoPush {
+		pushText = fmt.Sprintf("%02d:%02d", view.PushHour, view.PushMinute)
+	}
 	return inlineKeyboardMarkup(
 		statusControlRow(
 			view.Enabled,
@@ -124,6 +127,9 @@ func WordCloudKeyboard(tgGroupID int64, view *service.WordCloudPanelView) models
 		),
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("22:00", fmt.Sprintf("feat:wc:settime:%s:2200", gid)),
+			inlineKeyboardButtonData("不自动推送", fmt.Sprintf("feat:wc:setoff:%s", gid)),
+		),
+		inlineKeyboardRow(
 			inlineKeyboardButtonData("黑名单词语", fmt.Sprintf("feat:wc:blacklist:%s:1", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:wc:view:%s", gid)),

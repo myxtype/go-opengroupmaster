@@ -166,23 +166,8 @@ func (h *Handler) sendAntiSpamPanel(bot *tgbot.Bot, target renderTarget, tgUserI
 	}
 	lines = append(lines,
 		"",
-		fmt.Sprintf("1. 屏蔽图片: %s", onOffWithEmoji(view.BlockPhoto)),
-		fmt.Sprintf("2. 屏蔽链接: %s", onOffWithEmoji(view.BlockLink)),
-		fmt.Sprintf("3. 屏蔽频道马甲发言: %s", onOffWithEmoji(view.BlockChannelAlias)),
-		fmt.Sprintf("4. 屏蔽来自频道转发: %s", onOffWithEmoji(view.BlockForwardFromChan)),
-		fmt.Sprintf("5. 屏蔽来自用户转发: %s", onOffWithEmoji(view.BlockForwardFromUser)),
-		fmt.Sprintf("6. 屏蔽联系人分享: %s", onOffWithEmoji(view.BlockContactShare)),
-		fmt.Sprintf("7. 屏蔽外部回复: %s", onOffWithEmoji(view.BlockExternalReply)),
-		fmt.Sprintf("8. 屏蔽@群组ID: %s", onOffWithEmoji(view.BlockAtGroupID)),
-		fmt.Sprintf("9. 屏蔽@用户ID: %s", onOffWithEmoji(view.BlockAtUserID)),
-		fmt.Sprintf("10. 屏蔽以太坊地址: %s", onOffWithEmoji(view.BlockEthAddress)),
-		fmt.Sprintf("11. 屏蔽超长消息: %s", onOffWithEmoji(view.BlockLongMessage)),
-		fmt.Sprintf("12. 当前设置最大消息长度: %d", view.MaxMessageLength),
-		fmt.Sprintf("13. 屏蔽超长姓名: %s", onOffWithEmoji(view.BlockLongName)),
-		fmt.Sprintf("14. 当前设置最大姓名长度: %d", view.MaxNameLength),
-		fmt.Sprintf("15. 已添加例外: %d条", view.ExceptionKeywordCount),
+		fmt.Sprintf("已添加例外: %d条", view.ExceptionKeywordCount),
 		fmt.Sprintf("例外关键词:%s", keywords),
-		fmt.Sprintf("16. 删除提醒: %s", antiSpamAlertSettingText(view.WarnDeleteSec)),
 	)
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.AntiSpamKeyboard(tgGroupID, view))
 }
