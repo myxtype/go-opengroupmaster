@@ -121,6 +121,7 @@ go run ./cmd
 ```
 
 启动后默认使用 SQLite（`./data/bot.db`），首次运行会自动建表。
+默认运行模式为 `polling`，可通过 `BOT_RUN_MODE` 切换为 `webhook`。
 
 ## 配置说明
 
@@ -128,13 +129,36 @@ go run ./cmd
 | --- | --- | --- | --- |
 | `BOT_TOKEN` | 是 | Telegram 机器人 Token | 无 |
 | `DB_PATH` | 否 | 数据库连接串（支持 SQLite/PostgreSQL） | `sqlite://./data/bot.db` |
+| `BOT_RUN_MODE` | 否 | 机器人更新模式：`polling` 或 `webhook` | `polling` |
 | `GORM_LOG_SILENT` | 否 | 是否关闭 SQL 日志 | `false` |
 | `ADMIN_SYNC_INTERVAL_SECS` | 否 | 管理员同步最小间隔秒数 | `300` |
+| `WEBHOOK_URL` | `BOT_RUN_MODE=webhook` 时必填 | Telegram 回调 URL（必须是公网可访问的绝对 URL） | 空 |
+| `WEBHOOK_LISTEN_ADDR` | 否 | 本地 webhook HTTP 监听地址 | `:8080` |
+| `WEBHOOK_SECRET_TOKEN` | 否 | Webhook 密钥（用于校验 `X-Telegram-Bot-Api-Secret-Token`） | 空 |
+| `WEBHOOK_DROP_PENDING_UPDATES` | 否 | 设置 webhook 时是否丢弃积压更新 | `false` |
 | `WORDCLOUD_FONT_PATH` | 否 | 词云字体文件路径（建议中文字体） | 空（自动尝试系统字体） |
 | `WORDCLOUD_JIEBA_DICT_DIR` | 否 | gojieba 词典目录（包含固定文件：`jieba.dict.utf8` 等） | 空（使用 gojieba 默认） |
 | `ANTI_SPAM_AI_MODEL` | 否 | AI 反垃圾模型名（为空即禁用 AI） | 空 |
 | `ANTI_SPAM_AI_SERVER_URL` | 否 | Ollama 服务地址 | `http://127.0.0.1:11434` |
 | `ANTI_SPAM_AI_TIMEOUT_SECS` | 否 | 单次 AI 判定超时秒数 | `8` |
+
+运行模式示例：
+
+- Polling（默认）：
+
+```env
+BOT_RUN_MODE=polling
+```
+
+- Webhook：
+
+```env
+BOT_RUN_MODE=webhook
+WEBHOOK_URL=https://example.com/tg/webhook
+WEBHOOK_LISTEN_ADDR=:8080
+WEBHOOK_SECRET_TOKEN=replace-with-random-secret
+WEBHOOK_DROP_PENDING_UPDATES=false
+```
 
 数据库连接示例：
 
