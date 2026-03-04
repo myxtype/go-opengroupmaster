@@ -1140,24 +1140,30 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute))
 		h.sendWordCloudPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "wc_black_add":
-		if text == "" {
+		words := parseWordCloudBlacklistBatch(msg.Text)
+		if len(words) == 0 {
 			_, _ = sendText(bot, msg.Chat.ID, "词语不能为空")
 			return
 		}
-		if err := h.service.AddWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = sendText(bot, msg.Chat.ID, "添加词云黑名单失败")
-			return
+		for _, word := range words {
+			if err := h.service.AddWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, word); err != nil {
+				_, _ = sendText(bot, msg.Chat.ID, "添加词云黑名单失败："+word)
+				return
+			}
 		}
 		_, _ = sendText(bot, msg.Chat.ID, "已添加词云黑名单词语")
 		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)
 	case "wc_black_remove":
-		if text == "" {
+		words := parseWordCloudBlacklistBatch(msg.Text)
+		if len(words) == 0 {
 			_, _ = sendText(bot, msg.Chat.ID, "词语不能为空")
 			return
 		}
-		if err := h.service.RemoveWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, text); err != nil {
-			_, _ = sendText(bot, msg.Chat.ID, "移除词云黑名单失败")
-			return
+		for _, word := range words {
+			if err := h.service.RemoveWordCloudBlacklistWordByTGGroupID(pending.TGGroupID, word); err != nil {
+				_, _ = sendText(bot, msg.Chat.ID, "移除词云黑名单失败："+word)
+				return
+			}
 		}
 		_, _ = sendText(bot, msg.Chat.ID, "已移除词云黑名单词语")
 		h.sendWordCloudBlacklistPanel(bot, target, msg.From.ID, pending.TGGroupID, 1)

@@ -86,7 +86,7 @@ func (h *Handler) sendWordCloudBlacklistPanel(bot *tgbot.Bot, target renderTarge
 			lines = append(lines, fmt.Sprintf("#%d %s", item.ID, item.Word))
 		}
 	}
-	lines = append(lines, "", "新增/移除时请输入单个词语（建议小写）")
+	lines = append(lines, "", "新增/移除时支持多条输入（一行一个，建议小写）")
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.WordCloudBlacklistKeyboard(tgGroupID, data.Page, totalPages))
 }
 

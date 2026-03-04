@@ -76,11 +76,11 @@ func (h *Handler) handleWordCloudFeature(bot *tgbot.Bot, cb *models.CallbackQuer
 	case "blackadd":
 		h.answerCallback(bot, cb.ID, "请输入词语")
 		h.setPending(userID, pendingInput{Kind: "wc_black_add", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入要加入词云黑名单的词语（单个）", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入要加入词云黑名单的词语（支持多条，一行一个）", keyboards.PendingCancelKeyboard(tgGroupID))
 	case "blackremove":
 		h.answerCallback(bot, cb.ID, "请输入词语")
 		h.setPending(userID, pendingInput{Kind: "wc_black_remove", TGGroupID: tgGroupID})
-		h.render(bot, target, "请输入要移除的词云黑名单词语（单个）", keyboards.PendingCancelKeyboard(tgGroupID))
+		h.render(bot, target, "请输入要移除的词云黑名单词语（支持多条，一行一个）", keyboards.PendingCancelKeyboard(tgGroupID))
 	default:
 		h.answerCallback(bot, cb.ID, "未知操作")
 	}
