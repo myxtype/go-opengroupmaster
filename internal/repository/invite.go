@@ -10,6 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
+type InviteEventSummary struct {
+	EventsTotal   int64
+	InvitersTotal int64
+}
+
 func (r *Repository) CreateInviteLink(item *model.InviteLink) error {
 	if item == nil {
 		return fmt.Errorf("nil invite link")
@@ -68,6 +73,20 @@ func (r *Repository) CountInviteEvents(groupID uint) (int64, error) {
 	var total int64
 	err := r.db.Model(&model.InviteEvent{}).Where("group_id = ?", groupID).Count(&total).Error
 	return total, err
+}
+
+func (r *Repository) SummarizeInviteEvents(groupID uint, since time.Time) (InviteEventSummary, error) {
+	var out InviteEventSummary
+	query := r.db.Model(&model.InviteEvent{}).
+		Select("count(*) as events_total, count(distinct inviter_tg_user_id) as inviters_total").
+		Where("group_id = ?", groupID)
+	if !since.IsZero() {
+		query = query.Where("joined_at >= ?", since)
+	}
+	if err := query.Scan(&out).Error; err != nil {
+		return InviteEventSummary{}, err
+	}
+	return out, nil
 }
 
 func (r *Repository) CountInviteEventsByInviter(groupID uint, inviterTGUserID int64) (int64, error) {

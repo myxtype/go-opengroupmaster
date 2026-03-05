@@ -19,7 +19,37 @@ func (h *Handler) sendStatsPanel(bot *tgbot.Bot, target renderTarget, tgUserID, 
 		h.render(bot, target, "加载统计失败", keyboards.GroupPanelKeyboard(tgGroupID))
 		return
 	}
-	lines := []string{fmt.Sprintf("群统计：%s (%d)", stats.GroupTitle, stats.GroupID)}
+	lines := []string{
+		fmt.Sprintf("群统计：%s (%d)", stats.GroupTitle, stats.GroupID),
+		"",
+		"累计数据:",
+		fmt.Sprintf("├ 积分用户数: %d", stats.PointsUsersTotal),
+		fmt.Sprintf("├ 积分总额: %d", stats.PointsTotal),
+		fmt.Sprintf("├ 有效邀请总人数: %d", stats.InviteTotal),
+		fmt.Sprintf("├ 发言积分总额: %d", stats.MessagePointsTotal),
+		fmt.Sprintf("├ 发言事件总数: %d", stats.MessageEventsTotal),
+		fmt.Sprintf("└ 发言贡献人数: %d", stats.MessageUsersTotal),
+		"",
+		fmt.Sprintf("今日数据（UTC %s）:", stats.DayKey),
+		fmt.Sprintf("├ 今日发言积分: %d", stats.TodayMessagePoints),
+		fmt.Sprintf("├ 今日发言人数: %d", stats.TodayMessageUsers),
+		fmt.Sprintf("└ 今日签到次数: %d", stats.TodayCheckins),
+		"",
+		"近7日（含今日，UTC）:",
+		fmt.Sprintf("├ 发言积分: %d", stats.Recent7MessagePoints),
+		fmt.Sprintf("├ 发言人数: %d", stats.Recent7MessageUsers),
+		fmt.Sprintf("├ 发言事件: %d", stats.Recent7MessageEvents),
+		fmt.Sprintf("├ 签到次数: %d", stats.Recent7Checkins),
+		fmt.Sprintf("└ 有效邀请: %d", stats.Recent7Invites),
+		"",
+		"近30日（含今日，UTC）:",
+		fmt.Sprintf("├ 发言积分: %d", stats.Recent30MessagePoints),
+		fmt.Sprintf("├ 发言人数: %d", stats.Recent30MessageUsers),
+		fmt.Sprintf("├ 发言事件: %d", stats.Recent30MessageEvents),
+		fmt.Sprintf("├ 签到次数: %d", stats.Recent30Checkins),
+		fmt.Sprintf("└ 有效邀请: %d", stats.Recent30Invites),
+		"",
+	}
 	if len(stats.TopUsers) == 0 {
 		lines = append(lines, "暂无活跃数据")
 	} else {

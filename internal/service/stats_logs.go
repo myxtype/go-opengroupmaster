@@ -14,26 +14,106 @@ func (s *Service) GroupStatsByTGGroupID(tgGroupID int64, limit int) (*GroupStats
 	if err != nil {
 		return nil, err
 	}
-	top, err := s.repo.TopUsersByPoints(group.ID, limit)
+	nowUTC := time.Now().UTC()
+	dayKey := pointsDayKey(nowUTC)
+	dayKey7 := pointsDayKey(nowUTC.AddDate(0, 0, -6))
+	dayKey30 := pointsDayKey(nowUTC.AddDate(0, 0, -29))
+	since7 := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -6)
+	since30 := since7.AddDate(0, 0, -23)
+
+	pointsSummary, err := s.repo.SummarizeUserPoints(group.ID)
 	if err != nil {
 		return nil, err
 	}
-	out := &GroupStats{GroupTitle: group.Title, GroupID: group.TGGroupID}
+	inviteAll, err := s.repo.SummarizeInviteEvents(group.ID, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	invite7, err := s.repo.SummarizeInviteEvents(group.ID, since7)
+	if err != nil {
+		return nil, err
+	}
+	invite30, err := s.repo.SummarizeInviteEvents(group.ID, since30)
+	if err != nil {
+		return nil, err
+	}
+	messageAll, err := s.repo.SummarizePointEvents(group.ID, pointsEventMessage, "")
+	if err != nil {
+		return nil, err
+	}
+	messageToday, err := s.repo.SummarizePointEvents(group.ID, pointsEventMessage, dayKey)
+	if err != nil {
+		return nil, err
+	}
+	checkinToday, err := s.repo.SummarizePointEvents(group.ID, pointsEventCheckin, dayKey)
+	if err != nil {
+		return nil, err
+	}
+	message7, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventMessage, dayKey7)
+	if err != nil {
+		return nil, err
+	}
+	message30, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventMessage, dayKey30)
+	if err != nil {
+		return nil, err
+	}
+	checkin7, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventCheckin, dayKey7)
+	if err != nil {
+		return nil, err
+	}
+	checkin30, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventCheckin, dayKey30)
+	if err != nil {
+		return nil, err
+	}
+	top, err := s.repo.TopUsersByPointEventType(group.ID, pointsEventMessage, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := &GroupStats{
+		GroupTitle:            group.Title,
+		GroupID:               group.TGGroupID,
+		DayKey:                dayKey,
+		PointsUsersTotal:      pointsSummary.UsersTotal,
+		PointsTotal:           pointsSummary.PointsTotal,
+		InviteTotal:           inviteAll.EventsTotal,
+		MessageEventsTotal:    messageAll.EventsTotal,
+		MessagePointsTotal:    messageAll.DeltaTotal,
+		MessageUsersTotal:     messageAll.UsersTotal,
+		TodayMessagePoints:    messageToday.DeltaTotal,
+		TodayMessageUsers:     messageToday.UsersTotal,
+		TodayCheckins:         checkinToday.EventsTotal,
+		Recent7MessagePoints:  message7.DeltaTotal,
+		Recent7MessageUsers:   message7.UsersTotal,
+		Recent7MessageEvents:  message7.EventsTotal,
+		Recent7Checkins:       checkin7.EventsTotal,
+		Recent7Invites:        invite7.EventsTotal,
+		Recent30MessagePoints: message30.DeltaTotal,
+		Recent30MessageUsers:  message30.UsersTotal,
+		Recent30MessageEvents: message30.EventsTotal,
+		Recent30Checkins:      checkin30.EventsTotal,
+		Recent30Invites:       invite30.EventsTotal,
+	}
 	for _, row := range top {
-		user, err := s.repo.FindUserByID(row.UserID)
-		if err != nil {
-			continue
-		}
-		name := user.Username
-		if name == "" {
-			name = strings.TrimSpace(user.FirstName + " " + user.LastName)
-		}
-		if name == "" {
-			name = fmt.Sprintf("uid:%d", user.TGUserID)
-		}
-		out.TopUsers = append(out.TopUsers, UserScore{DisplayName: name, Points: row.Points})
+		out.TopUsers = append(out.TopUsers, UserScore{
+			DisplayName: statsDisplayName(row.Username, row.FirstName, row.LastName, row.TGUserID, row.UserID),
+			Points:      int(row.Points),
+		})
 	}
 	return out, nil
+}
+
+func statsDisplayName(username, firstName, lastName string, tgUserID int64, userID uint) string {
+	if username != "" {
+		return "@" + username
+	}
+	name := strings.TrimSpace(strings.TrimSpace(firstName) + " " + strings.TrimSpace(lastName))
+	if name != "" {
+		return name
+	}
+	if tgUserID > 0 {
+		return fmt.Sprintf("uid:%d", tgUserID)
+	}
+	return fmt.Sprintf("user:%d", userID)
 }
 
 func (s *Service) ListLogsByTGGroupID(tgGroupID int64, page, pageSize int, action string) (*LogPage, error) {

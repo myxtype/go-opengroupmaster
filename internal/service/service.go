@@ -280,9 +280,29 @@ type ScheduledMessagePage struct {
 }
 
 type GroupStats struct {
-	GroupTitle string
-	GroupID    int64
-	TopUsers   []UserScore
+	GroupTitle            string
+	GroupID               int64
+	DayKey                string
+	PointsUsersTotal      int64
+	PointsTotal           int64
+	InviteTotal           int64
+	MessageEventsTotal    int64
+	MessagePointsTotal    int64
+	MessageUsersTotal     int64
+	TodayMessagePoints    int64
+	TodayMessageUsers     int64
+	TodayCheckins         int64
+	Recent7MessagePoints  int64
+	Recent7MessageUsers   int64
+	Recent7MessageEvents  int64
+	Recent7Checkins       int64
+	Recent7Invites        int64
+	Recent30MessagePoints int64
+	Recent30MessageUsers  int64
+	Recent30MessageEvents int64
+	Recent30Checkins      int64
+	Recent30Invites       int64
+	TopUsers              []UserScore
 }
 
 type UserScore struct {
