@@ -87,7 +87,7 @@ func (h *Handler) handlePrivateCommand(bot *tgbot.Bot, msg *models.Message) {
 			}
 			return
 		}
-		h.render(bot, target, "欢迎使用 GroupMaster Bot。\n请通过按钮管理群组。", keyboards.MainMenuKeyboard(h.botUsername))
+		h.render(bot, target, startWelcomeText(h.botName), keyboards.MainMenuKeyboard(h.botUsername))
 	case "help":
 		_, _ = sendText(bot, msg.Chat.ID, privateHelpText())
 	case "groups":
@@ -97,6 +97,14 @@ func (h *Handler) handlePrivateCommand(bot *tgbot.Bot, msg *models.Message) {
 	default:
 		_, _ = sendText(bot, msg.Chat.ID, "暂不支持该私聊命令")
 	}
+}
+
+func startWelcomeText(botName string) string {
+	name := strings.TrimSpace(botName)
+	if name == "" {
+		name = "机器人"
+	}
+	return fmt.Sprintf("欢迎使用 %s。\n请通过按钮管理群组。", name)
 }
 
 func (h *Handler) handleGroupCommand(bot *tgbot.Bot, msg *models.Message) {

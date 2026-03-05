@@ -56,6 +56,7 @@ type Handler struct {
 	service     *service.Service
 	logger      *log.Logger
 	botUsername string
+	botName     string
 
 	mu      sync.Mutex
 	pending map[int64]pendingInput
@@ -67,6 +68,10 @@ func New(svc *service.Service, logger *log.Logger) *Handler {
 
 func (h *Handler) SetBotUsername(username string) {
 	h.botUsername = username
+}
+
+func (h *Handler) SetBotName(name string) {
+	h.botName = name
 }
 
 func (h *Handler) HandleUpdate(bot *tgbot.Bot, update *models.Update) {

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"supervisor/internal/config"
@@ -70,6 +71,7 @@ func main() {
 		log.Fatalf("get bot me: %v", err)
 	}
 	h.SetBotUsername(me.Username)
+	h.SetBotName(strings.TrimSpace(me.FirstName + " " + me.LastName))
 
 	sch := scheduler.New(svc, botAPI, l)
 	svc.SetScheduleRuntime(sch)
