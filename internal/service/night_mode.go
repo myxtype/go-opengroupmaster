@@ -23,6 +23,10 @@ func (s *Service) NightModeViewByTGGroupID(tgGroupID int64) (*NightModeView, err
 	if err != nil {
 		return nil, err
 	}
+	offsetMinutes, err := s.groupTimezoneOffsetMinutesByGroup(group)
+	if err != nil {
+		return nil, err
+	}
 	state, err := s.getNightModeState(group.ID)
 	if err != nil {
 		return nil, err
@@ -30,7 +34,7 @@ func (s *Service) NightModeViewByTGGroupID(tgGroupID int64) (*NightModeView, err
 	cfg := normalizeNightModeConfig(state.Config)
 	return &NightModeView{
 		Enabled:      state.Enabled,
-		TimezoneText: formatUTCOffset(cfg.TimezoneOffsetMinutes),
+		TimezoneText: formatUTCOffset(offsetMinutes),
 		Mode:         cfg.Mode,
 		StartHour:    cfg.StartHour,
 		EndHour:      cfg.EndHour,
@@ -77,30 +81,6 @@ func (s *Service) SetNightModeModeByTGGroupID(tgGroupID int64, mode string) (str
 	}
 	_ = s.repo.CreateLog(group.ID, "set_night_mode_mode_"+cfg.Mode, 0, 0)
 	return cfg.Mode, nil
-}
-
-func (s *Service) SetNightModeTimezoneByTGGroupID(tgGroupID int64, raw string) (string, error) {
-	offsetMinutes, err := parseUTCOffset(raw)
-	if err != nil {
-		return "", err
-	}
-	group, err := s.repo.FindGroupByTGID(tgGroupID)
-	if err != nil {
-		return "", err
-	}
-	state, err := s.getNightModeState(group.ID)
-	if err != nil {
-		return "", err
-	}
-	cfg := normalizeNightModeConfig(state.Config)
-	cfg.TimezoneOffsetMinutes = offsetMinutes
-	state.Config = cfg
-	if err := s.saveNightModeState(group.ID, state); err != nil {
-		return "", err
-	}
-	tz := formatUTCOffset(offsetMinutes)
-	_ = s.repo.CreateLog(group.ID, "set_night_mode_timezone_"+tz, 0, 0)
-	return tz, nil
 }
 
 func (s *Service) SetNightModeStartHourByTGGroupID(tgGroupID int64, raw string) (int, error) {
@@ -152,55 +132,6 @@ func (s *Service) setNightModeHourByTGGroupID(tgGroupID int64, isStart bool, hou
 	return nil
 }
 
-func parseUTCOffset(raw string) (int, error) {
-	txt := strings.TrimSpace(strings.ToUpper(raw))
-	txt = strings.TrimPrefix(txt, "UTC")
-	txt = strings.TrimSpace(txt)
-	if txt == "" {
-		return 0, errors.New("timezone is empty")
-	}
-	sign := 1
-	switch txt[0] {
-	case '+':
-		txt = strings.TrimSpace(txt[1:])
-	case '-':
-		sign = -1
-		txt = strings.TrimSpace(txt[1:])
-	}
-	if txt == "" {
-		return 0, errors.New("invalid timezone")
-	}
-	hours := 0
-	minutes := 0
-	if strings.Contains(txt, ":") {
-		parts := strings.SplitN(txt, ":", 2)
-		h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return 0, errors.New("invalid timezone")
-		}
-		m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if err != nil {
-			return 0, errors.New("invalid timezone")
-		}
-		hours = h
-		minutes = m
-	} else {
-		h, err := strconv.Atoi(txt)
-		if err != nil {
-			return 0, errors.New("invalid timezone")
-		}
-		hours = h
-	}
-	if hours < 0 || minutes < 0 || minutes >= 60 {
-		return 0, errors.New("invalid timezone")
-	}
-	total := sign * (hours*60 + minutes)
-	if total < -12*60 || total > 14*60 {
-		return 0, errors.New("timezone out of range")
-	}
-	return total, nil
-}
-
 func parseNightHour(raw string) (int, error) {
 	txt := strings.TrimSpace(raw)
 	if txt == "" {
@@ -214,20 +145,6 @@ func parseNightHour(raw string) (int, error) {
 		return 0, errors.New("hour out of range")
 	}
 	return hour, nil
-}
-
-func formatUTCOffset(offsetMinutes int) string {
-	sign := "+"
-	if offsetMinutes < 0 {
-		sign = "-"
-		offsetMinutes = -offsetMinutes
-	}
-	h := offsetMinutes / 60
-	m := offsetMinutes % 60
-	if m == 0 {
-		return fmt.Sprintf("UTC%s%d", sign, h)
-	}
-	return fmt.Sprintf("UTC%s%d:%02d", sign, h, m)
 }
 
 func formatNightWindow(startHour, endHour int) string {

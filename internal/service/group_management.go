@@ -10,9 +10,9 @@ import (
 	"supervisor/internal/model"
 	"supervisor/internal/repository"
 
-	"gorm.io/gorm"
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"gorm.io/gorm"
 )
 
 func (s *Service) RegisterGroupAndUser(msg *models.Message) (*model.Group, *model.User, error) {
@@ -129,7 +129,8 @@ func (s *Service) GroupPanelSummary(tgGroupID int64) (string, error) {
 	pointsText := onOff(pointsEnabled)
 	nightCfg := normalizeNightModeConfig(nightState.Config)
 	nightText := onOff(nightState.Enabled)
-	nightDesc := fmt.Sprintf("%s，%s，%s", formatUTCOffset(nightCfg.TimezoneOffsetMinutes), formatNightWindow(nightCfg.StartHour, nightCfg.EndHour), nightModeLabelForSummary(nightCfg.Mode))
+	groupTZ := formatUTCOffset(normalizeGroupTimezoneOffsetMinutes(group.TimezoneOffsetMinutes))
+	nightDesc := fmt.Sprintf("%s，%s，%s", groupTZ, formatNightWindow(nightCfg.StartHour, nightCfg.EndHour), nightModeLabelForSummary(nightCfg.Mode))
 	lines := []string{
 		fmt.Sprintf("🏠 %s", group.Title),
 		fmt.Sprintf("🆔 群ID: %d", group.TGGroupID),

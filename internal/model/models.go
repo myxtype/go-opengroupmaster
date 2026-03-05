@@ -15,12 +15,13 @@ type User struct {
 
 // Group 表示一个被机器人管理的 Telegram 群组。
 type Group struct {
-	ID        uint  `gorm:"primaryKey"`
-	TGGroupID int64 `gorm:"uniqueIndex;not null"`
-	Title     string
-	OwnerID   uint
-	BotAdded  bool `gorm:"default:false"`
-	CreatedAt time.Time
+	ID                    uint  `gorm:"primaryKey"`
+	TGGroupID             int64 `gorm:"uniqueIndex;not null"`
+	Title                 string
+	OwnerID               uint
+	BotAdded              bool `gorm:"default:false"`
+	TimezoneOffsetMinutes int  `gorm:"not null;default:480"`
+	CreatedAt             time.Time
 }
 
 // GroupAdmin 表示群组管理员与权限角色的关联关系。

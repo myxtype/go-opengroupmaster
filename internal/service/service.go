@@ -134,10 +134,9 @@ type antiSpamState struct {
 }
 
 type nightModeConfig struct {
-	TimezoneOffsetMinutes int    `json:"timezone_offset_minutes"`
-	Mode                  string `json:"mode"`
-	StartHour             int    `json:"start_hour"`
-	EndHour               int    `json:"end_hour"`
+	Mode      string `json:"mode"`
+	StartHour int    `json:"start_hour"`
+	EndHour   int    `json:"end_hour"`
 }
 
 type nightModeState struct {
@@ -416,6 +415,11 @@ type NightModeView struct {
 	StartHour    int
 	EndHour      int
 	NightWindow  string
+}
+
+type GroupTimezoneView struct {
+	OffsetMinutes int
+	TimezoneText  string
 }
 
 type LotteryPanelView struct {

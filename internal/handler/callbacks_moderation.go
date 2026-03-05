@@ -391,14 +391,18 @@ func (h *Handler) handleModerationFeature(bot *tgbot.Bot, cb *models.CallbackQue
 		h.answerCallback(bot, cb.ID, "夜间模式已关闭")
 		h.sendNightModePanel(bot, target, userID, tgGroupID)
 		return
-	case "nighttz":
-		view, err := h.service.NightModeViewByTGGroupID(tgGroupID)
+	case "grouptz":
+		h.answerCallback(bot, cb.ID, "加载群时区")
+		h.sendGroupTimezonePanel(bot, target, userID, tgGroupID)
+		return
+	case "grouptzset":
+		view, err := h.service.GroupTimezoneViewByTGGroupID(tgGroupID)
 		if err != nil {
 			h.answerCallback(bot, cb.ID, "加载失败")
 			return
 		}
 		h.answerCallback(bot, cb.ID, "请输入时区")
-		h.setPending(userID, pendingInput{Kind: "night_tz", TGGroupID: tgGroupID})
+		h.setPending(userID, pendingInput{Kind: "group_tz", TGGroupID: tgGroupID})
 		h.render(bot, target, fmt.Sprintf("当前时区:%s\n请输入时区（示例：+8、-5、+8:30、UTC+8）", view.TimezoneText), keyboards.PendingCancelKeyboard(tgGroupID))
 		return
 	case "nightwindow":

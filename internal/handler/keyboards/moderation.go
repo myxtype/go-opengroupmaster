@@ -375,9 +375,6 @@ func NightModeKeyboard(tgGroupID int64, view *service.NightModeView) models.Inli
 			fmt.Sprintf("feat:mod:nightoff:%s", gid),
 		),
 		inlineKeyboardRow(
-			inlineKeyboardButtonData("时区："+view.TimezoneText, fmt.Sprintf("feat:mod:nighttz:%s", gid)),
-		),
-		inlineKeyboardRow(
 			inlineKeyboardButtonData("夜间时段："+view.NightWindow, fmt.Sprintf("feat:mod:nightwindow:%s", gid)),
 		),
 		inlineKeyboardRow(
@@ -386,5 +383,15 @@ func NightModeKeyboard(tgGroupID int64, view *service.NightModeView) models.Inli
 			inlineKeyboardButtonData(globalMuteLabel, fmt.Sprintf("feat:mod:nightmode:%s:global_mute", gid)),
 		),
 		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:nightview:%s", gid)),
+	)
+}
+
+func GroupTimezoneKeyboard(tgGroupID int64) models.InlineKeyboardMarkup {
+	gid := strconv.FormatInt(tgGroupID, 10)
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonData("设置时区", fmt.Sprintf("feat:mod:grouptzset:%s", gid)),
+		),
+		panelRefreshBackRow(gid, fmt.Sprintf("feat:mod:grouptz:%s", gid)),
 	)
 }

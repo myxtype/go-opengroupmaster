@@ -54,7 +54,9 @@ func (h *Handler) sendPendingParentPanel(bot *tgbot.Bot, target renderTarget, us
 		h.sendAntiFloodPenaltyPanel(bot, target, userID, pending.TGGroupID)
 	case "spam_ai_spam_score":
 		h.sendAntiSpamAIPanel(bot, target, userID, pending.TGGroupID)
-	case "night_tz", "night_start_hour", "night_end_hour":
+	case "group_tz":
+		h.sendGroupTimezonePanel(bot, target, userID, pending.TGGroupID)
+	case "night_start_hour", "night_end_hour":
 		h.sendNightModePanel(bot, target, userID, pending.TGGroupID)
 	case "points_checkin_keyword", "points_checkin_reward":
 		h.sendPointsCheckinPanel(bot, target, userID, pending.TGGroupID)

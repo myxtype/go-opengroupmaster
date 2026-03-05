@@ -104,6 +104,7 @@ func GroupPanelKeyboardWithWordCloud(tgGroupID int64, wordCloudAvailable bool) m
 		),
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("🌙 夜间模式", fmt.Sprintf("feat:mod:nightview:%s", id)),
+			inlineKeyboardButtonData("🌐 群时区", fmt.Sprintf("feat:mod:grouptz:%s", id)),
 		),
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("🧭 权限分级", fmt.Sprintf("feat:rbac:view:%s", id)),

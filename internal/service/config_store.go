@@ -374,20 +374,13 @@ func (s *Service) saveAntiFloodState(groupID uint, state antiFloodState) error {
 
 func defaultNightModeConfig() nightModeConfig {
 	return nightModeConfig{
-		TimezoneOffsetMinutes: 8 * 60,
-		Mode:                  "delete_media",
-		StartHour:             nightDefaultStartHour,
-		EndHour:               nightDefaultEndHour,
+		Mode:      "delete_media",
+		StartHour: nightDefaultStartHour,
+		EndHour:   nightDefaultEndHour,
 	}
 }
 
 func normalizeNightModeConfig(cfg nightModeConfig) nightModeConfig {
-	if cfg.TimezoneOffsetMinutes < -12*60 {
-		cfg.TimezoneOffsetMinutes = -12 * 60
-	}
-	if cfg.TimezoneOffsetMinutes > 14*60 {
-		cfg.TimezoneOffsetMinutes = 14 * 60
-	}
 	switch cfg.Mode {
 	case "delete_media", "global_mute":
 	default:

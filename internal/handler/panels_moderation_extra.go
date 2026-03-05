@@ -110,11 +110,29 @@ func (h *Handler) sendNightModePanel(bot *tgbot.Bot, target renderTarget, tgUser
 		"夜间时段内按配置自动处理群成员消息",
 		"",
 		fmt.Sprintf("状态:%s", status),
-		fmt.Sprintf("时区:%s", view.TimezoneText),
+		fmt.Sprintf("群时区:%s", view.TimezoneText),
 		fmt.Sprintf("夜间时段:%s", view.NightWindow),
 		fmt.Sprintf("处理方式:%s", nightModeActionLabel(view.Mode)),
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.NightModeKeyboard(tgGroupID, view))
+}
+
+func (h *Handler) sendGroupTimezonePanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {
+	if !h.ensureAdmin(bot, target, tgUserID, tgGroupID) {
+		return
+	}
+	view, err := h.service.GroupTimezoneViewByTGGroupID(tgGroupID)
+	if err != nil {
+		h.render(bot, target, "加载群时区失败", keyboards.GroupPanelKeyboard(tgGroupID))
+		return
+	}
+	lines := []string{
+		"🌐 群时区",
+		"本群统一时区配置，夜间模式等功能都会使用该时区。",
+		"",
+		fmt.Sprintf("当前时区:%s", view.TimezoneText),
+	}
+	h.render(bot, target, strings.Join(lines, "\n"), keyboards.GroupTimezoneKeyboard(tgGroupID))
 }
 
 func (h *Handler) sendChainPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tgGroupID int64) {

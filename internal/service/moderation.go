@@ -216,7 +216,11 @@ func (s *Service) applyModeration(bot *tgbot.Bot, msg *models.Message, group *mo
 	}
 	if nightState.Enabled {
 		cfg := normalizeNightModeConfig(nightState.Config)
-		if isNightWindowNow(cfg.TimezoneOffsetMinutes, cfg.StartHour, cfg.EndHour, time.Now()) {
+		offsetMinutes, tzErr := s.groupTimezoneOffsetMinutesByGroup(group)
+		if tzErr != nil {
+			return false, tzErr
+		}
+		if isNightWindowNow(offsetMinutes, cfg.StartHour, cfg.EndHour, time.Now()) {
 			switch cfg.Mode {
 			case nightModeGlobalMute:
 				// 全局禁言：删除所有消息

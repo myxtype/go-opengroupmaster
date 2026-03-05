@@ -65,6 +65,12 @@ func (r *Repository) FindGroupByID(groupID uint) (*model.Group, error) {
 	return &g, nil
 }
 
+func (r *Repository) UpdateGroupTimezoneOffsetMinutes(groupID uint, offsetMinutes int) error {
+	return r.db.Model(&model.Group{}).
+		Where("id = ?", groupID).
+		Update("timezone_offset_minutes", offsetMinutes).Error
+}
+
 func (r *Repository) CheckAdmin(groupID uint, tgUserID int64) (bool, error) {
 	var count int64
 	err := r.db.

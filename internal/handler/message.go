@@ -1240,14 +1240,14 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置禁言时长失败", h.service.SetAntiFloodMuteMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
 	case "flood_ban_minutes":
 		h.handleModerationDurationInput(bot, msg, target, pending, text, "设置封禁时长失败", h.service.SetAntiFloodBanMinutesByTGGroupID, h.sendAntiFloodPenaltyPanel)
-	case "night_tz":
-		tz, err := h.service.SetNightModeTimezoneByTGGroupID(pending.TGGroupID, text)
+	case "group_tz":
+		tz, err := h.service.SetGroupTimezoneByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
 			_, _ = sendText(bot, msg.Chat.ID, "时区格式错误，请输入如 +8、-5、+8:30、UTC+8")
 			return
 		}
-		_, _ = sendText(bot, msg.Chat.ID, "夜间模式时区已设置为 "+tz)
-		h.sendNightModePanel(bot, target, msg.From.ID, pending.TGGroupID)
+		_, _ = sendText(bot, msg.Chat.ID, "群时区已设置为 "+tz)
+		h.sendGroupTimezonePanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "night_start_hour":
 		hour, err := h.service.SetNightModeStartHourByTGGroupID(pending.TGGroupID, text)
 		if err != nil {
