@@ -1137,7 +1137,12 @@ func (h *Handler) handlePrivatePendingInput(bot *tgbot.Bot, msg *models.Message)
 			_, _ = sendText(bot, msg.Chat.ID, "时间格式错误，请使用 HH:MM（24小时制），或发送“关闭”")
 			return
 		}
-		_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute))
+		view, vErr := h.service.WordCloudPanelViewByTGGroupID(pending.TGGroupID)
+		if vErr == nil {
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d（%s）", hour, minute, view.TimezoneText))
+		} else {
+			_, _ = sendText(bot, msg.Chat.ID, fmt.Sprintf("词云推送时间已设置为 %02d:%02d", hour, minute))
+		}
 		h.sendWordCloudPanel(bot, target, msg.From.ID, pending.TGGroupID)
 	case "wc_black_add":
 		words := parseWordCloudBlacklistBatch(msg.Text)

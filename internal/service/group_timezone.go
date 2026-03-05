@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"supervisor/internal/model"
 )
@@ -126,4 +127,20 @@ func formatUTCOffset(offsetMinutes int) string {
 		return fmt.Sprintf("UTC%s%d", sign, h)
 	}
 	return fmt.Sprintf("UTC%s%d:%02d", sign, h, m)
+}
+
+func timezoneLocation(offsetMinutes int) *time.Location {
+	return time.FixedZone(formatUTCOffset(offsetMinutes), offsetMinutes*60)
+}
+
+func dateKeyAtTimezone(now time.Time, offsetMinutes int) string {
+	loc := timezoneLocation(offsetMinutes)
+	return now.In(loc).Format("2006-01-02")
+}
+
+func dayStartUTCAtTimezone(now time.Time, offsetMinutes int) time.Time {
+	loc := timezoneLocation(offsetMinutes)
+	local := now.In(loc)
+	startLocal := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	return startLocal.UTC()
 }

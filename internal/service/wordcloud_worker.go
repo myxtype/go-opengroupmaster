@@ -16,7 +16,8 @@ func (s *Service) processWordCloudPush(bot *tgbot.Bot) {
 	}
 	now := time.Now()
 	for _, group := range groups {
-		ready, readyErr := s.wordCloudReadyToPush(group.ID, now)
+		currentGroup := group
+		ready, readyErr := s.wordCloudReadyToPush(&currentGroup, now)
 		if readyErr != nil || !ready {
 			continue
 		}

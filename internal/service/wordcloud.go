@@ -50,12 +50,16 @@ var wordCloudDefaultStopWords = map[string]struct{}{
 	"the": {}, "and": {}, "for": {}, "that": {}, "this": {}, "with": {}, "are": {}, "from": {}, "you": {}, "your": {}, "http": {}, "https": {}, "www": {},
 }
 
-func wordCloudDayKey(t time.Time) string {
-	return t.In(time.Local).Format("2006-01-02")
+func wordCloudDayKey(t time.Time, offsetMinutes int) string {
+	return dateKeyAtTimezone(t, offsetMinutes)
 }
 
 func (s *Service) WordCloudPanelViewByTGGroupID(tgGroupID int64) (*WordCloudPanelView, error) {
 	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return nil, err
+	}
+	offsetMinutes, err := s.groupTimezoneOffsetMinutesByGroup(group)
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +80,7 @@ func (s *Service) WordCloudPanelViewByTGGroupID(tgGroupID int64) (*WordCloudPane
 		AutoPush:       cfg.PushHour >= 0,
 		PushHour:       cfg.PushHour,
 		PushMinute:     cfg.PushMinute,
+		TimezoneText:   formatUTCOffset(offsetMinutes),
 		BlacklistCount: blacklistCount,
 	}, nil
 }
@@ -211,7 +216,11 @@ func (s *Service) collectWordCloudMessage(msg *models.Message, group *model.Grou
 		}
 		return
 	}
-	dayKey := wordCloudDayKey(time.Now())
+	offsetMinutes, tzErr := s.groupTimezoneOffsetMinutesByGroup(group)
+	if tzErr != nil {
+		return
+	}
+	dayKey := wordCloudDayKey(time.Now(), offsetMinutes)
 	if err := s.repo.AddWordCloudMessageAndTokens(group.ID, user.ID, dayKey, tokenCounts, total); err != nil && s.logger != nil {
 		s.logger.Printf("word cloud persist failed group=%d user=%d err=%v", group.ID, user.ID, err)
 	}
@@ -395,7 +404,11 @@ func (s *Service) GenerateWordCloudReportByTGGroupID(tgGroupID int64, now time.T
 	if err != nil {
 		return nil, "", "", err
 	}
-	dayKey := wordCloudDayKey(now)
+	offsetMinutes, err := s.groupTimezoneOffsetMinutesByGroup(group)
+	if err != nil {
+		return nil, "", "", err
+	}
+	dayKey := wordCloudDayKey(now, offsetMinutes)
 	wordRows, err := s.repo.ListWordCloudWordStats(group.ID, dayKey, wordCloudWordLimit)
 	if err != nil {
 		return nil, "", "", err
@@ -487,7 +500,7 @@ func (s *Service) GenerateWordCloudReportByTGGroupID(tgGroupID int64, now time.T
 	if err != nil {
 		return nil, "", "", err
 	}
-	localNow := now.In(time.Local)
+	localNow := now.In(timezoneLocation(offsetMinutes))
 	dateText := localNow.Format("2006-01-02")
 	timeText := localNow.Format("15:04")
 	lines := []string{
@@ -569,23 +582,30 @@ func (s *Service) resolveWordCloudFontFile() (string, error) {
 	return "", errors.New("未找到可用中文字体，请配置 WORDCLOUD_FONT_PATH")
 }
 
-func (s *Service) wordCloudReadyToPush(groupID uint, now time.Time) (bool, error) {
-	enabled, err := s.IsFeatureEnabled(groupID, featureWordCloud, false)
+func (s *Service) wordCloudReadyToPush(group *model.Group, now time.Time) (bool, error) {
+	if group == nil {
+		return false, errors.New("nil group")
+	}
+	enabled, err := s.IsFeatureEnabled(group.ID, featureWordCloud, false)
 	if err != nil || !enabled {
 		return false, err
 	}
-	cfg, err := s.getWordCloudConfig(groupID)
+	cfg, err := s.getWordCloudConfig(group.ID)
 	if err != nil {
 		return false, err
 	}
 	if cfg.PushHour < 0 {
 		return false, nil
 	}
-	current := now.In(time.Local)
+	offsetMinutes, err := s.groupTimezoneOffsetMinutesByGroup(group)
+	if err != nil {
+		return false, err
+	}
+	current := now.In(timezoneLocation(offsetMinutes))
 	if current.Hour() != cfg.PushHour || current.Minute() != cfg.PushMinute {
 		return false, nil
 	}
-	dayKey := wordCloudDayKey(current)
+	dayKey := wordCloudDayKey(current, offsetMinutes)
 	if cfg.LastPushDay == dayKey {
 		return false, nil
 	}

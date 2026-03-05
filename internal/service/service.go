@@ -282,6 +282,7 @@ type GroupStats struct {
 	GroupTitle            string
 	GroupID               int64
 	DayKey                string
+	TimezoneText          string
 	PointsUsersTotal      int64
 	PointsTotal           int64
 	InviteTotal           int64
@@ -484,6 +485,7 @@ type WordCloudPanelView struct {
 	AutoPush       bool
 	PushHour       int
 	PushMinute     int
+	TimezoneText   string
 	BlacklistCount int64
 }
 

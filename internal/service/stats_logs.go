@@ -14,12 +14,15 @@ func (s *Service) GroupStatsByTGGroupID(tgGroupID int64, limit int) (*GroupStats
 	if err != nil {
 		return nil, err
 	}
-	nowUTC := time.Now().UTC()
-	dayKey := pointsDayKey(nowUTC)
-	dayKey7 := pointsDayKey(nowUTC.AddDate(0, 0, -6))
-	dayKey30 := pointsDayKey(nowUTC.AddDate(0, 0, -29))
-	since7 := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -6)
-	since30 := since7.AddDate(0, 0, -23)
+	offsetMinutes, err := s.groupTimezoneOffsetMinutesByGroup(group)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	dayKey := dateKeyAtTimezone(now, offsetMinutes)
+	sinceToday := dayStartUTCAtTimezone(now, offsetMinutes)
+	since7 := sinceToday.AddDate(0, 0, -6)
+	since30 := sinceToday.AddDate(0, 0, -29)
 
 	pointsSummary, err := s.repo.SummarizeUserPoints(group.ID)
 	if err != nil {
@@ -41,27 +44,27 @@ func (s *Service) GroupStatsByTGGroupID(tgGroupID int64, limit int) (*GroupStats
 	if err != nil {
 		return nil, err
 	}
-	messageToday, err := s.repo.SummarizePointEvents(group.ID, pointsEventMessage, dayKey)
+	messageToday, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventMessage, sinceToday)
 	if err != nil {
 		return nil, err
 	}
-	checkinToday, err := s.repo.SummarizePointEvents(group.ID, pointsEventCheckin, dayKey)
+	checkinToday, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventCheckin, sinceToday)
 	if err != nil {
 		return nil, err
 	}
-	message7, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventMessage, dayKey7)
+	message7, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventMessage, since7)
 	if err != nil {
 		return nil, err
 	}
-	message30, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventMessage, dayKey30)
+	message30, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventMessage, since30)
 	if err != nil {
 		return nil, err
 	}
-	checkin7, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventCheckin, dayKey7)
+	checkin7, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventCheckin, since7)
 	if err != nil {
 		return nil, err
 	}
-	checkin30, err := s.repo.SummarizePointEventsSinceDay(group.ID, pointsEventCheckin, dayKey30)
+	checkin30, err := s.repo.SummarizePointEventsSinceTime(group.ID, pointsEventCheckin, since30)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +76,7 @@ func (s *Service) GroupStatsByTGGroupID(tgGroupID int64, limit int) (*GroupStats
 		GroupTitle:            group.Title,
 		GroupID:               group.TGGroupID,
 		DayKey:                dayKey,
+		TimezoneText:          formatUTCOffset(offsetMinutes),
 		PointsUsersTotal:      pointsSummary.UsersTotal,
 		PointsTotal:           pointsSummary.PointsTotal,
 		InviteTotal:           inviteAll.EventsTotal,

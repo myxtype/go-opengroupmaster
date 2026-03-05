@@ -149,6 +149,24 @@ func (r *Repository) SummarizePointEventsSinceDay(groupID uint, eventType, since
 	return out, nil
 }
 
+func (r *Repository) SummarizePointEventsSinceTime(groupID uint, eventType string, since time.Time) (PointEventSummary, error) {
+	if eventType == "" {
+		return PointEventSummary{}, errors.New("empty event type")
+	}
+	if since.IsZero() {
+		return PointEventSummary{}, errors.New("empty since time")
+	}
+	var out PointEventSummary
+	err := r.db.Model(&model.PointEvent{}).
+		Select("count(*) as events_total, count(distinct user_id) as users_total, coalesce(sum(delta), 0) as delta_total").
+		Where("group_id = ? and type = ? and created_at >= ?", groupID, eventType, since).
+		Scan(&out).Error
+	if err != nil {
+		return PointEventSummary{}, err
+	}
+	return out, nil
+}
+
 func (r *Repository) TopUsersByPointEventType(groupID uint, eventType string, limit int) ([]PointEventUserTotal, error) {
 	if eventType == "" {
 		return nil, errors.New("empty event type")

@@ -42,17 +42,17 @@ func TestGroupStatsByTGGroupID_WithSummary(t *testing.T) {
 	}
 
 	now := time.Now()
-	today := pointsDayKey(now)
-	yesterday := pointsDayKey(now.Add(-24 * time.Hour))
-	oldDay := pointsDayKey(now.AddDate(0, 0, -40))
+	today := dateKeyAtTimezone(now, defaultGroupTimezoneOffsetMinutes)
+	yesterday := dateKeyAtTimezone(now.Add(-24*time.Hour), defaultGroupTimezoneOffsetMinutes)
+	oldDay := dateKeyAtTimezone(now.AddDate(0, 0, -40), defaultGroupTimezoneOffsetMinutes)
 
 	events := []model.PointEvent{
-		{GroupID: group.ID, UserID: u1.ID, DayKey: today, Type: pointsEventMessage, Delta: 10},
-		{GroupID: group.ID, UserID: u1.ID, DayKey: yesterday, Type: pointsEventMessage, Delta: 5},
-		{GroupID: group.ID, UserID: u2.ID, DayKey: today, Type: pointsEventMessage, Delta: 8},
-		{GroupID: group.ID, UserID: u2.ID, DayKey: oldDay, Type: pointsEventMessage, Delta: 7},
-		{GroupID: group.ID, UserID: u1.ID, DayKey: today, Type: pointsEventCheckin, Delta: 1},
-		{GroupID: group.ID, UserID: u2.ID, DayKey: oldDay, Type: pointsEventCheckin, Delta: 1},
+		{GroupID: group.ID, UserID: u1.ID, DayKey: today, Type: pointsEventMessage, Delta: 10, CreatedAt: now},
+		{GroupID: group.ID, UserID: u1.ID, DayKey: yesterday, Type: pointsEventMessage, Delta: 5, CreatedAt: now.Add(-24 * time.Hour)},
+		{GroupID: group.ID, UserID: u2.ID, DayKey: today, Type: pointsEventMessage, Delta: 8, CreatedAt: now},
+		{GroupID: group.ID, UserID: u2.ID, DayKey: oldDay, Type: pointsEventMessage, Delta: 7, CreatedAt: now.AddDate(0, 0, -40)},
+		{GroupID: group.ID, UserID: u1.ID, DayKey: today, Type: pointsEventCheckin, Delta: 1, CreatedAt: now},
+		{GroupID: group.ID, UserID: u2.ID, DayKey: oldDay, Type: pointsEventCheckin, Delta: 1, CreatedAt: now.AddDate(0, 0, -40)},
 	}
 	for _, event := range events {
 		item := event
@@ -96,6 +96,9 @@ func TestGroupStatsByTGGroupID_WithSummary(t *testing.T) {
 
 	if stats.DayKey != today {
 		t.Fatalf("want day key %q, got %q", today, stats.DayKey)
+	}
+	if stats.TimezoneText != "UTC+8" {
+		t.Fatalf("want timezone UTC+8, got %q", stats.TimezoneText)
 	}
 	if stats.PointsUsersTotal != 2 {
 		t.Fatalf("want points users total=2, got %d", stats.PointsUsersTotal)
@@ -195,5 +198,8 @@ func TestGroupStatsByTGGroupID_EmptyGroup(t *testing.T) {
 	}
 	if stats.DayKey == "" {
 		t.Fatalf("day key should not be empty")
+	}
+	if stats.TimezoneText != "UTC+8" {
+		t.Fatalf("want timezone UTC+8, got %q", stats.TimezoneText)
 	}
 }

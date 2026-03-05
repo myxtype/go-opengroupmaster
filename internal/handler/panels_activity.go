@@ -45,12 +45,13 @@ func (h *Handler) sendWordCloudPanel(bot *tgbot.Bot, target renderTarget, tgUser
 	}
 	pushTimeText := "不自动推送"
 	if view.AutoPush {
-		pushTimeText = fmt.Sprintf("%02d:%02d", view.PushHour, view.PushMinute)
+		pushTimeText = fmt.Sprintf("%02d:%02d（%s）", view.PushHour, view.PushMinute, view.TimezoneText)
 	}
 	lines := []string{
 		"☁️ 词云统计",
 		"",
 		fmt.Sprintf("状态:%s", status),
+		fmt.Sprintf("群时区:%s", view.TimezoneText),
 		fmt.Sprintf("定时推送时间:%s", pushTimeText),
 		fmt.Sprintf("黑名单词语:%d 个", view.BlacklistCount),
 		"",
