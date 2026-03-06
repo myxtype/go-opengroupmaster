@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"supervisor/internal/model"
 	"time"
 )
 
@@ -129,7 +130,56 @@ func (s *Service) ListLogsByTGGroupID(tgGroupID int64, page, pageSize int, actio
 	if err != nil {
 		return nil, err
 	}
-	return &LogPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+	displayNames, err := s.logDisplayNamesByUserIDs(items)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]LogListItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, LogListItem{
+			ID:                  item.ID,
+			Action:              item.Action,
+			OperatorID:          item.OperatorID,
+			TargetID:            item.TargetID,
+			OperatorDisplayName: displayNames[item.OperatorID],
+			TargetDisplayName:   displayNames[item.TargetID],
+			CreatedAt:           item.CreatedAt,
+		})
+	}
+	return &LogPage{Items: out, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (s *Service) logDisplayNamesByUserIDs(items []model.Log) (map[uint]string, error) {
+	ids := make([]uint, 0, len(items)*2)
+	seen := make(map[uint]struct{}, len(items)*2)
+	for _, item := range items {
+		if item.OperatorID > 0 {
+			if _, ok := seen[item.OperatorID]; !ok {
+				seen[item.OperatorID] = struct{}{}
+				ids = append(ids, item.OperatorID)
+			}
+		}
+		if item.TargetID > 0 {
+			if _, ok := seen[item.TargetID]; !ok {
+				seen[item.TargetID] = struct{}{}
+				ids = append(ids, item.TargetID)
+			}
+		}
+	}
+	users, err := s.repo.FindUsersByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	displayNames := make(map[uint]string, len(ids))
+	for _, user := range users {
+		displayNames[user.ID] = statsDisplayName(user.Username, user.FirstName, user.LastName, user.TGUserID, user.ID)
+	}
+	for _, id := range ids {
+		if _, ok := displayNames[id]; !ok {
+			displayNames[id] = fmt.Sprintf("user:%d", id)
+		}
+	}
+	return displayNames, nil
 }
 
 func (s *Service) ExportLogsCSVByTGGroupID(tgGroupID int64, action string) (string, []byte, error) {

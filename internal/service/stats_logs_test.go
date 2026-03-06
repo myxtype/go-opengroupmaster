@@ -203,3 +203,51 @@ func TestGroupStatsByTGGroupID_EmptyGroup(t *testing.T) {
 		t.Fatalf("want timezone UTC+8, got %q", stats.TimezoneText)
 	}
 }
+
+func TestListLogsByTGGroupID_WithDisplayNames(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "logs.db")
+	repo, err := repository.New("sqlite://"+dbPath, true)
+	if err != nil {
+		t.Fatalf("new repo failed: %v", err)
+	}
+	svc := New(repo, log.New(io.Discard, "", 0), &config.Config{})
+
+	group, err := repo.UpsertGroup(&models.Chat{ID: -10003, Title: "日志测试群"})
+	if err != nil {
+		t.Fatalf("upsert group failed: %v", err)
+	}
+	operator, err := repo.UpsertUserFromTG(&models.User{ID: 201, Username: "alice"})
+	if err != nil {
+		t.Fatalf("upsert operator failed: %v", err)
+	}
+	target, err := repo.UpsertUserFromTG(&models.User{ID: 202, FirstName: "Bob", LastName: "Lee"})
+	if err != nil {
+		t.Fatalf("upsert target failed: %v", err)
+	}
+	if err := repo.CreateLog(group.ID, "mute", operator.ID, target.ID); err != nil {
+		t.Fatalf("create log failed: %v", err)
+	}
+	if err := repo.CreateLog(group.ID, "banned_word_delete", 0, target.ID); err != nil {
+		t.Fatalf("create system log failed: %v", err)
+	}
+
+	page, err := svc.ListLogsByTGGroupID(group.TGGroupID, 1, 10, "all")
+	if err != nil {
+		t.Fatalf("list logs failed: %v", err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("want 2 log items, got %d", len(page.Items))
+	}
+	if page.Items[0].OperatorDisplayName != "" {
+		t.Fatalf("want empty operator for system log, got %q", page.Items[0].OperatorDisplayName)
+	}
+	if page.Items[0].TargetDisplayName != "Bob Lee" {
+		t.Fatalf("want target display name Bob Lee, got %q", page.Items[0].TargetDisplayName)
+	}
+	if page.Items[1].OperatorDisplayName != "@alice" {
+		t.Fatalf("want operator display name @alice, got %q", page.Items[1].OperatorDisplayName)
+	}
+	if page.Items[1].TargetDisplayName != "Bob Lee" {
+		t.Fatalf("want target display name Bob Lee, got %q", page.Items[1].TargetDisplayName)
+	}
+}

@@ -233,7 +233,30 @@ func (h *Handler) sendLogPanel(bot *tgbot.Bot, target renderTarget, tgUserID, tg
 		lines = append(lines, "暂无日志")
 	}
 	for _, item := range data.Items {
-		lines = append(lines, fmt.Sprintf("#%d %s @ %s", item.ID, item.Action, item.CreatedAt.Format("2006-01-02 15:04:05")))
+		lines = append(lines, fmt.Sprintf(
+			"#%d %s | %s -> %s | %s",
+			item.ID,
+			item.Action,
+			logActorLabel(item.OperatorDisplayName),
+			logTargetLabel(item.TargetDisplayName),
+			item.CreatedAt.Format("2006-01-02 15:04:05"),
+		))
 	}
 	h.render(bot, target, strings.Join(lines, "\n"), keyboards.LogListKeyboard(tgGroupID, data.Page, totalPages, filter))
+}
+
+func logActorLabel(displayName string) string {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return "系统"
+	}
+	return name
+}
+
+func logTargetLabel(displayName string) string {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return "无目标"
+	}
+	return name
 }

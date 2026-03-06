@@ -34,6 +34,17 @@ func (r *Repository) FindUserByID(id uint) (*model.User, error) {
 	return &u, nil
 }
 
+func (r *Repository) FindUsersByIDs(ids []uint) ([]model.User, error) {
+	if len(ids) == 0 {
+		return []model.User{}, nil
+	}
+	out := make([]model.User, 0, len(ids))
+	if err := r.db.Where("id IN ?", ids).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *Repository) FindUserByUsername(username string) (*model.User, error) {
 	var u model.User
 	if err := r.db.Where("lower(username) = lower(?)", username).Order("id desc").First(&u).Error; err != nil {

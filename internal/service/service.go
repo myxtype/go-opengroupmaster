@@ -310,8 +310,18 @@ type UserScore struct {
 	Points      int
 }
 
+type LogListItem struct {
+	ID                  uint
+	Action              string
+	OperatorID          uint
+	TargetID            uint
+	OperatorDisplayName string
+	TargetDisplayName   string
+	CreatedAt           time.Time
+}
+
 type LogPage struct {
-	Items    []model.Log
+	Items    []LogListItem
 	Page     int
 	PageSize int
 	Total    int64
