@@ -67,8 +67,8 @@ func (h *Handler) handlePrivateCommand(bot *tgbot.Bot, msg *models.Message) {
 	switch messageCommand(msg) {
 	case "start":
 		args := strings.TrimSpace(messageCommandArguments(msg))
-		if strings.HasPrefix(args, "chain_") {
-			chainID64, err := strconv.ParseUint(strings.TrimPrefix(args, "chain_"), 10, 64)
+		if after, ok := strings.CutPrefix(args, "chain_"); ok {
+			chainID64, err := strconv.ParseUint(after, 10, 64)
 			if err != nil || chainID64 == 0 {
 				_, _ = sendText(bot, msg.Chat.ID, "接龙参数错误，请回到群里重新点击按钮")
 				return
@@ -353,8 +353,8 @@ func (h *Handler) resolveModerationTargetAndArg(msg *models.Message) (int64, str
 	}
 	first := strings.TrimSpace(fields[0])
 	var target int64
-	if strings.HasPrefix(first, "@") {
-		username := strings.TrimSpace(strings.TrimPrefix(first, "@"))
+	if after, ok := strings.CutPrefix(first, "@"); ok {
+		username := strings.TrimSpace(after)
 		if username == "" {
 			return 0, "", fmt.Errorf("invalid username")
 		}
@@ -402,8 +402,8 @@ func (h *Handler) resolveBlacklistTargetAndReason(msg *models.Message) (int64, s
 	target := int64(0)
 	reasonStart := 1
 	first := strings.TrimSpace(fields[0])
-	if strings.HasPrefix(first, "@") {
-		username := strings.TrimSpace(strings.TrimPrefix(first, "@"))
+	if after, ok := strings.CutPrefix(first, "@"); ok {
+		username := strings.TrimSpace(after)
 		if username == "" {
 			return 0, "", fmt.Errorf("invalid username")
 		}

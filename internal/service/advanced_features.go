@@ -36,10 +36,8 @@ func (s *Service) CanAccessFeatureByTGGroupID(tgGroupID, tgUserID int64, feature
 	if len(allowed) == 0 {
 		return true, nil
 	}
-	for _, r := range allowed {
-		if r == role {
-			return true, nil
-		}
+	if slices.Contains(allowed, role) {
+		return true, nil
 	}
 	return false, nil
 }

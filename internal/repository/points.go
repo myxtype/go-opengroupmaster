@@ -22,10 +22,7 @@ func (r *Repository) AdjustPoints(groupID, userID uint, delta int) (int, int, er
 		if err := txTx.Where("group_id = ? and user_id = ?", groupID, userID).FirstOrCreate(up).Error; err != nil {
 			return err
 		}
-		next := up.Points + delta
-		if next < 0 {
-			next = 0
-		}
+		next := max(up.Points+delta, 0)
 		applied = next - up.Points
 		up.Points = next
 		current = next

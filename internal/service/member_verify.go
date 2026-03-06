@@ -14,10 +14,10 @@ import (
 
 	"supervisor/internal/model"
 
-	"github.com/mojocn/base64Captcha"
-	"gorm.io/gorm"
 	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/mojocn/base64Captcha"
+	"gorm.io/gorm"
 )
 
 var ErrVerifyWrongAnswer = errors.New("wrong answer")

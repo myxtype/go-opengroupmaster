@@ -26,10 +26,7 @@ func (h *Handler) sendGroupsMenu(bot *tgbot.Bot, target renderTarget, tgUserID i
 		page = totalPages
 	}
 	start := (page - 1) * groupPageSize
-	end := start + groupPageSize
-	if end > len(groups) {
-		end = len(groups)
-	}
+	end := min(start+groupPageSize, len(groups))
 	current := groups[start:end]
 	text := fmt.Sprintf("请选择要管理的群组（第 %d/%d 页）：", page, totalPages)
 	h.render(bot, target, text, keyboards.GroupsKeyboard(current, page, totalPages))

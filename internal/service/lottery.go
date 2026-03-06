@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -70,12 +70,9 @@ func (s *Service) DrawActiveLotteryByTGGroupID(tgGroupID int64) ([]model.User, e
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	r.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
 
-	count := lottery.WinnersCount
-	if count > len(ids) {
-		count = len(ids)
-	}
+	count := min(lottery.WinnersCount, len(ids))
 	ids = ids[:count]
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	slices.Sort(ids)
 
 	winners := make([]model.User, 0, count)
 	for _, id := range ids {

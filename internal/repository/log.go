@@ -108,8 +108,8 @@ func applyLogActionFilter(q *gorm.DB, action string) *gorm.DB {
 	if action == "" || action == "all" {
 		return q
 	}
-	if strings.HasSuffix(action, "*") {
-		prefix := strings.TrimSuffix(action, "*")
+	if before, ok := strings.CutSuffix(action, "*"); ok {
+		prefix := before
 		return q.Where("action LIKE ?", prefix+"%")
 	}
 	return q.Where("action = ?", action)

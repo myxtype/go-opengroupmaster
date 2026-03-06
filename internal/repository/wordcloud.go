@@ -34,7 +34,7 @@ func (r *Repository) AddWordCloudMessageAndTokens(groupID, userID uint, dayKey s
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "group_id"}, {Name: "day_key"}, {Name: "user_id"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{
+			DoUpdates: clause.Assignments(map[string]any{
 				"message_count": gorm.Expr("word_cloud_daily_user_stats.message_count + ?", 1),
 				"token_count":   gorm.Expr("word_cloud_daily_user_stats.token_count + ?", tokenTotal),
 				"updated_at":    now,
@@ -55,7 +55,7 @@ func (r *Repository) AddWordCloudMessageAndTokens(groupID, userID uint, dayKey s
 			}
 			if err := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "group_id"}, {Name: "day_key"}, {Name: "user_id"}, {Name: "word"}},
-				DoUpdates: clause.Assignments(map[string]interface{}{
+				DoUpdates: clause.Assignments(map[string]any{
 					"count":      gorm.Expr("word_cloud_tokens.count + ?", count),
 					"updated_at": now,
 				}),

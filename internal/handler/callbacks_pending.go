@@ -7,30 +7,18 @@ import (
 func (h *Handler) sendPendingParentPanel(bot *tgbot.Bot, target renderTarget, userID int64, pending pendingInput) {
 	switch pending.Kind {
 	case "auto_add", "auto_add_mode", "auto_add_keyword", "auto_add_reply", "auto_add_buttons", "auto_edit", "auto_edit_mode", "auto_edit_keyword", "auto_edit_reply", "auto_edit_buttons":
-		page := pending.Page
-		if page < 1 {
-			page = 1
-		}
+		page := max(pending.Page, 1)
 		h.sendAutoReplyList(bot, target, userID, pending.TGGroupID, page)
 	case "bw_add", "bw_remove":
-		page := pending.Page
-		if page < 1 {
-			page = 1
-		}
+		page := max(pending.Page, 1)
 		h.sendBannedWordList(bot, target, userID, pending.TGGroupID, page)
 	case "lottery_create", "lottery_create_title", "lottery_create_winners", "lottery_create_keyword":
 		h.sendLotteryPanel(bot, target, userID, pending.TGGroupID)
 	case "sched_add_cron", "sched_add_content", "sched_add_buttons", "sched_add_pin":
-		page := pending.Page
-		if page < 1 {
-			page = 1
-		}
+		page := max(pending.Page, 1)
 		h.sendScheduledList(bot, target, userID, pending.TGGroupID, page)
 	case "sched_edit_text", "sched_edit_media", "sched_edit_buttons", "sched_edit_cron":
-		page := pending.Page
-		if page < 1 {
-			page = 1
-		}
+		page := max(pending.Page, 1)
 		h.sendScheduledEditPanel(bot, target, userID, pending.TGGroupID, pending.RuleID, page)
 	case "chain_create_mode", "chain_create_count", "chain_create_duration", "chain_create_intro":
 		h.sendChainPanel(bot, target, userID, pending.TGGroupID)
