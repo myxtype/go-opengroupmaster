@@ -21,11 +21,18 @@ import (
 )
 
 var ErrVerifyWrongAnswer = errors.New("wrong answer")
-var chineseCaptchaPool = []string{"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安", "全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾"}
+var chineseCaptchaPool = []string{
+	"中", "文", "验", "证", "群", "聊", "机", "器", "人", "安",
+	"全", "风", "火", "山", "海", "云", "星", "龙", "虎", "盾",
+	"光", "影", "雷", "电", "天", "地", "日", "月", "金", "木",
+	"水", "土", "春", "夏", "秋", "冬", "红", "蓝", "青", "白",
+}
 
 const (
 	verifyFailLimit          = 3
 	verifyPermanentMuteHours = 24 * 365 * 10
+	chineseCaptchaLength     = 2
+	captchaOptionCount       = 4
 )
 
 type verifyChallengeOptions struct {
@@ -611,7 +618,7 @@ func buildMathOptions(answer int) []int {
 
 func buildCaptchaOptions(answer string) []string {
 	opts := map[string]struct{}{answer: {}}
-	for len(opts) < 4 {
+	for len(opts) < captchaOptionCount {
 		v := randomDigits(4)
 		opts[v] = struct{}{}
 	}
@@ -625,8 +632,8 @@ func buildCaptchaOptions(answer string) []string {
 
 func buildChineseCaptchaOptions(answer string) []string {
 	opts := map[string]struct{}{answer: {}}
-	for len(opts) < 4 {
-		opts[chineseCaptchaPool[rand.Intn(len(chineseCaptchaPool))]] = struct{}{}
+	for len(opts) < captchaOptionCount {
+		opts[randomChineseCaptchaText(chineseCaptchaLength)] = struct{}{}
 	}
 	out := make([]string, 0, len(opts))
 	for k := range opts {
@@ -643,7 +650,7 @@ func buildChineseCaptchaImage() (string, []byte, error) {
 		240,
 		16,
 		base64Captcha.OptionShowHollowLine|base64Captcha.OptionShowSineLine,
-		1,
+		chineseCaptchaLength,
 		source,
 		nil,
 		nil,
@@ -663,6 +670,17 @@ func buildChineseCaptchaImage() (string, []byte, error) {
 		return "", nil, err
 	}
 	return strings.TrimSpace(answer), imgBytes, nil
+}
+
+func randomChineseCaptchaText(n int) string {
+	if n <= 0 {
+		n = chineseCaptchaLength
+	}
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		b.WriteString(chineseCaptchaPool[rand.Intn(len(chineseCaptchaPool))])
+	}
+	return b.String()
 }
 
 func randomDigits(n int) string {
