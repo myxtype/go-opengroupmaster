@@ -450,6 +450,9 @@ func (s *Service) handlePointsTextCommand(bot *tgbot.Bot, group *model.Group, ms
 		_, _ = bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
 			ChatID: msg.Chat.ID,
 			Text:   fmt.Sprintf("你的当前积分：%d", current),
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: msg.ID,
+			},
 		})
 		return true, nil
 	}
