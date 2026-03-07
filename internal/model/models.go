@@ -37,7 +37,7 @@ type GroupSetting struct {
 	ID         uint   `gorm:"primaryKey"`
 	GroupID    uint   `gorm:"index;not null"`
 	FeatureKey string `gorm:"index;not null"`
-	Enabled    bool   `gorm:"default:true"`
+	Enabled    bool   `gorm:"default:false"`
 	Config     string `gorm:"type:text"`
 }
 

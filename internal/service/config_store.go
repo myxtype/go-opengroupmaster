@@ -48,7 +48,7 @@ func (s *Service) readFeatureConfigEntry(groupID uint, featureKey string) (featu
 }
 
 func (s *Service) saveFeatureConfigEntry(groupID uint, featureKey string, config string) error {
-	if err := s.repo.UpsertFeatureConfig(groupID, featureKey, config); err != nil {
+	if err := s.repo.UpsertFeatureConfig(groupID, featureKey, config, defaultFeatureEnabled(featureKey)); err != nil {
 		return err
 	}
 	s.setFeatureConfigEntryCache(groupID, featureKey, featureConfigCacheEntry{
@@ -56,6 +56,15 @@ func (s *Service) saveFeatureConfigEntry(groupID uint, featureKey string, config
 		Config: config,
 	})
 	return nil
+}
+
+func defaultFeatureEnabled(featureKey string) bool {
+	switch featureKey {
+	case featureWelcome:
+		return true
+	default:
+		return false
+	}
 }
 
 func defaultWelcomeConfig() welcomeConfig {
@@ -257,7 +266,7 @@ func (s *Service) saveAntiSpamState(groupID uint, state antiSpamState) error {
 	if err != nil {
 		return err
 	}
-	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiSpam, string(b)); err != nil {
+	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiSpam, string(b), defaultFeatureEnabled(featureAntiSpam)); err != nil {
 		return err
 	}
 	s.antiSpamMu.Lock()
@@ -363,7 +372,7 @@ func (s *Service) saveAntiFloodState(groupID uint, state antiFloodState) error {
 	if err != nil {
 		return err
 	}
-	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiFlood, string(b)); err != nil {
+	if err := s.repo.UpsertFeatureConfig(groupID, featureAntiFlood, string(b), defaultFeatureEnabled(featureAntiFlood)); err != nil {
 		return err
 	}
 	s.antiFloodMu.Lock()
@@ -454,7 +463,7 @@ func (s *Service) saveNightModeState(groupID uint, state nightModeState) error {
 	if err != nil {
 		return err
 	}
-	if err := s.repo.UpsertFeatureConfig(groupID, featureNightMode, string(b)); err != nil {
+	if err := s.repo.UpsertFeatureConfig(groupID, featureNightMode, string(b), defaultFeatureEnabled(featureNightMode)); err != nil {
 		return err
 	}
 	s.nightModeMu.Lock()
