@@ -24,6 +24,14 @@ func sendTextWithEntities(bot *tgbot.Bot, chatID int64, text string, entities []
 	})
 }
 
+func sendTextWithMarkup(bot *tgbot.Bot, chatID int64, text string, markup models.InlineKeyboardMarkup) (*models.Message, error) {
+	return bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        text,
+		ReplyMarkup: markup,
+	})
+}
+
 func sendTextReply(bot *tgbot.Bot, chatID int64, replyToMessageID int, text string) (*models.Message, error) {
 	return bot.SendMessage(context.Background(), &tgbot.SendMessageParams{
 		ChatID: chatID,

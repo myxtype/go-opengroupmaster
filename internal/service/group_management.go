@@ -27,6 +27,10 @@ func (s *Service) RegisterGroupAndUser(msg *models.Message) (*model.Group, *mode
 	return group, user, nil
 }
 
+func (s *Service) RegisterGroup(chat *models.Chat) (*model.Group, error) {
+	return s.repo.UpsertGroup(chat)
+}
+
 func (s *Service) SyncGroupAdmins(bot *tgbot.Bot, group *model.Group) error {
 	if !s.tryBeginAdminSync(group.TGGroupID) {
 		return nil

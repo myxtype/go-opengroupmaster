@@ -2,6 +2,7 @@ package keyboards
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -11,10 +12,7 @@ import (
 )
 
 func MainMenuKeyboard(botUsername string) models.InlineKeyboardMarkup {
-	addToGroupURL := "https://t.me"
-	if username := strings.TrimSpace(botUsername); username != "" {
-		addToGroupURL = fmt.Sprintf("https://t.me/%s?startgroup=true", username)
-	}
+	addToGroupURL := botAddToGroupURL(botUsername)
 	return inlineKeyboardMarkup(
 		inlineKeyboardRow(
 			inlineKeyboardButtonData("📊 我的群组", cbMenuGroups),
@@ -24,6 +22,33 @@ func MainMenuKeyboard(botUsername string) models.InlineKeyboardMarkup {
 			inlineKeyboardButtonURL("➕ 拉机器人入群", addToGroupURL),
 		),
 	)
+}
+
+func GroupOnboardingKeyboard(botUsername string) models.InlineKeyboardMarkup {
+	return inlineKeyboardMarkup(
+		inlineKeyboardRow(
+			inlineKeyboardButtonURL("💬 打开机器人私聊", botPrivateStartURL(botUsername, "group_onboarding")),
+		),
+	)
+}
+
+func botAddToGroupURL(botUsername string) string {
+	username := strings.TrimSpace(botUsername)
+	if username == "" {
+		return "https://t.me"
+	}
+	return fmt.Sprintf("https://t.me/%s?startgroup=true", username)
+}
+
+func botPrivateStartURL(botUsername, payload string) string {
+	username := strings.TrimSpace(botUsername)
+	if username == "" {
+		return "https://t.me"
+	}
+	if strings.TrimSpace(payload) == "" {
+		return fmt.Sprintf("https://t.me/%s", username)
+	}
+	return fmt.Sprintf("https://t.me/%s?start=%s", username, url.QueryEscape(payload))
 }
 
 func GroupsKeyboard(groups []model.Group, page, totalPages int) models.InlineKeyboardMarkup {

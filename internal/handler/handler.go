@@ -84,6 +84,9 @@ func (h *Handler) HandleUpdate(bot *tgbot.Bot, update *models.Update) {
 	if update.ChatMember != nil {
 		h.handleChatMemberUpdate(update.ChatMember)
 	}
+	if update.MyChatMember != nil {
+		h.handleMyChatMemberUpdate(bot, update.MyChatMember)
+	}
 	if update.CallbackQuery != nil {
 		h.handleCallback(bot, update.CallbackQuery)
 	}
