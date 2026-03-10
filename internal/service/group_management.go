@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrSyncAdminsForbidden = errors.New("sync admins forbidden")
+
 func (s *Service) RegisterGroupAndUser(msg *models.Message) (*model.Group, *model.User, error) {
 	user, err := s.repo.UpsertUserFromTG(msg.From)
 	if err != nil {
@@ -32,7 +34,35 @@ func (s *Service) RegisterGroup(chat *models.Chat) (*model.Group, error) {
 }
 
 func (s *Service) SyncGroupAdmins(bot *tgbot.Bot, group *model.Group) error {
-	if !s.tryBeginAdminSync(group.TGGroupID) {
+	return s.syncGroupAdmins(bot, group, false)
+}
+
+func (s *Service) ForceSyncGroupAdminsByTGGroupID(bot *tgbot.Bot, tgGroupID, requesterTGUserID int64) error {
+	if bot == nil || tgGroupID == 0 || requesterTGUserID == 0 {
+		return errors.New("invalid force sync params")
+	}
+	group, err := s.repo.FindGroupByTGID(tgGroupID)
+	if err != nil {
+		return err
+	}
+	member, err := bot.GetChatMember(context.Background(), &tgbot.GetChatMemberParams{
+		ChatID: tgGroupID,
+		UserID: requesterTGUserID,
+	})
+	if err != nil {
+		return err
+	}
+	if member == nil || !isGroupAdminChatMember(*member) {
+		return ErrSyncAdminsForbidden
+	}
+	return s.syncGroupAdmins(bot, group, true)
+}
+
+func (s *Service) syncGroupAdmins(bot *tgbot.Bot, group *model.Group, force bool) error {
+	if bot == nil || group == nil {
+		return errors.New("invalid sync params")
+	}
+	if !s.beginAdminSync(group.TGGroupID, force) {
 		return nil
 	}
 	admins, err := bot.GetChatAdministrators(context.Background(), &tgbot.GetChatAdministratorsParams{ChatID: group.TGGroupID})
@@ -52,7 +82,7 @@ func (s *Service) SyncGroupAdmins(bot *tgbot.Bot, group *model.Group) error {
 			return err
 		}
 		role := "admin"
-		if chatMemberStatus(a) == "creator" {
+		if a.Type == models.ChatMemberTypeOwner {
 			role = "owner"
 		}
 		rows = append(rows, model.GroupAdmin{GroupID: group.ID, UserID: u.ID, Role: role})
@@ -188,13 +218,15 @@ func (s *Service) IsFeatureEnabled(groupID uint, featureKey string, defaultValue
 	return setting.Enabled, nil
 }
 
-func (s *Service) tryBeginAdminSync(tgGroupID int64) bool {
+func (s *Service) beginAdminSync(tgGroupID int64, force bool) bool {
 	now := time.Now()
 	s.adminSyncMu.Lock()
 	defer s.adminSyncMu.Unlock()
-	last, ok := s.adminSyncAt[tgGroupID]
-	if ok && now.Sub(last) < s.adminSyncEvery {
-		return false
+	if !force {
+		last, ok := s.adminSyncAt[tgGroupID]
+		if ok && now.Sub(last) < s.adminSyncEvery {
+			return false
+		}
 	}
 	s.adminSyncAt[tgGroupID] = now
 	return true
@@ -556,6 +588,10 @@ func (s *Service) SendWelcomePreviewByTGGroupID(bot *tgbot.Bot, tgGroupID, previ
 
 func chatMemberStatus(cm models.ChatMember) string {
 	return string(cm.Type)
+}
+
+func isGroupAdminChatMember(cm models.ChatMember) bool {
+	return cm.Type == models.ChatMemberTypeOwner || cm.Type == models.ChatMemberTypeAdministrator
 }
 
 func chatMemberUser(cm models.ChatMember) *models.User {

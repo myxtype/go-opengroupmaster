@@ -23,7 +23,9 @@ func (h *Handler) handleMessage(bot *tgbot.Bot, msg *models.Message) {
 	if isGroupChat(msg.Chat) || isSuperGroupChat(msg.Chat) {
 		group, _, err := h.service.RegisterGroupAndUser(msg)
 		if err == nil {
-			_ = h.service.SyncGroupAdmins(bot, group)
+			if !(isCommandMessage(msg) && messageCommand(msg) == "sync") {
+				_ = h.service.SyncGroupAdmins(bot, group)
+			}
 		}
 		// 处理系统消息清理
 		_ = h.service.HandleSystemMessageCleanup(bot, msg)
@@ -111,6 +113,16 @@ func (h *Handler) handleGroupCommand(bot *tgbot.Bot, msg *models.Message) {
 	switch messageCommand(msg) {
 	case "help":
 		_, _ = sendText(bot, msg.Chat.ID, groupHelpText())
+	case "sync":
+		if err := h.service.ForceSyncGroupAdminsByTGGroupID(bot, msg.Chat.ID, msg.From.ID); err != nil {
+			if errors.Is(err, svc.ErrSyncAdminsForbidden) {
+				_, _ = sendText(bot, msg.Chat.ID, "仅群管理员可执行该命令")
+				return
+			}
+			_, _ = sendText(bot, msg.Chat.ID, "同步管理员失败")
+			return
+		}
+		_, _ = sendText(bot, msg.Chat.ID, "已立即同步群管理员")
 	case "wordcloud":
 		ok, err := h.service.IsAdminByTGGroupID(msg.Chat.ID, msg.From.ID)
 		if err != nil || !ok {
@@ -1719,6 +1731,7 @@ func privateHelpText() string {
 		"/lottery_create 标题|人数|口令 - 创建抽奖",
 		"/lottery_draw - 立即开奖",
 		"/wordcloud - 立即生成今日词云（管理员）",
+		"/sync - 立即同步群管理员权限（管理员，无冷却）",
 		"/link - 生成专属邀请链接并查看邀请统计",
 		"/black_add @用户名 原因(可选) - 加入本群黑名单（管理员）",
 		"/black_remove @用户名 - 移除本群黑名单（管理员）",
@@ -1743,6 +1756,7 @@ func groupHelpText() string {
 		"/lottery_create 标题|人数|口令 - 创建抽奖（口令可省略，默认“参加”）",
 		"/lottery_draw - 立即开奖",
 		"/wordcloud - 立即生成今日词云（管理员）",
+		"/sync - 立即同步群管理员权限（管理员，无冷却）",
 		"/link - 生成专属邀请链接并查看邀请统计",
 		"发送“签到” - 每日签到获取积分（可配置）",
 		"发送“积分” - 查询个人积分（可配置）",
