@@ -5,8 +5,8 @@ import (
 	"unicode/utf8"
 )
 
-func TestBuildChineseCaptchaOptionsUsesTwoCharacters(t *testing.T) {
-	answer := "中文"
+func TestBuildChineseCaptchaOptionsUsesConfiguredLength(t *testing.T) {
+	answer := "中"
 
 	options := buildChineseCaptchaOptions(answer)
 

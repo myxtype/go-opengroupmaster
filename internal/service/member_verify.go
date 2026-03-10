@@ -31,7 +31,7 @@ var chineseCaptchaPool = []string{
 const (
 	verifyFailLimit          = 3
 	verifyPermanentMuteHours = 24 * 365 * 10
-	chineseCaptchaLength     = 2
+	chineseCaptchaLength     = 1
 	captchaOptionCount       = 4
 )
 
